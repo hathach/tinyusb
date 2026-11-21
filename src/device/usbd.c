@@ -148,6 +148,11 @@ CFG_TUD_MEM_SECTION static struct {
   TUD_EPBUF_DEF(buf, CFG_TUD_ENDPOINT0_BUFSIZE);
 } _ctrl_epbuf;
 
+// A data stage chunk is armed into this buffer: a controller (e.g. dwc2) accepts a full EP0 packet whatever the chunk has
+// left, so the buffer must hold whole packets
+TU_VERIFY_STATIC(CFG_TUD_ENDPOINT0_BUFSIZE % CFG_TUD_ENDPOINT0_SIZE == 0,
+                 "CFG_TUD_ENDPOINT0_BUFSIZE must be a multiple of CFG_TUD_ENDPOINT0_SIZE");
+
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+

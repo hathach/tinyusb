@@ -37,13 +37,19 @@
 #define BUF_COUNT   4
 
 
-// buffers handed to the stack for usb transfers: in USB/DMA memory with the host controller's alignment
-CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN tusb_desc_device_t desc_device;
+// device descriptor, copied out of temp_buf
+static tusb_desc_device_t desc_device;
 
+// buffers handed to the stack for usb transfers: in USB/DMA memory with the host controller's alignment
 CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint8_t buf_pool[BUF_COUNT][64];
 uint8_t buf_owner[BUF_COUNT] = { 0 }; // device address that owns buffer
 
-CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN uint16_t temp_buf[128]; // temp buffer for string descriptor
+// temp buffer for device, string and configuration descriptors: a control IN buffer holds whole 64-byte packets
+// (TUH_CTRL_BUFSIZE)
+CFG_TUH_MEM_SECTION CFG_TUH_MEM_ALIGN union {
+  tusb_desc_device_t device;
+  uint16_t str[128];
+} temp_buf;
 
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF PROTYPES
@@ -122,10 +128,11 @@ void print_devinfo_task(void) {
 
 static void print_one_device(uint8_t daddr) {
   // Get Device Descriptor
-  if (XFER_RESULT_SUCCESS != tuh_descriptor_get_device_sync(daddr, &desc_device, 18)) {
+  if (XFER_RESULT_SUCCESS != tuh_descriptor_get_device_sync(daddr, &temp_buf.device, 18)) {
     printf("Failed to get device descriptor\r\n");
     return;
   }
+  desc_device = temp_buf.device;
 
   printf("Device %u: ID %04x:%04x\r\n", daddr, desc_device.idVendor, desc_device.idProduct);
   printf("Device Descriptor:\r\n");
@@ -141,28 +148,28 @@ static void print_one_device(uint8_t daddr) {
   printf("  bcdDevice           %04x\r\n"   , desc_device.bcdDevice);
 
   printf("  iManufacturer       %u     ", desc_device.iManufacturer);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf))) {
-    print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(daddr, LANGUAGE_ID, temp_buf.str, sizeof(temp_buf.str))) {
+    print_utf16(temp_buf.str, TU_ARRAY_SIZE(temp_buf.str));
   }
   printf("\r\n");
 
   printf("  iProduct            %u     ", desc_device.iProduct);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf))) {
-    print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(daddr, LANGUAGE_ID, temp_buf.str, sizeof(temp_buf.str))) {
+    print_utf16(temp_buf.str, TU_ARRAY_SIZE(temp_buf.str));
   }
   printf("\r\n");
 
   printf("  iSerialNumber       %u     ", desc_device.iSerialNumber);
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, temp_buf, sizeof(temp_buf))) {
-    print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_serial_string_sync(daddr, LANGUAGE_ID, temp_buf.str, sizeof(temp_buf.str))) {
+    print_utf16(temp_buf.str, TU_ARRAY_SIZE(temp_buf.str));
   }
   printf("\r\n");
 
   printf("  bNumConfigurations  %u\r\n", desc_device.bNumConfigurations);
 
   // Get configuration descriptor with sync API
-  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_configuration_sync(daddr, 0, temp_buf, sizeof(temp_buf))) {
-    parse_config_descriptor(daddr, (tusb_desc_configuration_t *) temp_buf);
+  if (XFER_RESULT_SUCCESS == tuh_descriptor_get_configuration_sync(daddr, 0, temp_buf.str, sizeof(temp_buf.str))) {
+    parse_config_descriptor(daddr, (tusb_desc_configuration_t *) temp_buf.str);
   }
 }
 

@@ -128,12 +128,20 @@ typedef union TU_ATTR_PACKED {
   uint8_t data[CFG_TUD_NCM_IN_NTB_MAX_SIZE];
 } xmit_ntb_t;
 
+// A controller that writes a full packet whatever the transfer has left (TUP_DCD_EDPT_OUT_WHOLE_PACKET, e.g. dwc2 DMA)
+// receives into a buffer of whole packets, so a host sending past dwNtbOutMaxSize stays inside it
+#if TUP_DCD_EDPT_OUT_WHOLE_PACKET
+  #define NCM_RECV_NTB_BUFSIZE TU_ROUND_UP(CFG_TUD_NCM_OUT_NTB_MAX_SIZE, TUD_EPSIZE_BULK_MAX)
+#else
+  #define NCM_RECV_NTB_BUFSIZE CFG_TUD_NCM_OUT_NTB_MAX_SIZE
+#endif
+
 typedef union TU_ATTR_PACKED {
   struct {
     nth16_t nth;
     // only the header is at a guaranteed position
   };
-  uint8_t data[CFG_TUD_NCM_OUT_NTB_MAX_SIZE];
+  uint8_t data[NCM_RECV_NTB_BUFSIZE];
 } recv_ntb_t;
 
 typedef struct {

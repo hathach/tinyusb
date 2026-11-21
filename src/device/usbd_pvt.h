@@ -67,6 +67,10 @@ bool usbd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
 void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr);
 
 // Submit a usb transfer
+// OUT: with TUP_DCD_EDPT_OUT_WHOLE_PACKET (e.g. dwc2 DMA, samd) the controller writes a full packet whatever the
+// transfer has left: the buffer must hold total_bytes rounded up to the packet size (EP0 goes to the usbd control
+// buffer, which does), or a host sending more than armed writes past it. Other controllers cut a longer packet to the
+// transfer.
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr);
 
 // Submit a usb ISO transfer by use of a FIFO (ring buffer) - all bytes in FIFO get transmitted

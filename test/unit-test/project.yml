@@ -1,4 +1,4 @@
-# =========================================================================
+﻿# =========================================================================
 #   Ceedling - Test-Centered Build System for C
 #   ThrowTheSwitch.org
 #   Copyright (c) 2010-25 Mike Karlesky, Mark VanderVoord, & Greg Williams
@@ -190,6 +190,9 @@
       - CFG_TUH_ENABLED=1
       - CFG_TUH_MSC=1
       - CFG_TUSB_DEBUG=0
+      - CFG_TUH_MAX_SPEED=OPT_MODE_HIGH_SPEED # the test's bulk endpoints are 512 bytes
+      - CFG_TUH_DEVICE_MAX=2 # a second MSC device
+      - TUP_HCD_EDPT_IN_WHOLE_PACKET=1 # whole-packet IN through the endpoint buffer (e.g. dwc2 DMA)
     :test_hub_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_HUB=2

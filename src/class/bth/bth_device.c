@@ -138,14 +138,19 @@ uint16_t btd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16_
                                 &_btd_itf.ep_acl_in),
             0);
 
-  // Save acl in endpoint max packet size
-  tusb_desc_endpoint_t const *desc_ep_acl_in = desc_ep;
+  // Save acl in endpoint max packet size. The acl out transfer is the whole buffer, CFG_TUD_BTH_DATA_EPSIZE, which must
+  // be whole packets of the endpoint: else a full last packet writes past the buffer on a controller that stores whole
+  // packets (TUP_DCD_EDPT_OUT_WHOLE_PACKET), and is cut short, losing data, on the others. Failing here fails the open,
+  // so SET_CONFIGURATION stalls
+  tusb_desc_endpoint_t const *desc_ep_acl = desc_ep;
   for (size_t p = 0; p < 2; p++) {
-    if (tu_edpt_dir(desc_ep_acl_in->bEndpointAddress) == TUSB_DIR_IN) {
-      _btd_itf.ep_acl_in_pkt_sz = tu_edpt_packet_size(desc_ep_acl_in);
-      break;
+    uint16_t const ep_mps = tu_edpt_packet_size(desc_ep_acl);
+    if (tu_edpt_dir(desc_ep_acl->bEndpointAddress) == TUSB_DIR_IN) {
+      _btd_itf.ep_acl_in_pkt_sz = ep_mps;
+    } else {
+      TU_ASSERT(TUD_VALIDATE_BASIC(ep_mps > 0 && (CFG_TUD_BTH_DATA_EPSIZE % ep_mps) == 0), 0);
     }
-    desc_ep_acl_in = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep_acl_in);
+    desc_ep_acl = (tusb_desc_endpoint_t const *) tu_desc_next(desc_ep_acl);
   }
 
   itf_desc = (tusb_desc_interface_t const *) tu_desc_next(tu_desc_next(desc_ep));

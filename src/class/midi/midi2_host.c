@@ -245,8 +245,11 @@ static const uint8_t* midih2_parse_descriptors_alt0(midih2_interface_t *p_midi,
       case TUSB_DESC_ENDPOINT: {
         const tusb_desc_endpoint_t *p_ep = (const tusb_desc_endpoint_t *) p_desc;
 
-        // tuh_edpt_open() bounds bulk to TUH_EPSIZE_BULK_MAX, interrupt and isochronous can still exceed _midi2_epbuf
-        TU_VERIFY(p_ep->bmAttributes.xfer == TUSB_XFER_BULK || tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX,
+        // tuh_edpt_open() bounds bulk to TUH_EPSIZE_BULK_MAX, interrupt and isochronous can still exceed _midi2_epbuf,
+        // or, for IN, not be the power of 2 the receive stream needs
+        TU_VERIFY(p_ep->bmAttributes.xfer == TUSB_XFER_BULK ||
+                    (tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX &&
+                     (tu_edpt_dir(p_ep->bEndpointAddress) == TUSB_DIR_OUT || tu_is_power_of_two(tu_edpt_packet_size(p_ep)))),
                   NULL);
         TU_ASSERT(tuh_edpt_open(p_midi->daddr, p_ep), NULL);
         // kept as opened, after tuh_edpt_open() which can rewrite a bulk size, to restore it (midih2_alt0_reopen)
@@ -320,8 +323,11 @@ static bool midih2_parse_alt1_endpoint(midih2_interface_t *p_midi, const tusb_de
     return true;
   }
 
-  // a bulk size is bounded after the open, which can rewrite it
-  TU_VERIFY(type == TUSB_XFER_BULK || tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX);
+  // a bulk size is bounded after the open, which can rewrite it. An Interrupt IN one must also be the power of 2 the
+  // receive stream needs, else the device stays on setting 0; OUT sends whole UMPs of any size (_tuh_tx_start_xfer)
+  TU_VERIFY(type == TUSB_XFER_BULK ||
+            (tu_edpt_packet_size(p_ep) <= TUH_EPSIZE_BULK_MAX &&
+             (dir == TUSB_DIR_OUT || tu_is_power_of_two(tu_edpt_packet_size(p_ep)))));
   alt1_ep->desc = *p_ep;
 
   if (ep_addr == alt0_ep->bEndpointAddress) {
