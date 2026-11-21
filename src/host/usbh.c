@@ -1028,6 +1028,23 @@ static void control_xfer_sync_complete(tuh_xfer_t* xfer) {
   s->result     = xfer->result;
 }
 
+// Caller holds _usbh_mutex. False once control_xfer_complete() has captured the sync cb (slot released or reclaimed):
+// it then writes sync_state, and the slot is no longer the caller's to submit or retire.
+TU_ATTR_ALWAYS_INLINE static inline bool control_xfer_sync_owns_slot(const usbh_ctrl_xfer_info_t* ctrl_info,
+                                                                     const volatile control_xfer_sync_param_t* sync_state) {
+  return ctrl_info->stage != CONTROL_STAGE_IDLE && ctrl_info->user_data == (uintptr_t) sync_state;
+}
+
+static void control_xfer_sync_wait(const volatile control_xfer_sync_param_t* sync_state) {
+  while (sync_state->result == XFER_RESULT_INVALID) {
+#if CFG_TUSB_OS_HAS_SCHEDULER
+    osal_task_delay(1);
+#else
+    (void) usbh_task_run(0, false, false);
+#endif
+  }
+}
+
 // TODO timeout_ms is not supported yet
 bool tuh_control_xfer (tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
@@ -1056,6 +1073,9 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
   // that becomes IDLE between the check and the enqueue can't strand an async
   // request in a queue nothing else drains.
   const bool is_nonblocking = (xfer->complete_cb != NULL);
+  volatile control_xfer_sync_param_t sync_state;
+  sync_state.result = XFER_RESULT_INVALID;
+  sync_state.actual_len = 0;
   while (true) {
     TU_VERIFY(tuh_connected(daddr));
     bool claimed = false;
@@ -1070,8 +1090,9 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
       ctrl_info->failed_count = 0;
 
       ctrl_info->buffer       = xfer->buffer;
-      ctrl_info->complete_cb  = xfer->complete_cb;
-      ctrl_info->user_data    = xfer->user_data;
+      // Sync: the cb is in the slot from the claim on, so a removal before submit completes this xfer
+      ctrl_info->complete_cb  = is_nonblocking ? xfer->complete_cb : control_xfer_sync_complete;
+      ctrl_info->user_data    = is_nonblocking ? xfer->user_data : (uintptr_t) &sync_state;
       _usbh_epbuf.request     = (*xfer->setup);
       claimed = true;
     } else if (is_nonblocking) {
@@ -1110,18 +1131,30 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
                   tu_str_std_request[xfer->setup->bRequest] : "Class Request");
   TU_LOG_BUF_USBH(xfer->setup, 8);
 
-  // Sync: wire control_xfer_sync_complete BEFORE submit so a fast completion
-  // event has the cb in place. control_xfer_complete() captures both result
-  // and actual_len through this cb before release_slot overwrites ctrl_info.
-  volatile control_xfer_sync_param_t sync_state;
   if (!is_nonblocking) {
-    sync_state.result = XFER_RESULT_INVALID;
-    sync_state.actual_len = 0;
-    ctrl_info->user_data   = (uintptr_t) &sync_state;
-    ctrl_info->complete_cb = control_xfer_sync_complete;
-  }
-
-  if (!hcd_setup_send(usbh_get_rhport(daddr), daddr, (uint8_t const *) &_usbh_epbuf.request)) {
+    // Check, submit and retire in one critical section, so a close cannot complete this xfer nor a reclaim overwrite
+    // _usbh_epbuf.request before the SETUP is out. No hcd_setup_send() locks _usbh_mutex (non-recursive).
+    // A removal since the claim has completed this xfer through control_xfer_complete(): fail like a device
+    // already gone, once its cb has run, without submitting to a closed device or touching a reclaimed slot.
+    (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+    const bool sent = control_xfer_sync_owns_slot(ctrl_info, &sync_state) &&
+                      hcd_setup_send(usbh_get_rhport(daddr), daddr, (uint8_t const *) &_usbh_epbuf.request);
+    // Retire the slot only while it is still ours, clearing the cb so a late control_xfer_complete() cannot write
+    // this frame's sync_state once it is gone; otherwise that cb is already running or done.
+    const bool retired = !sent && control_xfer_sync_owns_slot(ctrl_info, &sync_state);
+    if (retired) {
+      ctrl_info->stage       = CONTROL_STAGE_IDLE;
+      ctrl_info->complete_cb = NULL;
+      ctrl_info->user_data   = 0;
+    }
+    (void) osal_mutex_unlock(_usbh_mutex);
+    if (!sent) {
+      if (!retired) {
+        control_xfer_sync_wait(&sync_state);
+      }
+      return false;
+    }
+  } else if (!hcd_setup_send(usbh_get_rhport(daddr), daddr, (uint8_t const *) &_usbh_epbuf.request)) {
     control_xfer_set_stage(CONTROL_STAGE_IDLE);
     return false;
   }
@@ -1136,13 +1169,7 @@ bool tuh_control_xfer (tuh_xfer_t* xfer) {
     // No tuh_connected() escape needed: usbh_device_close() routes through
     // control_xfer_complete(daddr, FAILED) on disconnect, which fires
     // sync_complete and unblocks this poll.
-    while (sync_state.result == XFER_RESULT_INVALID) {
-#if CFG_TUSB_OS_HAS_SCHEDULER
-      osal_task_delay(1);
-#else
-      (void) usbh_task_run(0, false, false);
-#endif
-    }
+    control_xfer_sync_wait(&sync_state);
 
     // Forward to caller (xfer->user_data, if set, is a xfer_result_t pointer).
     if (xfer->user_data != 0) {
@@ -1206,20 +1233,29 @@ static void control_xfer_complete(uint8_t daddr, xfer_result_t result) {
   usbh_ctrl_xfer_info_t* ctrl_info = &_usbh_data.ctrl_xfer_info;
 
   // duplicate xfer since user can execute control transfer within callback
-  tusb_control_request_t const request = _usbh_epbuf.request;
+  tusb_control_request_t request;
   tuh_xfer_t xfer_temp = {
     .daddr       = daddr,
     .ep_addr     = 0,
     .result      = result,
-    .setup       = &request,
-    .actual_len  = (uint32_t) ctrl_info->actual_len,
-    .buffer      = ctrl_info->buffer,
-    .complete_cb = ctrl_info->complete_cb,
-    .user_data   = ctrl_info->user_data
+    .setup       = &request
   };
 
-  // set to IDLE before callback since cb can invoke another transfer
-  control_xfer_set_stage(CONTROL_STAGE_IDLE);
+  // Snapshot and set IDLE (before callback since cb can invoke another transfer) in one critical section: a sync
+  // caller in tuh_control_xfer() tells from the slot under the mutex whether its cb has been captured.
+  (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  // A caller's unlocked check can go stale: the slot retired by a sync caller, or reclaimed for another device
+  if (ctrl_info->stage == CONTROL_STAGE_IDLE || ctrl_info->daddr != daddr) {
+    (void) osal_mutex_unlock(_usbh_mutex);
+    return;
+  }
+  request               = _usbh_epbuf.request;
+  xfer_temp.actual_len  = (uint32_t) ctrl_info->actual_len;
+  xfer_temp.buffer      = ctrl_info->buffer;
+  xfer_temp.complete_cb = ctrl_info->complete_cb;
+  xfer_temp.user_data   = ctrl_info->user_data;
+  ctrl_info->stage      = CONTROL_STAGE_IDLE;
+  (void) osal_mutex_unlock(_usbh_mutex);
 
   if (xfer_temp.complete_cb != NULL) {
     xfer_temp.complete_cb(&xfer_temp);
