@@ -2125,6 +2125,16 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t * 
   }
 #endif
 
+#if CFG_TUH_DWC2_DMA_ENABLE
+  // Buffer DMA writes a full IN packet whatever the transfer has left: one that is not whole packets is not guaranteed,
+  // a device answering more than asked writes past the buffer (TUP_HCD_EDPT_IN_WHOLE_PACKET). A control IN cannot be
+  // checked here: its buffer must hold wLength rounded up to 64 bytes (TUH_CTRL_BUFSIZE)
+  if (ep_num != 0 && ep_dir == TUSB_DIR_IN && edpt->hcchar_bm.ep_size != 0 && (buflen % edpt->hcchar_bm.ep_size) != 0 &&
+      dma_host_enabled(dwc2)) {
+    TU_LOG1("  WARN: EP %02X IN transfer of %u bytes is not whole packets\r\n", ep_addr, buflen);
+  }
+#endif
+
   edpt->buffer = buffer;
   edpt->buflen = buflen;
   edpt->periodic_err = 0; // idle endpoint: the ISR does not write this word

@@ -600,6 +600,13 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t dev_addr, uint8_t ep_addr, uint8_t* b
 
   // prepare transfer
   pipe_status = &usb_pipe_status_table[pipe];
+  // an IN packet is written in full: a transfer that is not whole packets is not guaranteed, a device answering more
+  // than asked writes past the buffer (TUP_HCD_EDPT_IN_WHOLE_PACKET). A control IN cannot be checked here: its buffer
+  // must hold wLength rounded up to 64 bytes (TUH_CTRL_BUFSIZE)
+  if (tu_edpt_dir(ep_addr) == TUSB_DIR_IN && tu_edpt_number(ep_addr) != 0 && pipe_status->max_packet_size != 0 &&
+      (buflen % pipe_status->max_packet_size) != 0) {
+    TU_LOG1("  WARN: EP %02X IN transfer of %u bytes is not whole packets\r\n", ep_addr, buflen);
+  }
   usb_pipe_table[pipe].HostDescBank[0].ADDR.reg = (uint32_t) buffer;
   pipe_status->xfer_remaining = buflen;
   pipe_status->xfer_length = 0;
