@@ -69,6 +69,19 @@ static vendord_interface_t _vendord_itf[CFG_TUD_VENDOR];
 
 // Skip local EP buffer if dedicated hw FIFO is supported or no fifo mode
 #if CFG_TUD_EDPT_DEDICATED_HWFIFO == 0 || !CFG_TUD_VENDOR_TXRX_BUFFERED
+  #define VENDORD_HAS_EPBUF 1
+#else
+  #define VENDORD_HAS_EPBUF 0
+#endif
+
+// Whether a bulk OUT endpoint fits the RAM buffer it receives into: the whole buffer is armed with
+// CFG_TUD_VENDOR_RX_NEED_ZLP, else one packet (dwc2 accepts a full packet whatever the transfer has left)
+TU_ATTR_ALWAYS_INLINE static inline bool vendord_rx_buf_fits(const tusb_desc_endpoint_t *desc_ep) {
+  return TUD_VALIDATE_BASIC(!VENDORD_HAS_EPBUF || tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN ||
+                            tu_edpt_rx_buf_fits(desc_ep, CFG_TUD_VENDOR_RX_EPSIZE, CFG_TUD_VENDOR_RX_NEED_ZLP));
+}
+
+#if VENDORD_HAS_EPBUF
 typedef struct {
   TUD_EPBUF_DEF(epout, CFG_TUD_VENDOR_RX_EPSIZE);
   TUD_EPBUF_DEF(epin, CFG_TUD_VENDOR_TX_EPSIZE);
@@ -722,6 +735,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       } else {
         switch (xfer) {
           case TUSB_XFER_BULK:
+            TU_ASSERT(vendord_rx_buf_fits(desc_ep), 0);
             TU_ASSERT(usbd_edpt_open(rhport, desc_ep), 0);
             break;
 
@@ -828,6 +842,7 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
       }
   #endif
 
+      TU_ASSERT(vendord_rx_buf_fits(desc_ep), 0);
       TU_ASSERT(usbd_edpt_open(rhport, desc_ep));
 
       uint16_t rx_xfer_len = CFG_TUD_VENDOR_RX_NEED_ZLP ? CFG_TUD_VENDOR_RX_EPSIZE : tu_edpt_packet_size(desc_ep);
@@ -846,12 +861,12 @@ uint16_t vendord_open(uint8_t rhport, const tusb_desc_interface_t *desc_itf, uin
     #endif
       }
   #else
-      p_vendor->rx_xfer_len = rx_xfer_len;
       // Non-FIFO mode: store endpoint info
       if (tu_edpt_dir(desc_ep->bEndpointAddress) == TUSB_DIR_IN) {
         p_vendor->ep_in     = desc_ep->bEndpointAddress;
       } else {
         p_vendor->ep_out     = desc_ep->bEndpointAddress;
+        p_vendor->rx_xfer_len = rx_xfer_len; // the OUT endpoint's: an IN endpoint opened later must not replace it
     #if CFG_TUD_VENDOR_RX_MANUAL_XFER == 0
         // Prepare for incoming data
         TU_ASSERT(usbd_edpt_xfer(rhport, p_vendor->ep_out, _vendord_epbuf[idx].epout, rx_xfer_len, false), 0);

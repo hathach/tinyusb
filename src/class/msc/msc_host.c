@@ -49,6 +49,9 @@ typedef struct {
   bool desync; // a stage failed to submit: the device is mid-command until Reset Recovery or re-enumeration
   void* buffer;
   uint32_t data_xferred;
+  uint16_t bounce_len; // != 0: the transfer in flight is a data tail received into the endpoint buffer
+  uint16_t ep_in_mps;
+  msc_cbw_t cbw; // the command in flight, kept from the endpoint buffer once sent: the CSW and a tail reuse it
   union { // a command and a recovery never run together
     tuh_msc_complete_cb_t complete_cb;
     tuh_msc_reset_cb_t reset_cb;
@@ -65,9 +68,22 @@ typedef struct {
 // a value of 256 would cast back to 0 and report no LUNs at all.
 TU_VERIFY_STATIC(CFG_TUH_MSC_MAXLUN <= 255, "CFG_TUH_MSC_MAXLUN must fit in a uint8_t LUN count");
 
+// A host controller that writes a full IN packet whatever the transfer has left (TUP_HCD_EDPT_IN_WHOLE_PACKET, e.g.
+// dwc2 DMA) takes IN transfers of whole packets only: what is not a whole packet (the CSW, a data stage tail such as a
+// 36-byte INQUIRY) is received as one into the endpoint buffer, and a tail is copied out. Other controllers cut a
+// longer packet to the transfer
+#define MSCH_BOUNCE TUP_HCD_EDPT_IN_WHOLE_PACKET
+
+// Each device's endpoint buffer: the CBW is sent from it, then the CSW (and with MSCH_BOUNCE a data tail) is received
+// into it. One stage runs at a time, so they share it
+typedef union {
+  msc_cbw_t cbw;
+  msc_csw_t csw;
+  uint8_t   buf[MSCH_BOUNCE ? TUH_EPSIZE_BULK_MAX : sizeof(msc_cbw_t)];
+} msch_epbuf_data_t;
+
 typedef struct {
-  TUH_EPBUF_TYPE_DEF(msc_cbw_t, cbw);
-  TUH_EPBUF_TYPE_DEF(msc_csw_t, csw);
+  TUH_EPBUF_TYPE_DEF(msch_epbuf_data_t, u);
 } msch_epbuf_t;
 
 static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
@@ -87,23 +103,48 @@ TU_ATTR_ALWAYS_INLINE static inline msch_epbuf_t* get_epbuf(uint8_t daddr) {
 // a multiple of every bulk max packet size so that only the last one can end short
 #define MSCH_DATA_XFER_MAX 0xFC00u
 
+// data bytes the next data stage transfer is for: whole IN packets go to the caller's buffer, a shorter IN tail
+// through the endpoint buffer
+static uint16_t data_xfer_len(const msch_interface_t* p_msc, const msc_cbw_t* cbw) {
+  const uint16_t len = (uint16_t) tu_min32(cbw->total_bytes - p_msc->data_xferred, MSCH_DATA_XFER_MAX);
+  const uint16_t mps = p_msc->ep_in_mps;
+  if (!MSCH_BOUNCE || (cbw->dir & TUSB_DIR_IN_MASK) == 0 || len < mps) {
+    return len;
+  }
+  return (uint16_t) (len - (len % mps));
+}
+
 static bool data_stage_xfer(uint8_t daddr, msch_interface_t* p_msc, const msc_cbw_t* cbw) {
-  const uint8_t  ep_data = (cbw->dir & TUSB_DIR_IN_MASK) ? p_msc->ep_in : p_msc->ep_out;
-  const uint16_t len     = (uint16_t) tu_min32(cbw->total_bytes - p_msc->data_xferred, MSCH_DATA_XFER_MAX);
+  const bool is_in   = (cbw->dir & TUSB_DIR_IN_MASK) != 0;
+  const uint8_t ep_data = is_in ? p_msc->ep_in : p_msc->ep_out;
+  const uint16_t len = data_xfer_len(p_msc, cbw);
+
+  p_msc->bounce_len = 0;
+  if (MSCH_BOUNCE && is_in && len < p_msc->ep_in_mps) {
+    // a tail shorter than a packet: one whole packet into the endpoint buffer
+    p_msc->bounce_len = len;
+    return usbh_edpt_xfer(daddr, ep_data, get_epbuf(daddr)->u.buf, p_msc->ep_in_mps);
+  }
   return usbh_edpt_xfer(daddr, ep_data, (uint8_t*) p_msc->buffer + p_msc->data_xferred, len);
 }
 
-static bool status_stage_xfer(uint8_t daddr, msch_interface_t* p_msc, msc_csw_t* csw) {
+static bool status_stage_xfer(uint8_t daddr, msch_interface_t* p_msc) {
   p_msc->stage = MSC_STAGE_STATUS;
-  return usbh_edpt_xfer(daddr, p_msc->ep_in, (uint8_t*) csw, (uint16_t) sizeof(msc_csw_t));
+  // the CSW into the endpoint buffer, where msch_xfer_cb() reads it: in whole packets (one packet, or 2 of 8 bytes)
+  // with MSCH_BOUNCE
+  const uint16_t len = MSCH_BOUNCE ? (uint16_t) tu_round_up(sizeof(msc_csw_t), p_msc->ep_in_mps)
+                                   : (uint16_t) sizeof(msc_csw_t);
+  return usbh_edpt_xfer(daddr, p_msc->ep_in, get_epbuf(daddr)->u.buf, len);
 }
 
 static void scsi_command_complete(uint8_t daddr, msch_interface_t* p_msc, const msc_cbw_t* cbw, const msc_csw_t* csw) {
   p_msc->stage = MSC_STAGE_IDLE;
   if (p_msc->complete_cb != NULL) {
+    // the callback may submit the next command, whose CBW goes into the endpoint buffer holding this CSW
+    const msc_csw_t csw_copy = *csw;
     tuh_msc_complete_data_t const cb_data = {
         .cbw = cbw,
-        .csw = csw,
+        .csw = &csw_copy,
         .scsi_data = p_msc->buffer,
         .user_arg = p_msc->complete_arg
     };
@@ -181,14 +222,14 @@ bool tuh_msc_scsi_command(uint8_t daddr, msc_cbw_t const* cbw, void* data,
   }
   msch_epbuf_t* epbuf = get_epbuf(daddr);
 
-  epbuf->cbw = *cbw;
+  epbuf->u.cbw = *cbw;
   p_msc->buffer = data;
   p_msc->complete_cb = complete_cb;
   p_msc->complete_arg = arg;
   p_msc->data_xferred = 0;
   p_msc->stage = MSC_STAGE_CMD;
 
-  if (!usbh_edpt_xfer(daddr, p_msc->ep_out, (uint8_t*) &epbuf->cbw, sizeof(msc_cbw_t))) {
+  if (!usbh_edpt_xfer(daddr, p_msc->ep_out, epbuf->u.buf, sizeof(msc_cbw_t))) {
     (void) usbh_edpt_release(daddr, p_msc->ep_out);
     p_msc->stage = MSC_STAGE_IDLE;
     return false;
@@ -466,13 +507,15 @@ void msch_close(uint8_t dev_addr) {
 bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32_t xferred_bytes) {
   msch_interface_t* p_msc = get_itf(dev_addr);
   msch_epbuf_t* epbuf = get_epbuf(dev_addr);
-  msc_cbw_t const * cbw = &epbuf->cbw;
-  msc_csw_t       * csw = &epbuf->csw;
+  msc_cbw_t const * cbw = &p_msc->cbw;
+  msc_csw_t* csw = &epbuf->u.csw; // the CSW is received into, and stays in, the endpoint buffer
 
   bool submitted = true;
 
   switch (p_msc->stage) {
     case MSC_STAGE_CMD:
+      // keep the CBW sent: the data tail and the CSW are received into the same buffer
+      p_msc->cbw = epbuf->u.cbw;
       // Must be Command Block
       if (!(ep_addr == p_msc->ep_out && event == XFER_RESULT_SUCCESS && xferred_bytes == sizeof(msc_cbw_t))) {
         submitted = false;
@@ -481,22 +524,28 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
         p_msc->stage = MSC_STAGE_DATA;
         submitted = data_stage_xfer(dev_addr, p_msc, cbw);
       } else {
-        submitted = status_stage_xfer(dev_addr, p_msc, csw);
+        submitted = status_stage_xfer(dev_addr, p_msc);
       }
       break;
 
-    case MSC_STAGE_DATA:
+    case MSC_STAGE_DATA: {
+      const uint16_t armed = data_xfer_len(p_msc, cbw); // the data bytes this transfer was for
+      if (p_msc->bounce_len != 0) {
+        // keep what was asked, bytes past the tail are not data
+        xferred_bytes = tu_min32(xferred_bytes, p_msc->bounce_len);
+        memcpy((uint8_t*) p_msc->buffer + p_msc->data_xferred, epbuf->u.buf, xferred_bytes);
+      }
       p_msc->data_xferred += xferred_bytes;
-      if (event == XFER_RESULT_SUCCESS && xferred_bytes == MSCH_DATA_XFER_MAX &&
-          p_msc->data_xferred < cbw->total_bytes) {
+      if (event == XFER_RESULT_SUCCESS && xferred_bytes == armed && p_msc->data_xferred < cbw->total_bytes) {
         submitted = data_stage_xfer(dev_addr, p_msc, cbw);
       } else {
-        submitted = status_stage_xfer(dev_addr, p_msc, csw);
+        submitted = status_stage_xfer(dev_addr, p_msc);
       }
       break;
+    }
 
     case MSC_STAGE_STATUS:
-      // a failed or short CSW transfer leaves epbuf->csw stale: fail the command instead of reporting it
+      // a failed or short CSW transfer leaves the endpoint buffer stale: fail the command instead of reporting it
       if (event != XFER_RESULT_SUCCESS || xferred_bytes != sizeof(msc_csw_t)) {
         submitted = false;
         break;
@@ -576,6 +625,9 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
     p_desc = tu_desc_next(p_desc);
   }
   TU_ASSERT(ep_in != NULL && ep_out != NULL, 0);
+  const uint16_t ep_in_mps = tu_edpt_packet_size(ep_in);
+  TU_ASSERT(ep_in_mps > 0, 0); // the CSW is rounded up to it
+  TU_ASSERT(TUH_VALIDATE_BASIC(ep_in_mps <= TUH_EPSIZE_BULK_MAX), 0); // a packet fits the endpoint buffer
 
   // open in descriptor order: OUT-first devices opened IN first stalled their first READ10 on the
   // espressif_s3_devkitm DWC2 DMA host (#4511)
@@ -585,6 +637,7 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
 
   p_msc->ep_in            = ep_in->bEndpointAddress;
   p_msc->ep_out           = ep_out->bEndpointAddress;
+  p_msc->ep_in_mps        = ep_in_mps;
   p_msc->itf_num          = desc_itf->bInterfaceNumber;
   _msch_tagid[dev_addr - 1]++;
 

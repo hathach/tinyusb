@@ -173,6 +173,8 @@
 //--------------------------------------------------------------------+
 #elif TU_CHECK_MCU(OPT_MCU_SAMD11, OPT_MCU_SAML2X, OPT_MCU_SAMD21) || TU_CHECK_MCU(OPT_MCU_SAMD51, OPT_MCU_SAME5X)
   #define TUP_DCD_ENDPOINT_MAX 8
+  #define TUP_DCD_EDPT_OUT_WHOLE_PACKET 1 // MULTI_PACKET_SIZE of an OUT transfer: whole packets (dcd_samd.c)
+  #define TUP_HCD_EDPT_IN_WHOLE_PACKET  1 // an IN packet is written in full (hcd_samd.c)
 
 #elif TU_CHECK_MCU(OPT_MCU_SAMG)
   #define TUP_DCD_ENDPOINT_MAX 6
@@ -840,6 +842,27 @@
     #define TUP_HCD_MEM_ALIGN 4 // the BDT DMA writes 4-byte units (hcd_ci_fs.c)
   #else
     #define TUP_HCD_MEM_ALIGN 1
+  #endif
+#endif
+
+// Whether the controller writes a full packet whatever an OUT (device) or IN (host) transfer has left: a non-control
+// transfer that is not whole packets is not guaranteed, its driver logs a warning. Class drivers then arm whole packets
+// into buffers sized for them. A device control OUT goes to the usbd control buffer (whole EP0 packets); a host
+// control IN buffer must hold TUH_CTRL_BUFSIZE(wLength) (host/usbh.h). Other controllers cut such a packet to what the
+// transfer has left.
+#ifndef TUP_DCD_EDPT_OUT_WHOLE_PACKET
+  #if defined(TUP_USBIP_DWC2)
+    #define TUP_DCD_EDPT_OUT_WHOLE_PACKET CFG_TUD_DWC2_DMA_ENABLE // DOEPDMA: the core DMAs the whole packet
+  #else
+    #define TUP_DCD_EDPT_OUT_WHOLE_PACKET 0
+  #endif
+#endif
+
+#ifndef TUP_HCD_EDPT_IN_WHOLE_PACKET
+  #if defined(TUP_USBIP_DWC2)
+    #define TUP_HCD_EDPT_IN_WHOLE_PACKET CFG_TUH_DWC2_DMA_ENABLE // HCDMA: the core DMAs the whole packet
+  #else
+    #define TUP_HCD_EDPT_IN_WHOLE_PACKET 0
   #endif
 #endif
 

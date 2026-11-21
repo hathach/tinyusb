@@ -254,8 +254,8 @@
 
 //--------------------------------------------------------------------+
 // Validation Level
-// Optional validation of data received from the USB peer, traded against code size. Coverage is parser-specific
-// and expanded incrementally. CFG_TUSB_VALIDATION_LEVEL sets the default for both device and host; use the
+// Optional validation of data received from the USB peer, and of class buffers against the endpoint sizes they
+// serve, traded against code size. Coverage is parser-specific and expanded incrementally. CFG_TUSB_VALIDATION_LEVEL sets the default for both device and host; use the
 // CFG_TUD_VALIDATION_LEVEL / CFG_TUH_VALIDATION_LEVEL overrides when the roles need different policies.
 //--------------------------------------------------------------------+
 #define TUSB_VALIDATION_NONE   0 ///< trusted peers, minimal code size

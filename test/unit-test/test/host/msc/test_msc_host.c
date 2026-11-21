@@ -1,4 +1,4 @@
-/*
+﻿/*
  * SPDX-FileCopyrightText: Copyright (c) 2026 TinyUSB contributors
  * SPDX-License-Identifier: MIT
  */
@@ -20,6 +20,7 @@ enum {
   EP_IN     = 0x81,
   MAX_XFERS = 8,
   MAX_CTRL  = 8,
+  BULK_MPS  = 512, // the test's bulk endpoints: a CSW or a data tail is armed as one whole packet
 };
 
 static uint8_t  xfer_ep[MAX_XFERS];
@@ -156,6 +157,7 @@ static bool record_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_dat
 }
 
 static uint8_t desc_buf[64];
+static uint16_t bulk_mps; // wMaxPacketSize of both bulk endpoints build_bot() makes, BULK_MPS unless a test changes it
 
 // interface + two endpoint descriptors with the given bLength each, packed back to back; padding bytes are 0xA5
 static uint16_t build_bot(uint8_t itf_len, uint8_t num_ep, uint8_t ep1_len, uint8_t ep1_addr, uint8_t ep2_len,
@@ -163,8 +165,8 @@ static uint16_t build_bot(uint8_t itf_len, uint8_t num_ep, uint8_t ep1_len, uint
   memset(desc_buf, 0xA5, sizeof(desc_buf));
   const tusb_desc_interface_t itf = {itf_len, TUSB_DESC_INTERFACE, ITF_NUM, 0, num_ep, TUSB_CLASS_MSC,
                                      MSC_SUBCLASS_SCSI, MSC_PROTOCOL_BOT, 0};
-  const tusb_desc_endpoint_t ep1 = {ep1_len, TUSB_DESC_ENDPOINT, ep1_addr, {.xfer = TUSB_XFER_BULK}, 512, 0};
-  const tusb_desc_endpoint_t ep2 = {ep2_len, TUSB_DESC_ENDPOINT, ep2_addr, {.xfer = TUSB_XFER_BULK}, 512, 0};
+  const tusb_desc_endpoint_t ep1 = {ep1_len, TUSB_DESC_ENDPOINT, ep1_addr, {.xfer = TUSB_XFER_BULK}, bulk_mps, 0};
+  const tusb_desc_endpoint_t ep2 = {ep2_len, TUSB_DESC_ENDPOINT, ep2_addr, {.xfer = TUSB_XFER_BULK}, bulk_mps, 0};
   // each descriptor writes its standard fields, the next one starts at its bLength
   memcpy(desc_buf, &itf, sizeof(itf));
   uint16_t len = itf_len;
@@ -293,6 +295,7 @@ void setUp(void) {
   umount_hook     = NULL;
   device_connected = true;
   now_ms          = 0;
+  bulk_mps        = BULK_MPS;
   msch_init();
   mount_bot_interface();
 }
@@ -313,6 +316,29 @@ void test_msc_host_open_accepts_longer_descriptors(void) {
 void test_msc_host_open_in_first(void) {
   open_expect(build_bot(9, 2, 7, EP_IN, 7, EP_OUT), 9 + 2 * 7);
   open_expect(build_bot(12, 2, 9, EP_IN, 9, EP_OUT), 12 + 2 * 9);
+}
+
+// BOT allows 8-byte bulk endpoints: the 13-byte CSW spans two packets and is armed as 16 bytes, not one packet
+void test_msc_host_csw_over_small_packets(void) {
+  msch_close(DADDR);
+  bulk_mps = 8;
+  mount_bot_interface();
+  get_max_lun_stalled();
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t))); // TUR CBW
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[xfer_count - 1]);
+  TEST_ASSERT_EQUAL(16, xfer_len[xfer_count - 1]);
+  const uint8_t count = xfer_count;
+  reply_csw_passed(); // 8 + 5 bytes, one transfer
+  // the CSW was taken: enumeration goes on with READ CAPACITY's CBW, a rejected CSW desyncs instead
+  TEST_ASSERT_EQUAL(count + 1, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, xfer_ep[xfer_count - 1]);
+}
+
+// The endpoint buffers are per device: a second device opens beside the first, whatever CFG_TUH_MSC (1 here)
+void test_msc_host_second_device_opens(void) {
+  const uint16_t len = build_bot(9, 2, 7, EP_OUT, 7, EP_IN);
+  open_expect_at(DADDR, len, len);
+  open_expect_at(DADDR + 1, len, len);
 }
 
 void test_msc_host_open_rejects_bad_num_endpoints(void) {
@@ -419,6 +445,26 @@ static void start_data_in(void) {
   start_data_in_cb(record_complete);
 }
 
+// The CBW and CSW share the endpoint buffer: a command submitted from the completion callback must not change the
+// status the callback reads afterwards
+static uint8_t resubmit_status;
+static bool resubmit_then_read_status(uint8_t daddr, const tuh_msc_complete_data_t *cb_data) {
+  const msc_cbw_t next = {.signature = MSC_CBW_SIGNATURE, .tag = 0x9999, .dir = TUSB_DIR_IN_MASK};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(daddr, &next, NULL, NULL, 0));
+  resubmit_status = cb_data->csw->status;
+  return true;
+}
+
+static void start_no_data_cb(tuh_msc_complete_cb_t complete_cb);
+
+void test_msc_host_status_kept_across_resubmit_from_callback(void) {
+  enumerate();
+  resubmit_status = 0xFF;
+  start_no_data_cb(resubmit_then_read_status);
+  reply_csw(MSC_CSW_STATUS_FAILED);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_FAILED, resubmit_status);
+}
+
 static void start_no_data_cb(tuh_msc_complete_cb_t complete_cb) {
   const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x1234};
   TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, NULL, complete_cb, 0));
@@ -447,7 +493,7 @@ void test_msc_host_data_stage_over_64k(void) {
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, xfer_len[2]));
   TEST_ASSERT_EQUAL(4, xfer_count);
   TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[3]);
-  TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[3]);
+  TEST_ASSERT_EQUAL(BULK_MPS, xfer_len[3]);
 }
 
 // A short transfer ends the data stage early: go straight to the CSW
@@ -457,7 +503,60 @@ void test_msc_host_data_stage_short_ends_early(void) {
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
 
   TEST_ASSERT_EQUAL(3, xfer_count);
-  TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
+  TEST_ASSERT_EQUAL(BULK_MPS, xfer_len[2]);
+}
+
+static void start_data_in_len(uint32_t len) {
+  memset(data, 0xA5, sizeof(data));
+  const msc_cbw_t cbw = {.signature = MSC_CBW_SIGNATURE, .tag = 0x1234, .total_bytes = len, .dir = TUSB_DIR_IN_MASK};
+  TEST_ASSERT_TRUE(tuh_msc_scsi_command(DADDR, &cbw, data, record_complete, 0));
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
+}
+
+// A reply shorter than a packet (a 36-byte INQUIRY) is armed as a whole packet into the endpoint buffer: a device
+// answering a full packet cannot write past the caller's buffer, and only the asked bytes are kept
+void test_msc_host_short_reply_through_bounce_buffer(void) {
+  enumerate();
+  start_data_in_len(36);
+  TEST_ASSERT_EQUAL(2, xfer_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_IN, xfer_ep[1]);
+  TEST_ASSERT_TRUE(xfer_buf[1] != data);
+  TEST_ASSERT_EQUAL(BULK_MPS, xfer_len[1]);
+
+  memset(xfer_buf[1], 0x5A, BULK_MPS);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, BULK_MPS)); // over-answers with a full packet
+  for (uint32_t i = 0; i < 36; i++) {
+    TEST_ASSERT_EQUAL_HEX8(0x5A, data[i]);
+  }
+  TEST_ASSERT_EQUAL_HEX8(0xA5, data[36]);
+
+  TEST_ASSERT_EQUAL(3, xfer_count); // CSW next
+  TEST_ASSERT_EQUAL(BULK_MPS, xfer_len[2]);
+  reply_csw_passed();
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_EQUAL(0, complete_csw.data_residue);
+}
+
+// Whole packets go straight to the caller's buffer, the tail through the endpoint buffer
+void test_msc_host_data_tail_through_bounce_buffer(void) {
+  enumerate();
+  start_data_in_len(600);
+  TEST_ASSERT_EQUAL(2, xfer_count);
+  TEST_ASSERT_EQUAL_PTR(data, xfer_buf[1]);
+  TEST_ASSERT_EQUAL(512, xfer_len[1]);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
+
+  TEST_ASSERT_EQUAL(3, xfer_count);
+  TEST_ASSERT_TRUE(xfer_buf[2] != data + 512);
+  TEST_ASSERT_EQUAL(BULK_MPS, xfer_len[2]);
+  memset(xfer_buf[2], 0x5A, BULK_MPS);
+  TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 88));
+  TEST_ASSERT_EQUAL_HEX8(0x5A, data[599]);
+  TEST_ASSERT_EQUAL_HEX8(0xA5, data[600]);
+
+  TEST_ASSERT_EQUAL(4, xfer_count); // CSW next
+  reply_csw_passed();
+  TEST_ASSERT_EQUAL(0, complete_csw.data_residue);
 }
 
 // A CSW transfer that fails or comes up short must not complete the command with the previous command's CSW
@@ -552,9 +651,12 @@ static void complete_enumeration_capacity_as_lun(uint8_t lun, uint32_t block_cou
   ((msc_cbw_t*) xfer_buf[1])->lun = lun;
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
 
-  scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) (uintptr_t) enum_buf;
-  resp->last_lba   = tu_htonl(block_count - 1);
-  resp->block_size = tu_htonl(block_size);
+  // the device answers into the transfer's buffer: an 8-byte reply is received through the driver's endpoint buffer
+  TEST_ASSERT_EQUAL(BULK_MPS, xfer_len[xfer_count - 1]);
+  scsi_read_capacity10_resp_t resp;
+  resp.last_lba   = tu_htonl(block_count - 1);
+  resp.block_size = tu_htonl(block_size);
+  memcpy(xfer_buf[xfer_count - 1], &resp, sizeof(resp));
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(scsi_read_capacity10_resp_t)));
   reply_csw_passed();
   TEST_ASSERT_TRUE(tuh_msc_mounted(DADDR));
@@ -640,7 +742,7 @@ void test_msc_host_data_stage_status_submit_fail_completes(void) {
   start_data_in_cb(retry_complete);
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, 512));
 
-  TEST_ASSERT_EQUAL(sizeof(msc_csw_t), xfer_len[2]);
+  TEST_ASSERT_EQUAL(BULK_MPS, xfer_len[2]);
   assert_submit_fail_completed(3, sizeof(data) - 512);
 }
 
@@ -687,7 +789,7 @@ static void assert_enum_ended_unmounted(uint8_t submitted) {
   TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
 }
 
-// a device Phase Error (BOT 1.0 §5.3.3.1) leaves the unmounted interface fenced: no further CBW reaches the device
+// a device Phase Error (BOT 1.0 搂5.3.3.1) leaves the unmounted interface fenced: no further CBW reaches the device
 static void assert_enum_fenced(uint8_t submitted) {
   assert_enum_ended_unmounted(submitted);
   assert_fenced(submitted, 0);
@@ -815,7 +917,7 @@ static void tur_failed_with_sense(const uint8_t *sense, uint16_t len) {
   reply_csw(MSC_CSW_STATUS_FAILED);
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_OUT, XFER_RESULT_SUCCESS, sizeof(msc_cbw_t)));
   TEST_ASSERT_EQUAL(3, xfer_count);
-  TEST_ASSERT_EQUAL(18, xfer_len[2]);
+  TEST_ASSERT_EQUAL(BULK_MPS, xfer_len[2]); // 18-byte sense: one whole packet into the endpoint buffer
   if (len > 0) {
     memcpy(xfer_buf[2], sense, len);
   }
@@ -1036,7 +1138,7 @@ static void complete_recovery(void) {
   complete_ctrl(XFER_RESULT_SUCCESS); // Clear HALT Bulk-Out
 }
 
-// BOT 1.0 §5.3.4 order, each Clear HALT followed by its host toggle reset; the fence holds until the last one
+// BOT 1.0 搂5.3.4 order, each Clear HALT followed by its host toggle reset; the fence holds until the last one
 void test_msc_host_reset_recovers_fenced_interface(void) {
   enumerate_and_fence();
 

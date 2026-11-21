@@ -55,7 +55,8 @@ typedef struct {
 //--------------------------------------------------------------------+
 
 // Check an endpoint descriptor against USB specs: wMaxPacketSize must be non-zero and within the spec maximum, which
-// endpoint buffers are sized to. Other non-compliant sizes are accepted with a warning.
+// endpoint buffers are sized to. Other non-compliant sizes are accepted with a warning, but transfers on them are not
+// guaranteed (e.g. a bulk size that is not a power of 2, see tu_edpt_stream_open).
 bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed);
 
 // Bind drivers to all interfaces and endpoints in the provided configuration descriptor
@@ -89,7 +90,18 @@ TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_deinit(tu_edpt_stream_t 
 #endif
 }
 
-// Open an endpoint stream
+// Whether a stream's receive buffer of bufsize fits an endpoint armed as one packet, or as the whole buffer
+// (whole_buf): a controller (e.g. dwc2) accepts a full packet whatever the transfer has left, so what is armed must be
+// whole packets. A stream's packet size is a power of 2 (see tu_edpt_stream_open)
+TU_ATTR_ALWAYS_INLINE static inline bool tu_edpt_rx_buf_fits(const tusb_desc_endpoint_t *desc_ep, uint16_t bufsize,
+                                                             bool whole_buf) {
+  const uint16_t mps = tu_edpt_packet_size(desc_ep);
+  return mps > 0 && mps <= bufsize && (!whole_buf || (bufsize & (mps - 1)) == 0);
+}
+
+// Open an endpoint stream. Its packet size must be a power of 2, since whole packets are counted by masking: a Bulk
+// one is when compliant (tu_edpt_validate accepts a non-compliant one, with no guaranteed result), and a class opening a
+// stream on an Interrupt endpoint checks it first (midi_host, midi2_host)
 TU_ATTR_ALWAYS_INLINE static inline void tu_edpt_stream_open(tu_edpt_stream_t *s, uint8_t hwid,
                                                              const tusb_desc_endpoint_t *desc_ep, uint16_t xfer_len) {
   s->hwid    = hwid;

@@ -126,6 +126,23 @@ tu_static CFG_TUD_MEM_SECTION struct {
   TUD_EPBUF_DEF(buf_3, CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX);
   #endif
 } lin_buf_out;
+
+// An OUT transfer is one whole packet into the linear buffer: a controller (e.g. dwc2) accepts a full packet whatever
+// the transfer has left, so the endpoint's packet size must fit the buffer
+static uint16_t audiod_lin_buf_out_size(uint8_t func_id) {
+  switch (func_id) {
+  #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX > 0
+    case 0: return CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX;
+  #endif
+  #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX > 0
+    case 1: return CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX;
+  #endif
+  #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX > 0
+    case 2: return CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX;
+  #endif
+    default: return 0;
+  }
+}
 #endif// CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_EDPT_DEDICATED_HWFIFO
 
 // Control buffer
@@ -1210,6 +1227,7 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 
             // Prepare for incoming data
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
+            TU_VERIFY(TUD_VALIDATE_BASIC(audio->ep_out_sz <= audiod_lin_buf_out_size(func_id)));
             TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, false));
   #else
             TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, false));

@@ -68,6 +68,7 @@ typedef struct {
   uint8_t itf_data_alt; // ==0 -> no endpoints, i.e. no network traffic, ==1 -> normal operation with two endpoints (spec, chapter 5.3)
   uint8_t rhport;       // storage of \a rhport because some callbacks are done without it
   uint16_t ep_size;     // bulk endpoint max packet size (IN and OUT assumed equal)
+  uint16_t recv_xfer_len; // OUT transfer: dwNtbOutMaxSize in whole packets of the OUT endpoint
 
   // recv handling
   recv_ntb_t *recv_free_ntb[RECV_NTB_N];                // free list of recv NTBs
@@ -595,7 +596,8 @@ static void recv_try_to_start_new_reception(uint8_t rhport) {
 
   // initiate transfer
   TU_LOG_DRV("  start reception\n");
-  bool r = usbd_edpt_xfer(rhport, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data, CFG_TUD_NCM_OUT_NTB_MAX_SIZE, false);
+  bool r = usbd_edpt_xfer(rhport, ncm_interface.ep_out, ncm_interface.recv_tinyusb_ntb->data,
+                          ncm_interface.recv_xfer_len, false);
   if (!r) {
     recv_put_ntb_into_free_list(ncm_interface.recv_tinyusb_ntb);
     ncm_interface.recv_tinyusb_ntb = NULL;
@@ -621,6 +623,10 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
   }
   if (nth16->dwSignature != NTH16_SIGNATURE) {
     TU_LOG_DRV("(EE) ill signature: 0x%08x\n", (unsigned) nth16->dwSignature);
+    return false;
+  }
+  if (!TUD_VALIDATE_BASIC(len <= CFG_TUD_NCM_OUT_NTB_MAX_SIZE)) {
+    TU_LOG_DRV("(EE) ill len: %lu > %d\n", len, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
     return false;
   }
   if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)) {
@@ -1068,6 +1074,23 @@ uint16_t netd_open(uint8_t rhport, tusb_desc_interface_t const *itf_desc, uint16
 
   // a TUSB_DESC_ENDPOINT (actually two) must follow, open these endpoints
   TU_ASSERT(tu_desc_type(p_desc) == TUSB_DESC_ENDPOINT, 0);
+
+  // The OUT transfer is dwNtbOutMaxSize. A controller that writes a full packet whatever the transfer has left
+  // (TUP_DCD_EDPT_OUT_WHOLE_PACKET, e.g. dwc2 DMA) takes it in whole packets of the OUT endpoint, which must fit the
+  // buffer
+  uint32_t recv_xfer_len = CFG_TUD_NCM_OUT_NTB_MAX_SIZE;
+#if TUP_DCD_EDPT_OUT_WHOLE_PACKET
+  tusb_desc_endpoint_t const *desc_out = (tusb_desc_endpoint_t const *) p_desc;
+  if (tu_edpt_dir(desc_out->bEndpointAddress) != TUSB_DIR_OUT) {
+    desc_out = (tusb_desc_endpoint_t const *) tu_desc_next(p_desc);
+  }
+  uint16_t const out_mps = tu_edpt_packet_size(desc_out);
+  TU_ASSERT(out_mps > 0, 0); // divides below
+  recv_xfer_len = tu_round_up(CFG_TUD_NCM_OUT_NTB_MAX_SIZE, out_mps);
+  TU_ASSERT(TUD_VALIDATE_BASIC(recv_xfer_len <= TU_FIELD_SIZE(recv_ntb_t, data)), 0);
+#endif
+  ncm_interface.recv_xfer_len = (uint16_t) recv_xfer_len;
+
   TU_ASSERT(usbd_open_edpt_pair(rhport, p_desc, 2, TUSB_XFER_BULK, &ncm_interface.ep_out, &ncm_interface.ep_in));
   ncm_interface.ep_size = tu_edpt_packet_size((tusb_desc_endpoint_t const *) p_desc);
   drv_len += 2 * sizeof(tusb_desc_endpoint_t);

@@ -18,6 +18,15 @@
  *------------------------------------------------------------------*/
 static TU_ATTR_ALIGNED(4) UsbDeviceDescBank sram_registers[8][2];
 
+#if CFG_TUSB_DEBUG
+// OUT wMaxPacketSize: MULTI_PACKET_SIZE of an OUT transfer must be whole packets, the last one is written in full
+// (SAM D21 datasheet, USB PCKSIZE), see TUP_DCD_EDPT_OUT_WHOLE_PACKET
+static uint16_t _out_mps[8];
+  #define SAMD_OUT_MPS_SET(_epnum, _mps) _out_mps[_epnum] = (_mps)
+#else
+  #define SAMD_OUT_MPS_SET(_epnum, _mps)
+#endif
+
 // Setup packet is only 8 bytes in length. However under certain scenario,
 // USB DMA controller may decide to overwrite/overflow the buffer  with
 // 2 extra bytes of CRC. From datasheet's "Management of SETUP Transactions" section
@@ -184,6 +193,7 @@ bool dcd_edpt_open (uint8_t rhport, tusb_desc_endpoint_t const * desc_edpt)
 
   if ( dir == TUSB_DIR_OUT )
   {
+    SAMD_OUT_MPS_SET(epnum, packet_size);
     ep->EPCFG.bit.EPTYPE0 = samd_eptype(desc_edpt->bmAttributes.xfer);
     ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0 | USB_DEVICE_EPSTATUSCLR_DTGLOUT; // clear stall & dtoggle
     ep->EPINTENSET.bit.TRCPT0 = true;
@@ -224,6 +234,7 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   // BYTE_COUNT would otherwise babble on the first IN token after re-selecting alt1).
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
   if ( dir == TUSB_DIR_OUT ) {
+    SAMD_OUT_MPS_SET(epnum, tu_edpt_packet_size(desc_ep));
     ep->EPCFG.bit.EPTYPE0 = samd_eptype(desc_ep->bmAttributes.xfer);
     ep->EPSTATUSCLR.reg = USB_DEVICE_EPSTATUSCLR_STALLRQ0 | USB_DEVICE_EPSTATUSCLR_DTGLOUT;
     ep->EPSTATUSSET.reg = USB_DEVICE_EPSTATUSSET_BK0RDY; // OUT: not ready to receive until armed
@@ -253,6 +264,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
 
   UsbDeviceDescBank* bank = &sram_registers[epnum][dir];
   UsbDeviceEndpoint* ep = &USB->DEVICE.DeviceEndpoint[epnum];
+
+  // An OUT transfer that is not whole packets is not guaranteed: a host sending more than armed writes past the buffer.
+  // EP0 is armed into the usbd control buffer, which holds whole packets
+#if CFG_TUSB_DEBUG
+  if (epnum != 0 && dir == TUSB_DIR_OUT && _out_mps[epnum] != 0 && (total_bytes % _out_mps[epnum]) != 0) {
+    TU_LOG1("  WARN: EP %02X OUT transfer of %u bytes is not whole packets\r\n", ep_addr, total_bytes);
+  }
+#endif
 
   bank->ADDR.reg = (uint32_t) buffer;
 

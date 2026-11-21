@@ -254,6 +254,11 @@ typedef struct {
 } usbh_epbuf_t;
 CFG_TUH_MEM_SECTION static usbh_epbuf_t _usbh_epbuf;
 
+// Enumeration and class drivers read control IN data of up to CFG_TUH_ENUMERATION_BUFSIZE bytes into it: the
+// controller may write the last packet in full (TUH_CTRL_BUFSIZE)
+TU_VERIFY_STATIC(TUH_CTRL_BUFSIZE(CFG_TUH_ENUMERATION_BUFSIZE) == CFG_TUH_ENUMERATION_BUFSIZE,
+                 "CFG_TUH_ENUMERATION_BUFSIZE must be a multiple of 64 with this host controller");
+
 //--------------------------------------------------------------------+
 // Class Driver
 //--------------------------------------------------------------------+

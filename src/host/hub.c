@@ -24,9 +24,15 @@
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
+// Status change buffer: the IN transfer is one whole packet (a controller, e.g. dwc2, accepts a full packet whatever the
+// transfer has left), so the endpoint's packet size must fit. 8 bytes, as Linux's hub driver: the bitmap of a hub up
+// to 63 ports, and hubs declaring an 8-byte status endpoint for fewer ports
+#define HUB_STATUS_CHANGE_BUFSIZE 8
+
 typedef struct {
   uint8_t itf_num;
   uint8_t ep_in;
+  uint8_t ep_in_mps;
 
   // from hub descriptor
   uint8_t bNbrPorts;
@@ -39,8 +45,8 @@ typedef struct {
 } hub_interface_t;
 
 typedef struct {
-  TUH_EPBUF_DEF(status_change, 4); // interrupt endpoint
-  TUH_EPBUF_DEF(ctrl_buf, CFG_TUH_HUB_BUFSIZE);
+  TUH_EPBUF_DEF(status_change, HUB_STATUS_CHANGE_BUFSIZE); // interrupt endpoint
+  TUH_EPBUF_DEF(ctrl_buf, TUH_CTRL_BUFSIZE(CFG_TUH_HUB_BUFSIZE)); // control IN: whole packets, see TUH_CTRL_BUFSIZE
 } hub_epbuf_t;
 
 static hub_interface_t hub_itfs[CFG_TUH_HUB];
@@ -227,13 +233,16 @@ uint16_t hub_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t 
   }
 
   // Interrupt Status endpoint
+  uint16_t const ep_in_mps = tu_edpt_packet_size(desc_ep);
+  TU_ASSERT(TUH_VALIDATE_BASIC(ep_in_mps > 0 && ep_in_mps <= HUB_STATUS_CHANGE_BUFSIZE), 0);
   TU_ASSERT(tuh_edpt_open(dev_addr, desc_ep), 0);
 
   // set only once opened: hub_close() clears an opened hub
   hub_interface_t *p_hub = get_hub_itf(dev_addr);
-  p_hub->mtt     = mtt;
-  p_hub->itf_num = itf_desc->bInterfaceNumber;
-  p_hub->ep_in   = desc_ep->bEndpointAddress;
+  p_hub->mtt       = mtt;
+  p_hub->itf_num   = itf_desc->bInterfaceNumber;
+  p_hub->ep_in     = desc_ep->bEndpointAddress;
+  p_hub->ep_in_mps = (uint8_t) ep_in_mps;
 
   return (uint16_t) (p_desc - (const uint8_t *) itf_desc);
 }
@@ -254,7 +263,7 @@ bool hub_edpt_status_xfer(uint8_t daddr) {
 
   TU_VERIFY(p_hub->ep_in != 0); // closed
   TU_VERIFY(usbh_edpt_claim(daddr, p_hub->ep_in));
-  if (!usbh_edpt_xfer(daddr, p_hub->ep_in, p_epbuf->status_change, 1)) {
+  if (!usbh_edpt_xfer(daddr, p_hub->ep_in, p_epbuf->status_change, p_hub->ep_in_mps)) {
     usbh_edpt_release(daddr, p_hub->ep_in);
     return false;
   }

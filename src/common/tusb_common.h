@@ -20,6 +20,7 @@
 #define TU_MIN(_x, _y)                ( ( (_x) < (_y) ) ? (_x) : (_y) )
 #define TU_MAX(_x, _y)                ( ( (_x) > (_y) ) ? (_x) : (_y) )
 #define TU_DIV_CEIL(n, d)             (((n) + (d) - 1) / (d))
+#define TU_ROUND_UP(n, d)             (TU_DIV_CEIL(n, d) * (d)) // round n up to a multiple of d
 #define TU_DIV_ROUND_NEAREST(v, d)    (((v) + (d)/2) / (d) ) // round to nearest integer
 
 #define TU_U16(_high, _low)           ((uint16_t) ((((uint16_t) (_high)) << 8) | ((uint16_t) (_low))))

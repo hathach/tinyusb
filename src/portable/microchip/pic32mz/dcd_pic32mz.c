@@ -251,19 +251,26 @@ static void tx_fifo_write(uint8_t endpoint, uint8_t const * buffer, size_t count
   }
 }
 
-static int rx_fifo_read(uint8_t epnum, uint8_t * buffer)
+static int rx_fifo_read(uint8_t epnum, uint8_t * buffer, uint16_t remaining)
 {
   uint32_t i;
   uint32_t count;
+  uint32_t rx_count;
   volatile uint8_t * fifo_reg;
 
   fifo_reg = (volatile uint8_t *) (&USB_REGS->FIFO[epnum]);
 
-  count = USB_REGS->EPCSR[epnum].RXCOUNTbits.RXCNT;
+  rx_count = USB_REGS->EPCSR[epnum].RXCOUNTbits.RXCNT;
+  // A full packet may exceed what the transfer has left: keep that much, drain the rest
+  count = tu_min32(rx_count, remaining);
 
   for (i = 0; i < count; i++)
   {
     buffer[i] = fifo_reg[i & 3];
+  }
+  for (; i < rx_count; i++)
+  {
+    (void) fifo_reg[i & 3];
   }
 
   return count;
@@ -522,7 +529,7 @@ static void ep0_handle_rx(void)
 
   TU_ASSERT(xfer->buffer,);
 
-  transferred = rx_fifo_read(0, xfer->buffer + xfer->transferred);
+  transferred = rx_fifo_read(0, xfer->buffer + xfer->transferred, (uint16_t) (xfer->total_len - xfer->transferred));
   xfer->transferred += transferred;
   TU_ASSERT(xfer->transferred <= xfer->total_len,);
   if (transferred < xfer->max_packet_size || xfer->transferred == xfer->total_len)
@@ -552,7 +559,7 @@ static void epn_handle_rx_int(uint8_t epnum)
   {
     TU_ASSERT(xfer->buffer != NULL,);
 
-    transferred = rx_fifo_read(epnum, xfer->buffer + xfer->transferred);
+    transferred = rx_fifo_read(epnum, xfer->buffer + xfer->transferred, (uint16_t) (xfer->total_len - xfer->transferred));
     USB_REGS->EPCSR[epnum].RXCSRL_HOSTbits.RXPKTRDY = 0;
     xfer->transferred += transferred;
     TU_ASSERT(xfer->transferred <= xfer->total_len,);
