@@ -361,7 +361,13 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
 
-  xfer_ctl_t *xfer     = XFER_CTL_BASE(ep_num, dir);
+  xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, dir);
+  if (ep_num != 0) {
+    // each packet's UEPn_TX_DMA/RX_DMA is buffer+queued_len and must be 4-byte aligned (CH32FV2x_V3xRM 22.2.2.5-6):
+    // refuse a multi-packet transfer when mps % 4 != 0 (no bounce buffer). EP0 copies via ep0_buffer.
+    TU_VERIFY(total_bytes <= xfer->max_size || (xfer->max_size & 3u) == 0);
+  }
+
   xfer->buffer         = buffer;
   xfer->total_len      = total_bytes;
   xfer->queued_len     = 0;

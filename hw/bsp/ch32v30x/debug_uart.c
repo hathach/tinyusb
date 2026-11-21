@@ -40,8 +40,11 @@
 #define UART_RINGBUFFER_SIZE_TX 128
 #define UART_RINGBUFFER_MASK_TX (UART_RINGBUFFER_SIZE_TX-1)
 
+#define GINTENR_MIE       (1u << 3)
+#define PFIC_GISR_GACTSTA (1u << 8)
+
 static char tx_buf[UART_RINGBUFFER_SIZE_TX];
-static unsigned int tx_produce;
+static volatile unsigned int tx_produce;
 static volatile unsigned int tx_consume;
 
 void USART1_IRQHandler(void) __attribute__((naked));
@@ -64,18 +67,37 @@ void USART1_IRQHandler_impl(void)
 
 }
 
+static int tx_can_wait(void)
+{
+  uint32_t gintenr;
+  __asm volatile("csrr %0, 0x800" : "=r"(gintenr));
+  return (gintenr & GINTENR_MIE) && !(NVIC->GISR & PFIC_GISR_GACTSTA);
+}
+
 void uart_write(char c)
 {
-	unsigned int tx_produce_next = (tx_produce + 1) & UART_RINGBUFFER_MASK_TX;
-
+  for (;;) {
     NVIC_DisableIRQ(USART1_IRQn);
-    if((tx_consume != tx_produce) || (USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET)) {
-		tx_buf[tx_produce] = c;
-		tx_produce = tx_produce_next;
-	} else {
-		USART_SendData(USART1, c);
-	}
+    unsigned int tx_produce_next = (tx_produce + 1) & UART_RINGBUFFER_MASK_TX;
+
+    if ((tx_consume == tx_produce) && (USART_GetFlagStatus(USART1, USART_FLAG_TXE) != RESET)) {
+      USART_SendData(USART1, c);
+      break;
+    }
+    if (tx_produce_next != tx_consume) {
+      tx_buf[tx_produce] = c;
+      tx_produce = tx_produce_next;
+      break;
+    }
     NVIC_EnableIRQ(USART1_IRQn);
+
+    // Ring full: only the TC ISR drains it, so wait where it can run, else drop the byte (USART1 cannot preempt an ISR)
+    if (!tx_can_wait()) {
+      return;
+    }
+    while (((tx_produce + 1) & UART_RINGBUFFER_MASK_TX) == tx_consume) {}
+  }
+  NVIC_EnableIRQ(USART1_IRQn);
 }
 
 

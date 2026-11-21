@@ -1480,23 +1480,39 @@ class TestLibRule(unittest.TestCase):
             roster[0]['logger'] = 'rtt'
         return [('test/hil/tinyusb.json', roster)]
 
+    _RTT_LOCK_HEADERS = ('hw/bsp/rtt_conf_cortexm.h',) + tuple(
+        f'hw/bsp/{fam}/rtt_conf_qingke.h' for fam in ('ch32v20x', 'ch32v30x', 'ch583', 'ch32x035', 'ch32v4x7'))
+
     def test_build_rtt_lock_header_selects_nothing(self):
         # force-included only by SYSVIEW and LOGGER=rtt configures, which no main-matrix leg sets
-        s = self.b(['hw/bsp/rtt_conf_cortexm.h'])
-        self.assertFalse(s['full'])
-        self.assertEqual(s['families'], [])
-        self.assertEqual(s['family_examples'], {})
+        for path in self._RTT_LOCK_HEADERS:
+            with self.subTest(path=path):
+                s = self.b([path])
+                self.assertFalse(s['full'])
+                self.assertEqual(s['families'], [])
+                self.assertEqual(s['family_examples'], {})
 
     def test_hil_rtt_lock_header_selects_what_compiles_segger_rtt(self):
         traced = {'stm32f407disco': {'device/cdc_msc'}}
         console = {'raspberry_pi_pico': {'all'}}
         for (t, c), want in {(False, False): {}, (True, False): traced, (False, True): console,
                              (True, True): {**traced, **console}}.items():
-            for path in ('hw/bsp/rtt_conf_cortexm.h', 'lib/SEGGER_RTT/RTT/SEGGER_RTT.c'):
-                s = change_impact.classify([path], REPO, self._rtt_rosters(t, c))
+            rosters = self._rtt_rosters(t, c)
+            lib = change_impact.classify(['lib/SEGGER_RTT/RTT/SEGGER_RTT.c'], REPO, rosters)
+            for path in self._RTT_LOCK_HEADERS:
+                s = change_impact.classify([path], REPO, rosters)
                 self.assertFalse(s['full'])
                 got = {k: {'all'} if v == 'all' else set(v) for k, v in s['boards'].items()}
                 self.assertEqual(got, want, (path, t, c))
+                self.assertEqual(s['boards'], lib['boards'], (path, t, c))
+
+    def test_other_wch_family_files_stay_bsp_family(self):          # rule 6, not 16d
+        for path in ('hw/bsp/ch32v20x/family.c', 'hw/bsp/ch32v20x/family.cmake'):
+            with self.subTest(path=path):
+                b = self.b([path])
+                self.assertEqual(b['families'], ['ch32v20x'])
+                self.assertEqual([p['rule'] for p in b['paths']], ['bsp'])
+                self.assertEqual(change_impact.classify([path], REPO, ROSTERS)['families'], ['ch32v20x'])
 
     def _traced_roster(self):
         return self._rtt_rosters(True, False)

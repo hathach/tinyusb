@@ -14,6 +14,8 @@ set(CMAKE_TOOLCHAIN_FILE ${TOP}/examples/build_system/cmake/toolchain/riscv_${TO
 
 set(FAMILY_MCUS CH32X035 CACHE INTERNAL "")
 set(OPENOCD_OPTION "-f ${CMAKE_CURRENT_LIST_DIR}/wch-riscv.cfg")
+# QingKe RTT lock for SYSVIEW and LOGGER=rtt, see the header
+set(FAMILY_RTT_CONF ${CMAKE_CURRENT_LIST_DIR}/rtt_conf_qingke.h)
 
 #------------------------------------
 # Startup & Linker script

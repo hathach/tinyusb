@@ -126,6 +126,10 @@ ifeq ($(LOGGER),rtt)
   CFLAGS += -DLOGGER_RTT
   #CFLAGS += -DSEGGER_RTT_MODE_DEFAULT=SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL
   INC   += $(TOP)/lib/SEGGER_RTT/RTT $(TOP)/lib/SEGGER_RTT/Config
+  # A family whose core needs its own RTT lock sets FAMILY_RTT_CONF; it comes first to claim SEGGER_RTT_CONF_H
+  ifneq ($(FAMILY_RTT_CONF),)
+    CFLAGS += -include $(FAMILY_RTT_CONF)
+  endif
   # Cortex-M: RTT locks with PRIMASK, see the header (a no-op on other cores)
   CFLAGS += -include $(TOP)/hw/bsp/rtt_conf_cortexm.h
   SRC_C += lib/SEGGER_RTT/RTT/SEGGER_RTT.c
