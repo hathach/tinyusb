@@ -67,6 +67,7 @@ typedef struct {
 enum {
   NBYTES_ISO_FS_MAX = 1023, // FS ISO
   NBYTES_ISO_HS_MAX = 1024, // HS ISO
+  NBYTES_ISO_HS_IN_MAX = 1023, // HS ISO IN: a 1024-byte packet never completes (ES_LPC55S6x USB.6 and siblings)
   NBYTES_CBI_FS_MAX = 64,   // FS control/bulk/interrupt. TODO some FS can do burst with higher size e.g 1024. Need to test
   NBYTES_CBI_HS_MAX = 32767 // can be up to all 15-bit, but only tested with 4096
 };
@@ -257,6 +258,19 @@ TU_ATTR_ALWAYS_INLINE static inline bool rhport_is_highspeed(uint8_t rhport) {
   return _dcd_controller[rhport].is_highspeed;
 }
 
+// Caller ensures the endpoint is ISO. HS ISO IN size erratum, on every currently supported HS IP3511
+// (LPC55xx, LPC54xxx); preprocessed out on FS-only parts, where a constant-false test is -Wunreachable-code
+TU_ATTR_ALWAYS_INLINE static inline bool iso_size_ok(uint8_t rhport, uint8_t ep_addr, uint16_t size) {
+#ifdef IP3511_HAS_HIGHSPEED
+  return !(rhport_is_highspeed(rhport) && tu_edpt_dir(ep_addr) == TUSB_DIR_IN && size > NBYTES_ISO_HS_IN_MAX);
+#else
+  (void) rhport;
+  (void) ep_addr;
+  (void) size;
+  return true;
+#endif
+}
+
 
 // DEVCMDSTAT mixes RW fields with write-1-to-clear latches (SETUP + the 3 change bits): a blind
 // RMW writes a pending latch back as 1 and silently clears it (a SETUP eaten this way strands
@@ -421,6 +435,10 @@ bool dcd_edpt_open(uint8_t rhport, tusb_desc_endpoint_t const * p_endpoint_desc)
   ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
   dcd_registers_t* dcd_reg = _dcd_controller[rhport].regs;
 
+  if ( p_endpoint_desc->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS ) {
+    TU_VERIFY(iso_size_ok(rhport, p_endpoint_desc->bEndpointAddress, tu_edpt_packet_size(p_endpoint_desc)));
+  }
+
   // usbd_edpt_close() is a no-op on ISO_ALLOC ports, so an endpoint a class closed then reopened
   // across SET_INTERFACE (e.g. the video notification or audio streaming endpoint) is still armed
   // here rather than disabled. Retire it (edpt_skip_active) before reconfiguring.
@@ -492,6 +510,8 @@ bool dcd_edpt_iso_activate(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) 
   ep_cmd_sts_t* ep_cs = get_ep_cs(ep_id);
   ep_cs[0].cmd_sts.active = 0;
   ep_cs[1].cmd_sts.active = 0;
+  // after the retire: usbd already cleared the endpoint's busy state, so a refusal must leave nothing armed
+  TU_VERIFY(iso_size_ok(rhport, desc_ep->bEndpointAddress, tu_edpt_packet_size(desc_ep)));
   dcd_edpt_clear_stall(rhport, desc_ep->bEndpointAddress);
   return true;
 }
@@ -531,6 +551,9 @@ static void prepare_ep_xfer(uint8_t rhport, uint8_t ep_id, uint16_t buf_offset, 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr) {
   (void) is_isr;
   uint8_t const ep_id = ep_addr2id(ep_addr);
+
+  // Refuse, never split: prepare_ep_xfer() would queue a 1024-byte packet (NBYTES_ISO_HS_IN_MAX)
+  TU_VERIFY(iso_size_ok(rhport, ep_addr, total_bytes) || !ep_is_iso(get_ep_cs(ep_id), rhport_is_highspeed(rhport)));
 
   if (!buffer || total_bytes == 0) {
     // Although having no data, ZLPs can cause buffer overwritten to zeroes. Probably due to USB/DMA controller side
