@@ -126,6 +126,22 @@ tu_static CFG_TUD_MEM_SECTION struct {
   TUD_EPBUF_DEF(buf_3, CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX);
   #endif
 } lin_buf_out;
+
+// Size of a function's OUT linear buffer, CFG_TUD_AUDIO_FUNC_n_EP_OUT_SZ_MAX
+static uint16_t audiod_lin_buf_out_size(uint8_t func_id) {
+  switch (func_id) {
+  #if CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX > 0
+    case 0: return CFG_TUD_AUDIO_FUNC_1_EP_OUT_SZ_MAX;
+  #endif
+  #if CFG_TUD_AUDIO > 1 && CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX > 0
+    case 1: return CFG_TUD_AUDIO_FUNC_2_EP_OUT_SZ_MAX;
+  #endif
+  #if CFG_TUD_AUDIO > 2 && CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX > 0
+    case 2: return CFG_TUD_AUDIO_FUNC_3_EP_OUT_SZ_MAX;
+  #endif
+    default: return 0;
+  }
+}
 #endif// CFG_TUD_AUDIO_ENABLE_EP_OUT && !CFG_TUD_EDPT_DEDICATED_HWFIFO
 
 // Control buffer
@@ -1210,6 +1226,10 @@ static bool audiod_set_interface(uint8_t rhport, tusb_control_request_t const *p
 
             // Prepare for incoming data
   #if !CFG_TUD_EDPT_DEDICATED_HWFIFO
+            // Each transfer is one packet into the linear buffer, which must hold it: a smaller
+            // CFG_TUD_AUDIO_FUNC_n_EP_OUT_SZ_MAX than this setting's wMaxPacketSize would let a full packet write past
+            // it. Failing here stalls SET_INTERFACE, so the host cannot select this setting
+            TU_VERIFY(TUD_VALIDATE_BASIC(audio->ep_out_sz <= audiod_lin_buf_out_size(func_id)));
             TU_VERIFY(usbd_edpt_xfer(rhport, audio->ep_out, audio->lin_buf_out, audio->ep_out_sz, false));
   #else
             TU_VERIFY(usbd_edpt_xfer_fifo(rhport, audio->ep_out, &audio->ep_out_ff, audio->ep_out_sz, false));

@@ -623,6 +623,10 @@ static bool recv_validate_datagram(const recv_ntb_t *ntb, uint32_t len) {
     TU_LOG_DRV("(EE) ill signature: 0x%08x\n", (unsigned) nth16->dwSignature);
     return false;
   }
+  if (!TUD_VALIDATE_BASIC(len <= CFG_TUD_NCM_OUT_NTB_MAX_SIZE)) {
+    TU_LOG_DRV("(EE) ill len: %lu > %d\n", len, CFG_TUD_NCM_OUT_NTB_MAX_SIZE);
+    return false;
+  }
   if (len < sizeof(nth16_t) + sizeof(ndp16_t) + 2 * sizeof(ndp16_datagram_t)) {
     TU_LOG_DRV("(EE) ill min len: %lu\n", len);
     return false;

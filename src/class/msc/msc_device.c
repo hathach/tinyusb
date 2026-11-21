@@ -67,6 +67,7 @@ typedef struct {
   bool data_padded; // Data-In reply padded with fill data up to the host's length: no case-5 STALL
 #endif
   uint16_t ep_in_mps; // Bulk-In max packet size: a shorter READ10 chunk ends the Data Stage on the wire
+  uint16_t ep_out_mps; // Bulk-Out max packet size: a CBW is armed as whole packets
   uint16_t write_len; // host data bytes in the buffer handed to tud_msc_write10_cb(), kept for an async completion
   uint16_t block_size; // LUN block size of the current READ10/WRITE10, set by rdwr10_validate_cmd()
 
@@ -84,6 +85,12 @@ CFG_TUD_MEM_SECTION static struct {
 } _mscd_epbuf;
 
 TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE >= 64, "CFG_TUD_MSC_EP_BUFSIZE must be at least 64");
+// The buffer holds whole bulk packets: READ10 chunks end on a packet boundary, the CBW is armed as one packet, and a
+// host sending a longer last OUT packet than its length stays inside the buffer on a controller that stores whole
+// packets (TUP_DCD_EDPT_OUT_WHOLE_PACKET). A compliant bulk size divides TUD_EPSIZE_BULK_MAX, mscd_open() still checks
+// the endpoints the configuration opens
+TU_VERIFY_STATIC(CFG_TUD_MSC_EP_BUFSIZE % TUD_EPSIZE_BULK_MAX == 0,
+                 "CFG_TUD_MSC_EP_BUFSIZE must be a multiple of the bulk packet size (512 high speed, 64 full speed)");
 
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
@@ -112,7 +119,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool send_csw(mscd_interface_t* p_msc) {
 TU_ATTR_ALWAYS_INLINE static inline bool prepare_cbw(mscd_interface_t* p_msc) {
   uint8_t rhport = p_msc->rhport;
   p_msc->stage = MSC_STAGE_CMD;
-  return usbd_edpt_xfer(rhport, p_msc->ep_out,  _mscd_epbuf.buf, sizeof(msc_cbw_t), false);
+  // Whole packets holding a CBW (one packet, or 32 bytes of 8- or 16-byte ones): a controller that cuts a packet to the
+  // transfer would report a longer CBW as 31 bytes, which then passes the CBW check in mscd_xfer_cb()
+  return usbd_edpt_xfer(rhport, p_msc->ep_out, _mscd_epbuf.buf, tu_max16(p_msc->ep_out_mps, 32), false);
 }
 
 // default sense NOT READY, MEDIUM NOT PRESENT, unless the callback already set one
@@ -403,14 +412,20 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   TU_ASSERT(max_len >= drv_len, 0); // Max length must be at least 1 interface + 2 endpoints
 
   // A full READ10 chunk must end on a packet boundary of the Bulk-In endpoint this configuration opens: one ending in a
-  // short packet ends the Data Stage (mscd_xfer()). Checked before the endpoints are opened, so a failure leaves nothing
-  // opened, like the checks above
-  tusb_desc_endpoint_t const* desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
-  if (tu_edpt_dir(desc_ep->bEndpointAddress) != TUSB_DIR_IN) {
-    desc_ep = (tusb_desc_endpoint_t const*) tu_desc_next(desc_ep);
+  // short packet ends the Data Stage (mscd_xfer()). The buffer must also be whole Bulk-Out packets: the CBW is armed as
+  // one, and a whole-packet controller (e.g. dwc2 DMA) stores a longer last packet in full. A failure fails the open, so
+  // SET_CONFIGURATION stalls; checked before the endpoints are opened, so it leaves nothing opened, like the checks above
+  tusb_desc_endpoint_t const* desc_in  = (tusb_desc_endpoint_t const*) tu_desc_next(itf_desc);
+  tusb_desc_endpoint_t const* desc_out = (tusb_desc_endpoint_t const*) tu_desc_next(desc_in);
+  if (tu_edpt_dir(desc_in->bEndpointAddress) != TUSB_DIR_IN) {
+    tusb_desc_endpoint_t const* tmp = desc_in;
+    desc_in  = desc_out;
+    desc_out = tmp;
   }
-  uint16_t const ep_in_mps = tu_edpt_packet_size(desc_ep);
+  uint16_t const ep_in_mps  = tu_edpt_packet_size(desc_in);
+  uint16_t const ep_out_mps = tu_edpt_packet_size(desc_out);
   TU_ASSERT(ep_in_mps > 0 && (CFG_TUD_MSC_EP_BUFSIZE % ep_in_mps) == 0, 0);
+  TU_ASSERT(TUD_VALIDATE_BASIC(ep_out_mps > 0 && (CFG_TUD_MSC_EP_BUFSIZE % ep_out_mps) == 0), 0);
 
   mscd_interface_t * p_msc = &_mscd_itf;
   p_msc->itf_num = itf_desc->bInterfaceNumber;
@@ -419,6 +434,7 @@ uint16_t mscd_open(uint8_t rhport, tusb_desc_interface_t const * itf_desc, uint1
   // Open endpoint pair
   TU_ASSERT(usbd_open_edpt_pair(rhport, tu_desc_next(itf_desc), 2, TUSB_XFER_BULK, &p_msc->ep_out, &p_msc->ep_in), 0);
   p_msc->ep_in_mps = ep_in_mps;
+  p_msc->ep_out_mps = ep_out_mps;
 
   // Prepare for Command Block Wrapper, unless an async I/O abandoned by a bus reset still owns the buffer: its
   // completion arms it
@@ -695,6 +711,10 @@ static bool mscd_xfer(uint8_t rhport, uint8_t ep_addr, uint32_t xferred_bytes) {
       } else if (SCSI_CMD_WRITE_10 == p_cbw->command[0]) {
         proc_write10_host_data(p_msc, xferred_bytes);
       } else {
+        if (!is_data_in(p_cbw->dir)) {
+          // a whole-packet controller may take a longer last packet: bytes past the host's length are not data
+          xferred_bytes = tu_min32(xferred_bytes, p_msc->total_len - p_msc->xferred_len);
+        }
         p_msc->xferred_len += xferred_bytes;
 
         // OUT transfer, invoke callback if needed
@@ -1046,6 +1066,9 @@ static void proc_write10_host_data(mscd_interface_t* p_msc, uint32_t xferred_byt
   msc_cbw_t const* p_cbw = &p_msc->cbw;
   uint16_t const block_sz = p_msc->block_size; // validated non-zero by rdwr10_validate_cmd()
   TU_VERIFY(block_sz != 0, );
+
+  // a whole-packet controller may take a longer last packet: bytes past the host's length are not data
+  xferred_bytes = tu_min32(xferred_bytes, p_cbw->total_bytes - p_msc->xferred_len);
 
   // Adjust lba & offset with transferred bytes
   uint32_t const lba = rdwr10_get_lba(p_cbw->command) + (p_msc->xferred_len / block_sz);

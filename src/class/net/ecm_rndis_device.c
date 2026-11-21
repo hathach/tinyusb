@@ -22,6 +22,14 @@
 #define NETD_PACKET_SIZE  (CFG_TUD_NET_PACKET_PREFIX_LEN + CFG_TUD_NET_MTU + CFG_TUD_NET_PACKET_PREFIX_LEN)
 #define NETD_CONTROL_SIZE 120
 
+// A controller that writes a full packet whatever the transfer has left (TUP_DCD_EDPT_OUT_WHOLE_PACKET, e.g. dwc2 DMA)
+// receives into a buffer of whole max-size packets, so a host sending more than NETD_PACKET_SIZE stays inside it
+#if TUP_DCD_EDPT_OUT_WHOLE_PACKET
+  #define NETD_RX_BUFSIZE TU_ROUND_UP(NETD_PACKET_SIZE, TUD_EPSIZE_BULK_MAX)
+#else
+  #define NETD_RX_BUFSIZE NETD_PACKET_SIZE
+#endif
+
 //--------------------------------------------------------------------+
 // MACRO CONSTANT TYPEDEF
 //--------------------------------------------------------------------+
@@ -48,7 +56,7 @@ typedef struct ecm_notify_struct {
 } ecm_notify_t;
 
 typedef struct {
-  TUD_EPBUF_DEF(rx, NETD_PACKET_SIZE);
+  TUD_EPBUF_DEF(rx, NETD_RX_BUFSIZE);
   TUD_EPBUF_DEF(tx, NETD_PACKET_SIZE);
 
   TUD_EPBUF_DEF(notify, sizeof(ecm_notify_t));
@@ -325,7 +333,9 @@ static void handle_incoming_packet(uint32_t len) {
   uint8_t* pnt = _netd_epbuf.rx;
   uint32_t size = 0;
 
-  if (_netd_itf.ecm_mode) {
+  if (!TUD_VALIDATE_BASIC(len <= NETD_PACKET_SIZE)) {
+    // longer than any valid frame: drop it
+  } else if (_netd_itf.ecm_mode) {
     size = len;
   } else {
     rndis_data_packet_t* r = (rndis_data_packet_t*)((void*)pnt);
