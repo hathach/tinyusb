@@ -70,10 +70,11 @@ repos:
     name: host driver tests (CTest)
     files: ^(src/|test/unit-test/|\.pre-commit-config\.yaml$)
     # -G Ninja, ninja from the hook's venv: CMake's Windows default generator is Visual Studio, whose MSVC the
-    # fixtures refuse; Ninja takes the gcc on PATH (MinGW) as it does on Linux
+    # fixtures refuse; Ninja takes the gcc on PATH (MinGW) as it does on Linux. A dir of its own: CMake refuses to
+    # reconfigure build/host-test (the README's manual build) under another generator
     entry: python tools/hook_steps.py
-    args: ['cmake -S test/unit-test/host -B build/host-test -G Ninja -DCMAKE_BUILD_TYPE=Debug',
-           'cmake --build build/host-test --parallel 2', 'ctest --test-dir build/host-test --output-on-failure']
+    args: ['cmake -S test/unit-test/host -B build/host-test-ninja -G Ninja -DCMAKE_BUILD_TYPE=Debug',
+           'cmake --build build/host-test-ninja --parallel 2', 'ctest --test-dir build/host-test-ninja --output-on-failure']
     pass_filenames: false
     language: python
     additional_dependencies: [ninja]
