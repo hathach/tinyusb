@@ -25,6 +25,7 @@ if sys.platform == 'win32':
 from usbtest_harness import patch                  # noqa: E402 - stubs pyserial
 import hil_flash                                   # noqa: E402
 from helper import agentrc, farm_profile, hil_farm_check, hil_lock, hil_util   # noqa: E402
+from test_hil_flash import fake_openocd_esp   # noqa: E402
 
 BOARD = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd', 'uid': 'P'}}
 STLINK = dict(BOARD, flasher={'name': 'stlink', 'uid': 'P'})
@@ -394,21 +395,30 @@ class EngineWithProfile(EngineFixture):
 
 
 class Retain(unittest.TestCase):
-    """_retain: an openocd_esp session the provider left running joins the engine's ledger once,
-    as a pending run the engine never rechecks, so nothing more starts on the board."""
+    """_retain: what the provider's pending_entries (and this run's hil_flash.left_pending) hold open
+    for the board's USJ joins the engine's ledger once, so nothing more starts on the board and its
+    task ends failed with that evidence: a session retained, a tracked child as a run the engine
+    rechecks, an unreceipted entry or an unreadable record as a run without a receipt."""
+    TRACKED = {'token': 't', 'supervisor': {'pid': 1, 'start': '1', 'lock': [1, 2]}, 'lock': '/s/r.lock',
+               'record': '/s/r.json', 'log': '/s/r.log', 'survivors': None}
+
+    def setUp(self):
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        patch(self, hil_lock, 'BOARD_LOCK_DIR', td.name)
+        self.oe = fake_openocd_esp(self, td.name)
+        self.board = dict(BOARD, flasher={'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02',
+                                          'args': '-f board/esp32p4-builtin.cfg'})
+        self.pending = self.oe.pending(self.board['flasher']['uid'])
 
     def test_a_pending_session_stops_the_reservation(self):
         ctx = context(self)
-        patch(self, hil_flash, 'cleanup_pending', {})
-        farm_profile._retain(ctx, BOARD)
-        tracked = {'token': 't', 'supervisor': {'pid': 1, 'start': '1', 'lock': [1, 2]}, 'lock': '/s/r.lock',
-                   'record': '/s/r.json', 'log': '/s/r.log', 'survivors': None}
-        hil_flash.cleanup_pending['b'] = (tracked,)       # run_tracked's: ctx.run's own, ledgered there
-        farm_profile._retain(ctx, BOARD)
+        farm_profile._retain(ctx, self.board)
+        farm_profile._retain(ctx, BOARD)                  # no openocd_esp flasher: no record read
         self.assertEqual(ctx.ledger, [])
-        hil_flash.cleanup_pending['b'] = ('/x/receipt.json',)
-        farm_profile._retain(ctx, BOARD)
-        farm_profile._retain(ctx, BOARD)
+        self.pending.add([{'receipt': '/x/receipt.json'}])
+        farm_profile._retain(ctx, self.board)
+        farm_profile._retain(ctx, self.board)
         self.assertEqual(ctx.ledger, [{'cmd': 'openocd_esp session, receipt /x/receipt.json', 'cleanup': 'pending',
                                        'receipt': None, 'retained': ['/x/receipt.json']}])
         with self.assertRaises(eng.Outstanding):
@@ -420,17 +430,48 @@ class Retain(unittest.TestCase):
         ctx = context(self)
         native = {'pid': 4242, 'startTime': '99', 'argv': ['openocd'], 'ports': [None, None, 6666], 'token': 'x',
                   'log': '/w/openocd.log', 'closed': False, 'tool': 'hil_openocd_esp', 'init': 'ok', 'submitted': 3}
-        patch(self, hil_flash, 'cleanup_pending', {'b': (native,)})
-        farm_profile._retain(ctx, BOARD)
-        self.assertEqual(ctx.ledger, [{'cmd': 'openocd_esp session, receipt openocd_esp session pid 4242 start 99, '
-                                              'receipt file unwritten, log /w/openocd.log',
+        self.pending.add([{'receipt': native}])
+        farm_profile._retain(ctx, self.board)
+        self.assertEqual(ctx.ledger, [{'cmd': 'openocd_esp session pid 4242 start 99, receipt file unwritten, '
+                                              'log /w/openocd.log',
                                        'cleanup': 'pending', 'receipt': None, 'retained': [native]}])
+
+    def test_a_tracked_child_is_a_run_the_engine_rechecks(self):
+        ctx = context(self)
+        state = {'t': 'pending'}
+        patch(self, eng.hil_process, 'recheck', lambda receipt: state[receipt['token']])
+        patch(self, eng.hil_process, 'tidy', lambda receipt: None)
+        self.pending.add([{'receipt': self.TRACKED}])
+        farm_profile._retain(ctx, self.board)
+        farm_profile._retain(ctx, self.board)
+        self.assertEqual(ctx.ledger, [{'cmd': 'esptool child, record /s/r.json', 'cleanup': 'pending',
+                                       'receipt': self.TRACKED}])
+        with self.assertRaises(eng.Outstanding):
+            ctx.run(['reset'], timeout=1)
+        state['t'] = 'done'                               # its recheck ends it, as the engine's own runs
+        self.assertEqual(ctx.open_runs(), [])
+
+    def test_an_unreceipted_entry_or_an_unreadable_record_stays_open(self):
+        for name, setup in (('unreceipted', lambda: self.pending.add(
+                                [{'receipt': {'unreceipted': 'read_security: cleanup unknown', 'serial': 's'}}])),
+                            ('unreadable', lambda: Path(self.pending.path).write_text('{not json'))):
+            with self.subTest(name):
+                ctx = context(self)
+                setup()
+                farm_profile._retain(ctx, self.board)
+                (entry,) = ctx.ledger
+                self.assertEqual((entry['cleanup'], entry['receipt']), ('unknown', None))
+                self.assertIn('left no receipt' if name == 'unreceipted' else 'unreadable', entry['cmd'])
+                self.assertEqual(len(ctx.open_runs()), 1)
+                self.pending.clear(lambda e: False, note='test')
 
 
 class EngineOpenocdEsp(EngineFixture):
     """An openocd_esp board through the engine: a reset session ended `done` leaves the board
-    released, and one the provider left running stops the board, logs the receipt and releases
-    the lock with the cleanup unproven."""
+    released, and one the provider left running (listed in its pending record, as the fake's
+    latch does) stops the board, logs the receipt and releases the lock with the cleanup
+    unproven; a record that still lists it refuses the next check's reset, as a CI job does
+    (the fake refuses as the provider's _admit_session and pending_refusal do)."""
 
     def setUp(self):
         super().setUp()
@@ -446,23 +487,28 @@ class EngineOpenocdEsp(EngineFixture):
         real = hil_util.openocd_esp()
         for var in real.CI_JOB_ENV:
             os.environ.pop(var, None)
-        patch(self, hil_flash, 'cleanup_pending', {})
         patch(self, hil_flash, 'OPENOCD_ESP_DIR', self.d / 'openocd_esp')
         self.sessions, self.outcomes = [], []
+        serial = self.board['flasher']['uid']
 
         def reset(flasher, *, retains_lock, **kw):
             self.assertIs(retains_lock, True)
+            real._admit_session(retains_lock)
+            if why := real.pending_refusal(serial):
+                raise RuntimeError(why)
             self.sessions.append('reset')
             cleanup = self.outcomes.pop(0) if self.outcomes else 'done'
             if isinstance(cleanup, BaseException):
                 cleanup.operation = types.SimpleNamespace(cleanup='pending', receipts=(self.RECEIPT,))
+                real.latch(serial, cleanup.operation, 'test reset')
                 raise cleanup
-            return types.SimpleNamespace(
+            op = types.SimpleNamespace(
                 returncode=0 if cleanup == 'done' else 1, stdout='', stderr=None, cleanup=cleanup,
                 receipts=(self.RECEIPT,) if cleanup == 'pending' else (),
                 session={'failure': 'reset run failed', 'log': '/x/openocd.log', 'dir': str(self.d / 'none')})
-        fake = types.SimpleNamespace(admit=real.admit, refusal=real.refusal, reset_openocd_esp=reset)
-        patch(self, hil_util, 'openocd_esp', lambda: fake)
+            real.latch(serial, op, 'test reset')
+            return op
+        fake_openocd_esp(self, self.d / 'locks', reset_openocd_esp=reset)
         self.real = real
 
     def test_a_done_session_is_ok_and_released(self):
@@ -491,6 +537,9 @@ class EngineOpenocdEsp(EngineFixture):
         r, = doc['rows']
         self.assertEqual((code, r['check_status']), (4, 'failed'))
         self.assert_released_with_failure(r)
+        code, doc = self.run_engine()                     # the record still lists it: no second session
+        self.assertEqual(self.sessions, ['reset'])
+        self.assertIn(self.RECEIPT, json.dumps(doc['rows'][0]))
 
     def test_one_left_running_by_a_raising_reset_is_logged_the_same_way(self):
         self.outcomes = [RuntimeError('interrupted mid-session')]
@@ -505,6 +554,32 @@ class EngineOpenocdEsp(EngineFixture):
         r, = doc['rows']
         self.assertEqual((code, r['status']), (0, 'ok'))
         self.assertEqual(r['previousCleanupFailure'], failure)
+
+    def test_a_tracked_or_unreadable_entry_fails_the_cleanup_with_its_evidence(self):
+        tracked = dict(Retain.TRACKED)
+        serial = self.board['flasher']['uid']
+        patch(self, eng.hil_process, 'recheck', lambda receipt: 'pending')
+        for name, setup, want in (
+                ('tracked', lambda: self.real.pending(serial).add([{'receipt': tracked}]), [tracked]),
+                ('unreadable', lambda: Path(self.real.pending(serial).path).write_text('{not json'), None)):
+            with self.subTest(name):
+                setup()
+                code, doc = self.run_engine()
+                r, = doc['rows']
+                self.assertEqual((r['cleanup']['result'], r['cleanup']['released'], self.sessions),
+                                 ('unresolved', True, []))
+                fh = hil_lock.take_board_lock('b', 'peer')
+                try:
+                    failure = fh.cleanup_failures[-1]
+                finally:
+                    hil_lock.release_board_lock(fh)
+                if want:
+                    self.assertEqual(failure['receipts'], want)
+                else:
+                    (marker,) = failure['receipts']
+                    self.assertIn('unreadable', json.dumps(marker))
+                self.real.pending(serial).clear(lambda e: False, note='test')
+                hil_lock.resolve_restored('b', fh.cleanup_failures, evidence='test')
 
     def test_under_a_ci_job_it_is_refused_before_any_session(self):
         os.environ[self.real.CI_JOB_ENV[0]] = '1'

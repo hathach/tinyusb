@@ -67,13 +67,25 @@ def busy(board: dict) -> list:
 
 
 def _retain(ctx, board: dict) -> None:
-    """An openocd_esp session the provider left running (hil_flash.cleanup_pending) goes to the
-    engine's ctx.retain, its detail naming the receipts (its receipt path, or its native record
-    when that file was not written), which only the contract's recovery ends. The session is
-    the provider's own, so ctx.run never saw it; an esptool child's tracked receipt is ctx.run's,
-    already on the ledger with its recheck."""
-    receipts = [r for r in hil_flash.cleanup_pending.get(board['name'], ()) if not hil_flash.tracked_receipt(r)]
-    ctx.retain(f'openocd_esp session, receipt {", ".join(map(hil_flash.receipt_text, receipts))}', receipts)
+    """What the provider's pending_entries, and this run's hil_flash.left_pending, hold open for the
+    board's USJ goes on the engine's ledger, so nothing more starts on the board and its task ends
+    failed with that evidence: sessions through ctx.retain (only the contract's recovery ends
+    them), a tracked esptool child as a run the engine rechecks, and what nothing can recheck as an
+    entry without a receipt, which keeps the logged failure open."""
+    if not (serial := hil_flash.openocd_esp_serial(board)):
+        return
+    p = hil_util.openocd_esp()
+    evidence = hil_flash.left_evidence(p, serial)
+    ctx.retain('; '.join(map(p.describe, evidence['retained'])), evidence['retained'])
+    # the engine's ledger rows (ctx.run's shape): it has no retain for tracked or unrecheckable evidence
+    for r in evidence['receipts']:
+        entry = {'cmd': p.describe(r), 'cleanup': 'pending', 'receipt': r}
+        if entry not in ctx.ledger:
+            ctx.ledger.append(entry)
+    for r in evidence['unrecheckable']:
+        entry = {'cmd': p.describe(r), 'cleanup': 'unknown', 'receipt': None}
+        if entry not in ctx.ledger:
+            ctx.ledger.append(entry)
 
 
 def reset(ctx, board: dict):

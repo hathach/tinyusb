@@ -1393,12 +1393,13 @@ class WedgedBoardCosts(unittest.TestCase):
         """The park is a flash like any other: on a D-state-held node it blocks, survives
         SIGKILL and leaves a stray -- added by the path that just declared the board wedged
         and skipped every test for exactly that reason."""
+        board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd'}}
         hil_test.board_wedged = ''
-        self.assertTrue(hil_test._should_park(False), 'a healthy board must still park')
+        self.assertTrue(hil_test._should_park(board, False), 'a healthy board must still park')
         hil_test.board_wedged = 'usbtest HUNG'
-        self.assertFalse(hil_test._should_park(False),
+        self.assertFalse(hil_test._should_park(board, False),
                          'the teardown park would flash through the poisoned node')
-        self.assertFalse(hil_test._should_park(True), '--skip-flash must still suppress it')
+        self.assertFalse(hil_test._should_park(board, True), '--skip-flash must still suppress it')
 
 
 class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
@@ -1411,14 +1412,13 @@ class CleanupPendingAtTheVariantBoundary(unittest.TestCase):
 
         def test_example(board, variant, example):
             flashed.append((variant, example))
-            hil_flash.cleanup_pending['b'] = ('/x/receipt.json',)
+            hil_test.hil_util.openocd_esp().pending(board['flasher']['uid']).add([{'receipt': '/x/receipt.json'}])
             return 0, 'pass', None
 
-        board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd_esp'}, 'tests': [],
+        board = {'name': 'b', 'uid': 'U', 'flasher': {'name': 'openocd_esp', 'uid': '30:ED:A0:E0:C9:02'}, 'tests': [],
                  'variant': [{'name': 'v1'}, {'name': 'v2'}]}
         with mock.patch.object(hil_test, 'skip_flash', False), \
              mock.patch.object(hil_test, 'shuffle_seed', None), \
-             mock.patch.object(hil_flash, 'cleanup_pending', {}), \
              TemporaryDirectory() as locks, \
              mock.patch.object(hil_test.hil_lock, 'BOARD_LOCK_DIR', locks), \
              mock.patch.object(hil_flash, 'probe_busy', return_value=[]), \

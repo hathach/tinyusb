@@ -1888,7 +1888,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                             msg += f'  {last_detail}'
                         msg += f'  in {time.time() - start_s:.1f}s'
                         log_line(msg)
-                    elif pending := cleanup_pending(board['name']):
+                    elif pending := cleanup_pending(board):
                         log_line(f'{test_name}  not retrying: {pending}')
                         wedge_break = True
                         break
@@ -1901,7 +1901,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
             else:
                 last_err = 'Flash failed'
                 last_detail = compact_output(attempt_out.getvalue())
-                if pending := cleanup_pending(board['name']):
+                if pending := cleanup_pending(board):
                     log_line(f'{test_name}  not retrying: {pending}')
                     wedge_break = True
                     break
@@ -2006,23 +2006,36 @@ def _tests_for(board: Board) -> tuple:
     return [t for t in test_list if t not in skipped], skipped
 
 
-def cleanup_pending(name: str) -> str:
-    """Why nothing more may run on the board, or '': an openocd_esp session the provider left
-    running, or an esptool child not proven ended (hil_flash.cleanup_pending), logged when the
-    board's task ends and releases its lock."""
-    receipts = hil_flash.cleanup_pending.get(name)
-    return '' if receipts is None else \
-        f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
+def cleanup_pending(board: Board) -> str:
+    """Why nothing more may run on the board, or '': what an openocd_esp operation left not proven
+    ended on its USJ, listed in the provider's pending record (pending_refusal) or left earlier in
+    this run (hil_flash.left_pending, kept after the record clears an entry that has since ended),
+    logged when the board's task ends and releases its lock."""
+    if not (serial := hil_flash.openocd_esp_serial(board)):
+        return ''
+    try:
+        p = hil_util.openocd_esp()
+    except ImportError as e:     # fail closed: the record may still list a running session
+        return f'openocd_esp pending record of USJ {serial} not checked: {e}'
+    return p.pending_refusal(serial) or hil_flash.left_refusal(p, serial)
 
 
-def pending_evidence(name: str, pending: str) -> dict:
-    """The failed verdict's evidence for an unproven cleanup: run_tracked child receipts, which a
-    recheck can end, apart from the provider sessions it retained; with neither, `pending` as
-    unrecheckable evidence, so no later park closes the failure."""
-    receipts = hil_flash.cleanup_pending.get(name, ())
-    tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
-    retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
-    return {'receipts': tracked if receipts else [{'unrecheckable': pending}], 'retained': retained}
+def pending_evidence(board: Board, pending: str) -> dict:
+    """The failed verdict's evidence for an unproven cleanup: the provider's pending_entries of the
+    board's USJ with what this run left there (hil_flash.left_pending): run_tracked child receipts,
+    which a recheck can end, the sessions retained apart, and what nothing can recheck as
+    unrecheckable evidence, as `pending` itself when neither names anything, so no later park
+    closes the failure."""
+    serial = hil_flash.openocd_esp_serial(board)
+    try:
+        p = hil_util.openocd_esp()
+        evidence = hil_flash.left_evidence(p, serial)
+    except (ImportError, ValueError):
+        return {'receipts': [{'unrecheckable': pending}], 'retained': []}
+    receipts = evidence['receipts'] + [{'unrecheckable': p.describe(r)} for r in evidence['unrecheckable']]
+    if not (receipts or evidence['retained']):
+        receipts = [{'unrecheckable': pending}]
+    return {'receipts': receipts, 'retained': evidence['retained']}
 
 
 def previous_cleanup_text(name: str, failures: list) -> str:
@@ -2099,7 +2112,7 @@ def test_board(board: Board) -> tuple:
         if previous_cleanup:
             previous_cleanup += '; board task notes: ' + '; '.join(task.errors)
     # a lock that did not end as its verdict asked is never a passing board either
-    if blocker := cleanup_pending(name) or ('' if task.ended_cleanly else 'board task ended with errors'):
+    if blocker := cleanup_pending(board) or ('' if task.ended_cleanly else 'board task ended with errors'):
         log_line(f'{name:25} BLOCKER: {blocker}; {ending}')
         rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {blocker}; {ending}'},
                      None))
@@ -2117,11 +2130,10 @@ def _give_verdict(task, board: Board, parked: list, unrestored: str, exc: BaseEx
     """The battery's cleanup verdict, the board task's collector (the HIL contract's Reservation).
     A battery that raised `exc` is restored when its final park still succeeded (the run itself
     stays aborted by `exc`), failed with unrecheckable evidence for an openocd_esp interrupt that
-    may have landed after the provider returned a pending session but before hil_flash stored its
-    receipt, and otherwise failed, the task naming `exc` after its detail."""
-    name = board['name']
-    if pending := cleanup_pending(name):
-        task.failed(detail=pending, **pending_evidence(name, pending))
+    may have landed after the provider's session ended pending but before it listed the receipt in
+    its pending record, and otherwise failed, the task naming `exc` after its detail."""
+    if pending := cleanup_pending(board):
+        task.failed(detail=pending, **pending_evidence(board, pending))
     elif exc is not None:
         if parked:
             task.restored(evidence='device/board_test park succeeded')
@@ -2184,12 +2196,12 @@ def _board_battery(board: Board, parked: list) -> tuple:
                 run_list[0], run_list[-1] = run_list[-1], run_list[0]
         cells = {}
         # beside a pending cleanup no park may flash; the loop below skips every test instead
-        if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(name):
+        if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(board):
             # Same example (same PID) still repeats across the boundary (a one-test
             # -bt run has nothing to swap with). Park on board_test first: it disables
             # the board's USB, so the next flash must re-enumerate to be seen.
             park_ec, park_status, _ = (
-                test_example(board, vname, 'device/board_test') if _should_park(skip_flash)
+                test_example(board, vname, 'device/board_test') if _should_park(board, skip_flash)
                 else (0, 'skip', None))
             if park_ec or park_status == 'skip':
                 # Boundary not cleared: the previous variant may still be enumerated
@@ -2220,7 +2232,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
             prev_last = run_list[-1]
         t_variant = time.monotonic()
         for test in run_list:
-            if cleanup_pending(name):
+            if cleanup_pending(board):
                 cells[test] = f'{hil_report.REPORT_CELL["skip"]} cleanup pending'
                 board_wide_fail = True
                 continue
@@ -2262,7 +2274,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
         # park: flash board_test last to disable the board's usb, after the capture too and when
         # it is interrupted; teardown, not a test, so it is not recorded in the report.
         park_error = None
-        if _should_park(skip_flash):
+        if _should_park(board, skip_flash):
             park_ec, park_status, _ = test_example(board, variants[0]['name'], 'device/board_test')
             if park_ec == 0 and park_status == 'pass':
                 parked.append(True)
@@ -2270,7 +2282,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
                           'no park (device/board_test) firmware' if park_status == 'skip' else None)
         elif sv_capture and sv_capture[2]:
             # the capture left the board wedged or a provider cleanup pending
-            park_error = f'not parked: {_park_refusal()}'
+            park_error = f'not parked: {_park_refusal(board)}'
     if sv_capture:
         capture, error, flashed = sv_capture
         try:
@@ -2288,7 +2300,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
     elif skip_flash and not park_error:
         unrestored = ''     # nothing flashed: no park owed
     else:
-        unrestored = park_error or f'not parked: {_park_refusal()}'
+        unrestored = park_error or f'not parked: {_park_refusal(board)}'
     return err_count, failed_tests, board_wide_fail, rows, unrestored
 
 
@@ -2379,10 +2391,10 @@ def drain_pool(it, boards: list, deadline: float, out: list | None = None) -> li
     return mret
 
 
-def _park_refusal() -> str:
+def _park_refusal(board: Board) -> str:
     """Why _should_park() refuses, for a caller that reports it."""
     return ('--skip-flash' if skip_flash else f'the board is wedged: {board_wedged}' if board_wedged else
-            '; '.join(f'{n}: {cleanup_pending(n)}' for n in hil_flash.cleanup_pending))
+            cleanup_pending(board))
 
 
 # what a SystemView capture leaves of the pool guard besides its own bound and the park's: the board's
@@ -2431,8 +2443,8 @@ def _sysview_capture(board: Board, park_variant: str) -> tuple:
     void the whole run's report."""
     name = board['name']
     why = None
-    if not _should_park(skip_flash):
-        why = _park_refusal()
+    if not _should_park(board, skip_flash):
+        why = _park_refusal(board)
     elif not hil_flash.find_firmware(park_variant, 'device/board_test', board['flasher']['name']):
         why = 'no park (device/board_test) firmware to restore the board with'
     else:
@@ -2451,16 +2463,16 @@ def _sysview_capture(board: Board, park_variant: str) -> tuple:
     return capture, err, True
 
 
-def _should_park(skip_flash: bool) -> bool:
+def _should_park(board: Board, skip_flash: bool) -> bool:
     """Flash the teardown park (device/board_test, to switch the DUT's USB off)?
 
     Not on a wedged board. The latch has just skipped every remaining test precisely
     because flashing through a D-state-held node blocks, survives SIGKILL and leaves a
     stray -- and the park is a flash like any other. test_example's own guard does not stop
     it either: that one only suppresses RETRIES, and the park is always attempt 0. Nor beside
-    an openocd_esp session the provider left running (cleanup_pending).
+    what an openocd_esp operation left not proven ended (cleanup_pending).
     """
-    return not skip_flash and not board_wedged and not hil_flash.cleanup_pending
+    return not skip_flash and not board_wedged and not cleanup_pending(board)
 
 
 def _read_controller_cache() -> dict:
