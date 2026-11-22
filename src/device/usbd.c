@@ -882,8 +882,9 @@ bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
       break;
     }
 #endif
-    dcd_event_t event;
-    if (!osal_queue_receive(_usbd_q, &event, (_usbd_after_queue.func != NULL) ? 0 : timeout_ms)) {
+    // initialized: the queue copies a run-time item length, which gcc's LTO cannot prove fills the event
+    dcd_event_t event = { 0 };
+    if (!osal_queue_receive(_usbd_q, &event,(_usbd_after_queue.func != NULL) ? 0 : timeout_ms)) {
       if (!run_after_queue_call()) {
         return false;
       }

@@ -958,7 +958,8 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
       continue;
     }
 
-    hcd_event_t event;
+    // initialized: the queue copies a run-time item length, which gcc's LTO cannot prove fills the event
+    hcd_event_t event = { 0 };
 
   #if CFG_TUH_HUB
     // Get deferred device attachments if none is enumerating

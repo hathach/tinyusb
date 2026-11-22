@@ -263,8 +263,10 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_empty(osal_queue_t qhdl) {
   // Lock-free on purpose: also polled with interrupts enabled by the bare-metal tud/tuh_task fast path,
-  // where a stale empty only defers the event to the next poll
-  return qhdl->wr_idx == qhdl->rd_idx;
+  // where a stale empty only defers the event to the next poll. One volatile access per statement, so the
+  // read order is defined (IAR Pa082)
+  uint16_t const wr = qhdl->wr_idx;
+  return wr == qhdl->rd_idx;
 }
 
 #ifdef __cplusplus
