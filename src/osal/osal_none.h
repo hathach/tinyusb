@@ -184,10 +184,13 @@ typedef osal_queue_def_t* osal_queue_t;
 #define OSAL_QUEUE_ALIGNOF_(_type) offsetof(struct { char c_; _type t_; }, t_)
 
 // _int_set is used as mutex in OS NONE (disable/enable USB ISR)
+// One assertion only: without C11 and __COUNTER__, TU_VERIFY_STATIC names its enum by __LINE__, so two in
+// one macro expansion would collide. Depth is 1..0x8000 so the indexes, which run to 2 * depth, fit uint16_t.
 #define OSAL_QUEUE_DEF(_int_set, _name, _depth, _type)                                                 \
-  TU_VERIFY_STATIC(sizeof(_type) % sizeof(intptr_t) == 0 &&                                            \
+  TU_VERIFY_STATIC((_depth) > 0 && (_depth) <= 0x8000 &&                                               \
+                   sizeof(_type) % sizeof(intptr_t) == 0 &&                                            \
                    OSAL_QUEUE_ALIGNOF_(_type) % sizeof(intptr_t) == 0,                                 \
-                   "queue item must be whole, aligned intptr_t elements");                             \
+                   "queue depth must be 1..0x8000 and item whole, aligned intptr_t elements");         \
   intptr_t         _name##_buf[(_depth) * (sizeof(_type) / sizeof(intptr_t))];                         \
   osal_queue_def_t _name = {.interrupt_set = _int_set,                                                 \
                             .buffer        = _name##_buf,                                              \
