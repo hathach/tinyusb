@@ -30,6 +30,18 @@ void setUp(void) {}
 void tearDown(void) {}
 
 //--------------------------------------------------------------------+
+// FIFO transfer default (project.yml leaves CFG_TUD_EDPT_XFER_FIFO unset)
+//--------------------------------------------------------------------+
+
+// CDC moves its stream FIFOs with usbd_edpt_xfer_fifo(): with a dedicated hardware FIFO the default turns FIFO
+// transfers and the tu_fifo <-> hardware FIFO copies on
+void test_edpt_xfer_fifo_default_on_with_cdc(void) {
+  TEST_ASSERT_EQUAL(1, CFG_TUD_EDPT_DEDICATED_HWFIFO);
+  TEST_ASSERT_EQUAL(1, CFG_TUD_EDPT_XFER_FIFO);
+  TEST_ASSERT_EQUAL(1, CFG_TUSB_FIFO_HWFIFO_XFER);
+}
+
+//--------------------------------------------------------------------+
 // Class-specific descriptor skip loop (#4387)
 // The byte past max_len is a CS_INTERFACE guard: an ENDPOINT or INTERFACE guard would stop the loop and hide the
 // over-read.
