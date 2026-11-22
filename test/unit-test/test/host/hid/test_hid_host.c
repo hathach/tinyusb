@@ -332,3 +332,21 @@ void test_hidh_set_config_set_idle_rejected(void) {
   TEST_ASSERT_EQUAL(1, config_complete_count);
   TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
 }
+
+// An END_COLLECTION without a matching COLLECTION must be ignored, not wrap the depth counter
+void test_hid_parse_report_descriptor_unbalanced_end_collection(void) {
+  static const uint8_t desc[] = {
+    0xC0,       // END_COLLECTION, stray: depth is already 0
+    0x05, 0x01, // USAGE_PAGE (Generic Desktop)
+    0x09, 0x02, // USAGE (Mouse)
+    0xA1, 0x01, // COLLECTION (Application)
+    0x85, 0x01, //   REPORT_ID (1)
+    0xC0,       // END_COLLECTION
+  };
+  tuh_hid_report_info_t info[2];
+
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_hid_parse_report_descriptor(info, TU_ARRAY_SIZE(info), desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL_UINT8(1, info[0].report_id);
+  TEST_ASSERT_EQUAL_UINT16(HID_USAGE_PAGE_DESKTOP, info[0].usage_page);
+  TEST_ASSERT_EQUAL_UINT8(HID_USAGE_DESKTOP_MOUSE, info[0].usage);
+}

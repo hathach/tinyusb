@@ -754,6 +754,9 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
             break;
 
           case RI_MAIN_COLLECTION_END:
+            // ignore an unbalanced END_COLLECTION: decrementing would wrap the counter to 255
+            // and the rest of the descriptor would no longer be parsed
+            if (ri_collection_depth == 0) break;
             ri_collection_depth--;
             if (ri_collection_depth == 0) {
               info++;
