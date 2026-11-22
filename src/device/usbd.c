@@ -433,7 +433,7 @@ static bool _usbd_task_stop;
   #define _usbd_mutex   NULL
 #endif
 
-TU_ATTR_ALWAYS_INLINE static inline bool queue_event(dcd_event_t const * event, bool in_isr) {
+static bool queue_event(dcd_event_t const * event, bool in_isr) {
   TU_ASSERT(osal_queue_send(_usbd_q, event, in_isr));
   tud_event_hook_cb(event->rhport, event->event_id, in_isr);
   return true;

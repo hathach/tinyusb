@@ -23,7 +23,12 @@
 // Event queue
 // usbc_int_set() is used as mutex in OS NONE config
 void usbc_int_set(bool enabled);
-OSAL_QUEUE_DEF(usbc_int_set, _usbc_qdef, CFG_TUC_TASK_QUEUE_SZ, tcd_event_t);
+// tcd_event_t is packed: queue it in a union aligned like the queue's elements
+typedef union {
+  tcd_event_t event;
+  intptr_t align;
+} usbc_qitem_t;
+OSAL_QUEUE_DEF(usbc_int_set, _usbc_qdef, CFG_TUC_TASK_QUEUE_SZ, usbc_qitem_t);
 tu_static osal_queue_t _usbc_q;
 
 // if stack is initialized
@@ -129,8 +134,9 @@ void tuc_task_ext(uint32_t timeout_ms, bool in_isr) {
 
   // Loop until there is no more events in the queue
   while (1) {
-    tcd_event_t event;
-    if (!osal_queue_receive(_usbc_q, &event, timeout_ms)) return;
+    usbc_qitem_t item;
+    if (!osal_queue_receive(_usbc_q, &item, timeout_ms)) return;
+    tcd_event_t event = item.event;
 
     switch (event.event_id) {
       case TCD_EVENT_CC_CHANGED: {
@@ -246,7 +252,8 @@ void tcd_event_handler(tcd_event_t const * event, bool in_isr) {
     default: break;
   }
 
-  osal_queue_send(_usbc_q, event, in_isr);
+  usbc_qitem_t const item = {.event = *event};
+  osal_queue_send(_usbc_q, &item, in_isr);
 }
 
 //--------------------------------------------------------------------+
