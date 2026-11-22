@@ -698,7 +698,7 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
 
   const uint16_t xferred_bytes = p_qtd->expected_bytes - p_qtd->total_bytes;
 
-  if (p_qhd->ff) {
+  if (CFG_TUD_EDPT_XFER_FIFO && p_qhd->ff) {
     if (dir == TUSB_DIR_IN) {
       tu_fifo_advance_read_pointer(p_qhd->ff, xferred_bytes);
     } else {

@@ -134,6 +134,7 @@
     :*:
       - _UNITY_TEST_
       - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
+      - CFG_TUD_EDPT_XFER_FIFO=1 # FIFO transfers and the tu_fifo hwfifo copies, whatever classes a test enables
       - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
       - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
     :test_cdc_host_ftdi:

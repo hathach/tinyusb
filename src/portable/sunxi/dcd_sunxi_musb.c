@@ -563,7 +563,7 @@ static bool handle_xfer_in(uint_fast8_t ep_addr)
   // TU_LOG1("   %p mps %d len %d rem %d\r\n", buf, mps, len, rem);
   if (len) {
     volatile void* addr = (volatile void*)(USBC_REG_EPFIFO1(USBC0_BASE) + (epnum_minus1 << 2));
-    if (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1)) {
+    if (CFG_TUD_EDPT_XFER_FIFO && (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1))) {
       pipe_read_write_packet_ff((tu_fifo_t *)(uintptr_t) buf, addr, len, TUSB_DIR_IN);
     } else {
       pipe_write_packet(buf, addr, len);
@@ -591,7 +591,7 @@ static bool handle_xfer_out(uint_fast8_t ep_addr)
   uint8_t          *buf = pipe->buf;
   if (len) {
     volatile void* addr = (volatile void*)(USBC_REG_EPFIFO1(USBC0_BASE) + (epnum_minus1 << 2));
-    if (_dcd.pipe_buf_is_fifo[TUSB_DIR_OUT] & TU_BIT(epnum_minus1)) {
+    if (CFG_TUD_EDPT_XFER_FIFO && (_dcd.pipe_buf_is_fifo[TUSB_DIR_OUT] & TU_BIT(epnum_minus1))) {
       pipe_read_write_packet_ff((tu_fifo_t *)(uintptr_t )buf, addr, len, TUSB_DIR_OUT);
     } else {
       pipe_read_packet(buf, addr, len);

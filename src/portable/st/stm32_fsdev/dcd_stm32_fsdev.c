@@ -342,7 +342,7 @@ static void handle_ctr_rx(uint32_t ep_id) {
 
   // A full packet may exceed what the transfer has left: keep that much, the rest stays in PMA
   const uint16_t xact_len = tu_min16(rx_count, (uint16_t)(xfer->total_len - xfer->queued_len));
-  if (xfer->ff) {
+  if (CFG_TUD_EDPT_XFER_FIFO && xfer->ff) {
     tu_hwfifo_read_to_fifo(pma_buf, xfer->ff, xact_len, NULL);
   } else {
     tu_hwfifo_read(pma_buf, xfer->buffer + xfer->queued_len, xact_len, NULL);
@@ -722,7 +722,7 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint16_t ep_ix) {
   uint16_t         addr_ptr = (uint16_t)btable_get_addr(ep_ix, buf_id);
   fsdev_pma_buf_t *pma_buf  = PMA_BUF_AT(addr_ptr);
 
-  if (xfer->ff) {
+  if (CFG_TUD_EDPT_XFER_FIFO && xfer->ff) {
     tu_hwfifo_write_from_fifo(pma_buf, xfer->ff, len, NULL);
   } else {
     tu_hwfifo_write(pma_buf, &(xfer->buffer[xfer->queued_len]), len, NULL);

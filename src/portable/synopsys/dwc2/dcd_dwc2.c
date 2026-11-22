@@ -1122,7 +1122,7 @@ static uint16_t epin_write_tx_fifo(dwc2_regs_t *dwc2, uint8_t epnum) {
 
     // Push packet to Tx-FIFO
     volatile uint32_t *tx_fifo = dwc2->fifo[epnum];
-    if (xfer->ff) {
+    if (CFG_TUD_EDPT_XFER_FIFO && xfer->ff) {
       tu_hwfifo_write_from_fifo(tx_fifo, xfer->ff, xact_bytes, NULL);
       total_bytes_written += xact_bytes;
     } else {
@@ -1191,7 +1191,7 @@ static void handle_rxflvl_irq(uint8_t rhport) {
         // the rest
         const uint16_t xact_len = tu_min16(byte_count, xfer->rx_remaining);
         if (xact_len > 0) {
-          if (xfer->ff != NULL) {
+          if (CFG_TUD_EDPT_XFER_FIFO && xfer->ff != NULL) {
             tu_hwfifo_read_to_fifo(rx_fifo, xfer->ff, xact_len, NULL);
           } else {
             tu_hwfifo_read(rx_fifo, xfer->buffer, xact_len, NULL);

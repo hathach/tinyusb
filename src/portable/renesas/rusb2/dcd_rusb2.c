@@ -278,7 +278,7 @@ static bool pipe0_xfer_in(rusb2_reg_t *rusb) {
     // rusb->CFIFOSEL = fifo_sel;
     // while (0 == (rusb->CFIFOSEL & RUSB2_CFIFOSEL_ISEL_WRITE)) {}
 
-    if (pipe->ff) {
+    if (CFG_TUD_EDPT_XFER_FIFO && pipe->ff) {
       tu_hwfifo_write_from_fifo(&rusb->CFIFO, (tu_fifo_t *)buf, len, &access_mode);
     } else {
       tu_hwfifo_write(&rusb->CFIFO, buf, len, &access_mode);
@@ -317,7 +317,7 @@ static bool pipe0_xfer_out(rusb2_reg_t *rusb) {
     tu_hwfifo_access_t access_mode = {.data_stride = (rusb2_is_highspeed_reg(rusb) ? 4u : 2u),
                                       .param       = (uintptr_t)rusb};
 
-    if (pipe->ff) {
+    if (CFG_TUD_EDPT_XFER_FIFO && pipe->ff) {
       tu_hwfifo_read_to_fifo(&rusb->CFIFO, (tu_fifo_t *)buf, len, &access_mode);
     } else {
       tu_hwfifo_read(&rusb->CFIFO, buf, len, &access_mode);
@@ -377,7 +377,7 @@ static bool pipe_xfer_in(rusb2_reg_t* rusb, unsigned num)
   if (len) {
     tu_hwfifo_access_t access_mode = {.data_stride = (rusb2_is_highspeed_reg(rusb) ? 4u : 2u),
                                       .param       = (uintptr_t)rusb};
-    if (pipe->ff) {
+    if (CFG_TUD_EDPT_XFER_FIFO && pipe->ff) {
       tu_hwfifo_write_from_fifo(&rusb->D0FIFO, (tu_fifo_t *)buf, len, &access_mode);
     } else {
       tu_hwfifo_write(&rusb->D0FIFO, buf, len, &access_mode);
@@ -426,7 +426,7 @@ static bool pipe_xfer_out(rusb2_reg_t* rusb, unsigned num)
   if (len) {
     tu_hwfifo_access_t access_mode = {.data_stride = (rusb2_is_highspeed_reg(rusb) ? 4u : 2u),
                                       .param       = (uintptr_t)rusb};
-    if (pipe->ff) {
+    if (CFG_TUD_EDPT_XFER_FIFO && pipe->ff) {
       tu_hwfifo_read_to_fifo(&rusb->D0FIFO, (tu_fifo_t *)buf, len, &access_mode);
     } else {
       tu_hwfifo_read(&rusb->D0FIFO, buf, len, &access_mode);

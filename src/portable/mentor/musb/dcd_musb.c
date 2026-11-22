@@ -299,7 +299,7 @@ static void pipe_write(musb_regs_t* musb_regs, pipe_state_t* pipe, uint8_t epnum
   const uint16_t xact_len = tu_min16(mps, pipe->remaining);
   volatile void *hwfifo = &musb_regs->fifo[epnum];
   if (xact_len) {
-    if (pipe->use_fifo) {
+    if (CFG_TUD_EDPT_XFER_FIFO && pipe->use_fifo) {
       tu_hwfifo_write_from_fifo(hwfifo, pipe->fifo, xact_len, NULL);
     } else {
       tu_hwfifo_write(hwfifo, pipe->buf, xact_len, NULL);
@@ -354,7 +354,7 @@ static bool pipe_read(musb_regs_t* musb_regs, pipe_state_t* pipe, uint8_t epnum)
   const uint16_t xact_len = tu_min16(tu_min16(pipe->remaining, mps), rx_count);
   volatile void *hwfifo = &musb_regs->fifo[epnum];
   if (xact_len) {
-    if (pipe->use_fifo) {
+    if (CFG_TUD_EDPT_XFER_FIFO && pipe->use_fifo) {
       tu_hwfifo_read_to_fifo(hwfifo, pipe->fifo, xact_len, NULL);
     } else {
       tu_hwfifo_read(hwfifo, pipe->buf, xact_len, NULL);
