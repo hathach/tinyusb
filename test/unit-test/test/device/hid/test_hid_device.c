@@ -83,6 +83,19 @@ void test_edpt_xfer_fifo_default_off_without_fifo_class(void) {
   TEST_ASSERT_EQUAL(1, CFG_TUSB_FIFO_HWFIFO_API);
 }
 
+// with FIFO transfers compiled out usbd_edpt_xfer_fifo() refuses: the DCD is never reached (the mock fails on an
+// unexpected dcd_edpt_xfer_fifo() call), the endpoint is not left busy and the FIFO keeps its data
+void test_edpt_xfer_fifo_refused_when_compiled_out(void) {
+  TU_FIFO_DEF(ff, 16, false);
+  const uint8_t data[] = { 0x01, 0x02, 0x03, 0x04 };
+  TEST_ASSERT_EQUAL(sizeof(data), tu_fifo_write_n(&ff, data, sizeof(data)));
+
+  TEST_ASSERT_FALSE(usbd_edpt_busy(0, EP_HID_IN));
+  TEST_ASSERT_FALSE(usbd_edpt_xfer_fifo(0, EP_HID_IN, &ff, sizeof(data), false));
+  TEST_ASSERT_FALSE(usbd_edpt_busy(0, EP_HID_IN));
+  TEST_ASSERT_EQUAL(sizeof(data), tu_fifo_count(&ff));
+}
+
 // the linear hardware FIFO copies still work with FIFO transfers compiled out
 void test_hwfifo_linear_copies_without_fifo_xfer(void) {
   static const tu_hwfifo_access_t access_32 = { .data_stride = 4, .param = 0 };
