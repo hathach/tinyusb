@@ -14,43 +14,41 @@ downloads run_id's `code-size-*` artifacts.
   code_size_ci.py is-current --repo OWNER/NAME --pr N --run-id ID --attempt A --head-sha SHA
 
 exits 0 when that Build run attempt is still the PR's latest, 1 when a newer push, run
-or attempt supersedes it: its comment would overwrite a newer one.
+or attempt supersedes it: its comment would overwrite a newer one; 2 when the API, or
+agentrc's gh_pr_comment.py that answers it, cannot tell.
 """
 import argparse
 import json
 import os
-import shutil
-import subprocess
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tools'))
 import code_size  # noqa: E402  its engine's snapshot loader is the one compare uses
+from helper import agentrc  # noqa: E402  test/hil/helper, on the path code_size.py adds
 
 WORKFLOW = 'build.yml'
+GH_PR_COMMENT = 'skills/hil/scripts/gh_pr_comment.py'   # agentrc's, for is-current
 BRANCH = 'master'
 MAX_DEPTH = 30  # first-parent ancestors tried before giving up
-GH_TIMEOUT = 60  # seconds per gh api call, a stalled one never blocks
 
 
-def gh(path, paginate=False):
-    """Parsed `gh api` GET of `path`; with `paginate`, the list of every page."""
-    # by PATH: Windows' CreateProcess searches System32 first and only for gh.exe
-    cmd = [shutil.which('gh') or 'gh', 'api', '-H', 'Accept: application/vnd.github+json'] + (['--paginate', '--slurp'] if paginate else [])
+def gh(path, paginate_key=None):
+    """agentrc's gh_pr_comment.gh: the parsed `gh api` GET of `path`, with `paginate_key` the items under it on
+    every page; RuntimeError when the API, or agentrc, cannot answer."""
     try:
-        ret = subprocess.run(cmd + [path], capture_output=True, text=True, check=False, timeout=GH_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(f'gh api {path}: no reply in {GH_TIMEOUT} s') from None
-    except OSError as e:  # no runnable gh is a failed lookup too
-        raise RuntimeError(f'gh api {path}: {e}') from None
-    if ret.returncode != 0:
-        raise RuntimeError(f'gh api {path}: {ret.stderr.strip()}')
-    return json.loads(ret.stdout)
+        helper = agentrc.load_file(GH_PR_COMMENT)
+    except ImportError as e:
+        raise RuntimeError(str(e)) from None
+    try:
+        return helper.gh(path, paginate_key)
+    except helper.ApiError as e:
+        raise RuntimeError(str(e)) from None
 
 
 def gh_items(path, key):
     """Every item of a paginated list endpoint whose items are under `key`."""
     sep = '&' if '?' in path else '?'
-    return [item for page in gh(f'{path}{sep}per_page=100', paginate=True) for item in page[key]]
+    return gh(f'{path}{sep}per_page=100', key)
 
 
 def current_base_sha(current):
@@ -138,43 +136,23 @@ def baseline(args):
     return 0
 
 
-def is_run_of(run, pr, head):
-    """Whether a pull_request Build run may be PR `pr`'s, whose head is `head`: another PR can
-    share the commit. GitHub lists the open same-repo PRs of the run's head in pull_requests and
-    leaves it empty for a fork's, so an unlisted run counts when it built the PR's head branch."""
-    numbers = [p['number'] for p in run.get('pull_requests') or []]
-    if numbers:
-        return pr in numbers
-    return run.get('head_branch') == head.get('ref') and \
-        (run.get('head_repository') or {}).get('full_name') == (head.get('repo') or {}).get('full_name')
-
-
-def run_owner(run):
-    """Run `run`'s id and whose it is, so a stale verdict names what superseded it."""
-    numbers = [p['number'] for p in run.get('pull_requests') or []]
-    owner = ', '.join(f'#{n}' for n in numbers) if numbers else \
-        f"{(run.get('head_repository') or {}).get('full_name')}:{run.get('head_branch')}"
-    return f"run {run['id']} of {owner}"
-
-
 def is_current(args):
-    """Whether run `args.run_id` attempt `args.attempt` of the PR head is still the newest."""
-    why = None
-    head = gh(f'repos/{args.repo}/pulls/{args.pr}')['head']
-    if head['sha'] != args.head_sha:
-        why = 'the PR head moved on'
-    else:
-        runs = [r for r in gh_items(f'repos/{args.repo}/actions/workflows/{WORKFLOW}/runs?head_sha={args.head_sha}'
-                                    f'&event=pull_request', 'workflow_runs') if is_run_of(r, args.pr, head)]
-        latest = max(runs, key=lambda r: r['run_number'], default=None)
-        if latest is None:
-            why = 'no Build run of the PR head found'
-        elif latest['id'] != args.run_id:
-            why = f'a newer Build run exists: {run_owner(latest)}'
-        elif gh(f'repos/{args.repo}/actions/runs/{args.run_id}')['run_attempt'] != args.attempt:
-            why = 'a newer attempt exists'
-    print(f'stale: {why}' if why else 'current')
-    return 1 if why else 0
+    """Whether run `args.run_id` attempt `args.attempt` of the PR head is still the newest Build run: agentrc's
+    gh_pr_comment.fresh, by pull_requests (every PR a run lists) or a fork's head. Exit 2 when it cannot tell."""
+    try:
+        helper = agentrc.load_file(GH_PR_COMMENT)
+    except ImportError as e:
+        print(f'unknown: {e}', file=sys.stderr)
+        return 2
+    try:
+        # api read per call, so a test stubs helper.gh
+        ok, why = helper.fresh(args.repo, pr=args.pr, head_sha=args.head_sha, run_id=args.run_id,
+                               attempt=args.attempt, workflow=WORKFLOW, api=helper.gh)
+    except helper.ApiError as e:
+        print(f'unknown: {e}', file=sys.stderr)
+        return 2
+    print(why if ok else f'stale: {why}')
+    return 0 if ok else 1
 
 
 def main():
@@ -184,7 +162,8 @@ def main():
     p.add_argument('--repo', required=True, help='OWNER/NAME whose master runs are baselines')
     p.add_argument('--current', required=True, help='The PR run\'s downloaded code-size artifacts')
     p.add_argument('--info', required=True, help='Where to write the baseline description JSON')
-    p = sub.add_parser('is-current', help='exit 1 when a newer push, run or attempt supersedes this one')
+    p = sub.add_parser('is-current', help='exit 1 when a newer push, run or attempt supersedes this one, '
+                                          '2 when it cannot tell')
     p.add_argument('--repo', required=True)
     p.add_argument('--pr', required=True, type=int)
     p.add_argument('--run-id', required=True, type=int)

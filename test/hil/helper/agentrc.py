@@ -37,6 +37,7 @@ API = 1   # agentrc_source.py's API this bootstrap speaks
 # every agentrc script tinyusb loads or runs; their closure is the identity a receipt binds and a stage copies
 SCRIPTS = (
     'skills/code-size/scripts/code_size.py',
+    'skills/hil/scripts/gh_pr_comment.py',
     'skills/hil/scripts/hil_boards.py',
     'skills/hil/scripts/hil_farm_check.py',
     'skills/hil/scripts/hil_flash.py',

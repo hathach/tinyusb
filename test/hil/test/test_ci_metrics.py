@@ -489,6 +489,41 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertIn('no usable scope manifest', comment)
         self.assertTrue(comment.endswith('_[Full report](https://example/run)_\n'))
 
+    def test_a_freshness_check_that_cannot_tell_never_skips_silently(self):
+        # is-current exits 1 for a superseded run (skip the post) and 2 when the API cannot tell (fail the step)
+        import tempfile
+        if _no_bash() or sys.platform == 'win32':   # which('gh') there finds a .bat, not this sh stub
+            raise unittest.SkipTest(_no_bash() or 'a POSIX gh stub')
+        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'), encoding='utf-8') as f:
+            text = f.read()
+        for wf in ('pr_comment.yml', 'membrowse-comment.yml'):
+            with open(os.path.join(REPO, '.github', 'workflows', wf), encoding='utf-8') as f:
+                calls = f.read().split('code_size_ci.py is-current')[1:]
+            self.assertTrue(calls, wf)
+            for call in calls:
+                self.assertIn('|| rc=$?', call.split('\n')[1], wf)   # its exit code is read, never just tested
+        i = text.index('run: |\n', text.index('- name: Skip a superseded run\n')) + len('run: |\n')
+        j = re.search(r'^\s*$', text[i:], re.M).start() + i
+        script = re.sub(r'^ {10}', '', text[i:j], flags=re.M)
+        for answer, rc, posted in (('exit 1', 1, ''), ("echo '{\"head\": {\"sha\": \"bbbbbbb\"}}'", 0, '')):
+            with self.subTest(gh=answer), tempfile.TemporaryDirectory() as d:
+                with open(os.path.join(d, 'gh'), 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(f'#!/bin/sh\n{answer}\n')
+                os.chmod(os.path.join(d, 'gh'), 0o755)
+                out = os.path.join(d, 'out')
+                open(out, 'w').close()
+                env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '1', 'HEAD_SHA': 'a' * 40,
+                       'GITHUB_OUTPUT': out, 'PATH': d + os.pathsep + os.environ['PATH']}
+                r = run_bash(['-e', '-o', 'pipefail', '-c', script], cwd=REPO, capture_output=True, text=True,
+                             env=env)
+                self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
+                with open(out, encoding='utf-8') as f:
+                    self.assertEqual(f.read(), posted)
+                if rc:
+                    self.assertIn('::error::cannot tell', r.stdout)
+                else:
+                    self.assertIn('stale: PR #5 head moved', r.stdout)
+
     def _run_block(self, block, sel, setup=None):
         """Run a dedented build.yml step block with `sel` as selection.json in a temp
         dir; `setup(dir)` may prepare the dir and return extra env. Returns the block's
