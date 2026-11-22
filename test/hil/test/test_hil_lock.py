@@ -30,7 +30,7 @@ if sys.platform == 'win32':
     raise unittest.SkipTest("agentrc's board lock is an fcntl flock: POSIX only")
 
 import fcntl   # noqa: E402
-from usbtest_harness import patch   # noqa: E402 - stubs pyserial before hil_test imports it
+from usbtest_harness import patch, wait_for   # noqa: E402 - stubs pyserial before hil_test imports it
 import hil_flash         # noqa: E402
 import hil_test          # noqa: E402
 from helper import agentrc, hil_lock, hil_util   # noqa: E402
@@ -282,14 +282,6 @@ class InstalledDependency(unittest.TestCase):
         rc, out = self.cli('status')
         self.assertNotEqual(rc, 0)
         self.assertIn('lacks skills/hil/scripts/hil_process.py', out)
-
-
-def _board_in_worker(board):
-    return hil_test.test_board(board)[1]
-
-
-def _next_task(x):
-    return x
 
 
 class FailedCleanup(LockDir):
@@ -638,13 +630,17 @@ class FailedCleanup(LockDir):
         sys.settrace(prev)
         self.assertEqual(fired, [1])
 
-    def test_the_workers_next_task_runs_after_the_failed_cleanup(self):
-        # The failed board must not strand a pool worker or its next task.
+    def test_a_board_whose_cleanup_failed_does_not_block_the_next_boards_process(self):
         self.provider(self.op('pending'))
-        pool = hil_test._mp.Pool(1, maxtasksperchild=1)
-        self.addCleanup(pool.terminate)
-        self.assertEqual(pool.apply_async(_board_in_worker, (self.board,)).get(timeout=60), 2)
-        self.assertEqual(pool.apply_async(_next_task, (7,)).get(timeout=20), 7)
+        real = hil_test.test_board
+
+        def board_task(board):
+            return real(board) if board is self.board else (board['name'], 0, [], [], None)
+        patch(self, hil_test, 'test_board', board_task)
+        rows = []
+        with mock.patch.object(os, 'cpu_count', return_value=1):
+            hil_test.run_boards([self.board, {'name': 'next'}], time.monotonic() + 60, rows, 'seed')
+        self.assertEqual([(r[0], r[1]) for r in rows], [(self.board['name'], 2), ('next', 0)])
         self.assert_logged()
 
     def test_done_releases_the_lock_as_usual(self):
@@ -970,21 +966,25 @@ class Verdicts(LockDir):
         self.assertNotIn(hil_test.hil_report.CLEANUP_PENDING_CELL, rows[-1][1])
 
     def test_a_worker_releases_its_board_when_it_exits(self):
-        # maxtasksperchild=1: a task left holding its flock (the __exit__-entry gap) frees it when its
-        # worker ends after that one task; the record it left is logged found-left by the next take
-        with mock.patch.object(os, 'cpu_count', return_value=1):
-            pool = hil_test._start_pool('seed')
-        self.addCleanup(pool.terminate)
-        worker = pool.apply_async(_gap_in_worker, (BOARD,)).get(timeout=30)
-        self.assertNotEqual(worker, os.getpid())
-        deadline = time.monotonic() + 20
-        while True:
+        # a process per board: a task left holding its flock (the __exit__-entry gap) frees it when
+        # its process ends after that one task; the record it left is logged found-left by the next take
+        def gap(board):
+            return (board['name'], 0, [], [], _gap_in_worker(BOARD))
+        patch(self, hil_test, 'test_board', gap)
+        rows = []
+        hil_test.run_boards([{'name': 'b'}], time.monotonic() + 30, rows, 'seed')
+        self.assertEqual(rows[0][0], 'b')
+        self.assertNotEqual(rows[0][4], os.getpid())
+        taken = []
+
+        def take():
             try:
-                fh = hil_lock.take_board_lock(BOARD, 'peer')
-                break
+                taken.append(hil_lock.take_board_lock(BOARD, 'peer'))
             except hil_lock.BoardLocked:
-                self.assertLess(time.monotonic(), deadline, 'the worker kept the flock')
-                time.sleep(0.1)
+                return False
+            return True
+        self.assertTrue(wait_for(take, 20), 'the board process kept the flock')
+        fh = taken[0]
         try:
             self.assertEqual([f['how'] for f in fh.cleanup_failures], ['found-left'])
         finally:

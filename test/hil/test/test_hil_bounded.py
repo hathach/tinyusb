@@ -22,11 +22,11 @@ import json
 import os
 import shutil
 import stat
+import signal
 import subprocess
 import sys
 import threading
 from contextlib import redirect_stderr, redirect_stdout
-from multiprocessing import TimeoutError as MpTimeoutError
 import time
 import types
 import unittest
@@ -216,8 +216,8 @@ class BuildBoardContract(unittest.TestCase):
         self.assertIn('was configured with CFLAGS_CLI', printed)
         self.assertEqual(self.build(1, 'Traceback')[0], (1, False))
 
-    def run_main(self, cfg, prior_rows, argv, refuse, results=()):
-        """main() over a fake rig in a temp report dir: (exit code, report dir, pool, hints)."""
+    def run_main(self, cfg, prior_rows, argv, refuse, results=(), interrupt=None):
+        """main() over a fake rig in a temp report dir: (exit code, report dir, run_boards, hints)."""
         from unittest import mock
         from helper import hil_report
         for g in ('verbose', 'test_only', 'max_retry', 'skip_flash'):
@@ -230,18 +230,22 @@ class BuildBoardContract(unittest.TestCase):
         (d / 'rig.json').write_text(json.dumps(cfg))
         hil_report.write_report(d, {'rows': prior_rows, 'scope': '', 'caveat': ''})
         (d / 'rig.json.failed').write_text('--accumulate -b stale')
-        pool = mock.MagicMock()   # main() enters it as a context manager
-        pool.imap_unordered.return_value.next.side_effect = list(results)
+        def run_boards(boards, deadline, out, seed):
+            out.extend(results)
+            if interrupt is not None:
+                raise interrupt
+            return out
+        dispatch = mock.Mock(side_effect=run_boards)
         with mock.patch.object(sys, 'argv', ['hil_test.py', str(d / 'rig.json'), '--build', *argv]), \
              mock.patch.dict(os.environ, {'HIL_REPORT_DIR': str(d)}), \
              mock.patch.object(hil_test, 'build_board', lambda b, c: (1, False) if b['name'] in refuse else (0, True)), \
-             mock.patch.object(hil_test, '_start_pool', return_value=pool), \
+             mock.patch.object(hil_test, 'run_boards', dispatch), \
              mock.patch.object(hil_test, '_load_controller_hints', return_value={}), \
              mock.patch.object(hil_test, '_save_controller_hints') as hints, \
              mock.patch.object(hil_test, 'log_line'), \
              redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exited:
             hil_test.main()
-        return exited.exception.code, d, pool, hints
+        return exited.exception.code, d, dispatch, hints
 
     def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
         from helper import hil_report
@@ -251,9 +255,9 @@ class BuildBoardContract(unittest.TestCase):
         prior = [{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                  for n in ('bad-a', 'bad-b', 'good')]
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
-        rc, d, pool, hints = self.run_main(cfg, prior, ['--accumulate'], {'bad'}, [good_row])
+        rc, d, dispatch, hints = self.run_main(cfg, prior, ['--accumulate'], {'bad'}, [good_row])
         self.assertEqual(rc, 1)
-        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
+        self.assertEqual([b['name'] for b in dispatch.call_args[0][0]], ['good'])
         self.assertEqual([r[0] for r in hints.call_args[0][0]], ['good'], 'a refused board never ran')
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         cells = {r['board']: r['cells'] for r in doc['rows']}
@@ -264,6 +268,24 @@ class BuildBoardContract(unittest.TestCase):
         self.assertEqual([(r['ran'], r['pass']) for r in verdict['results']], [(False, False), (True, True)])
         self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b bad')
 
+    def test_an_interrupted_run_reports_what_finished_and_names_the_rest(self):
+        """SIGTERM (or Ctrl-C) reaches main after run_boards stopped its board processes: the rows
+        that finished are the report's, the rest are named in its banner and the re-run spec."""
+        from helper import hil_report
+        cfg = {'boards': [{'name': n, 'uid': str(i), 'flasher': {'name': 'jlink', 'uid': 'p'}}
+                          for i, n in enumerate(('done', 'cut'))]}
+        done = ('done', 0, [], [('done', {'device/cdc_msc': 'pass'}, '1s')], None)
+        for interrupt, rc in ((hil_test.RunInterrupted(signal.SIGTERM), 143), (KeyboardInterrupt(), 130)):
+            with self.subTest(rc=rc):
+                code, d, _, _ = self.run_main(cfg, [], [], set(), [done], interrupt=interrupt)
+                self.assertEqual(code, rc)
+                doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+                self.assertEqual([r['board'] for r in doc['rows']], ['done'])
+                self.assertEqual(doc['_hil']['termination'], 'aborted')
+                self.assertIn(f'interrupted by {"SIGTERM" if rc == 143 else "SIGINT"}', doc['caveat'])
+                self.assertIn('cut', doc['caveat'])
+                self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b cut')
+
     def all_refused(self, argv):
         from helper import hil_report
         cfg = {'boards': [{'name': 'bad', 'uid': '1', 'flasher': {'name': 'jlink', 'uid': 'p'},
@@ -272,9 +294,9 @@ class BuildBoardContract(unittest.TestCase):
         prior = ([{'board': n, 'cells': {'device/cdc_msc': 'pass'}, 'duration': '1s'}
                   for n in ('bad-a', 'bad-b', 'worse')]
                  + [{'board': 'bad', 'cells': {hil_report.LOCKED_CELL: 'held'}, 'duration': None}])
-        rc, d, pool, _ = self.run_main(cfg, prior, argv, {'bad', 'worse'})
+        rc, d, dispatch, _ = self.run_main(cfg, prior, argv, {'bad', 'worse'})
         self.assertNotIn(rc, (0, None))
-        pool.imap_unordered.assert_not_called()
+        dispatch.assert_not_called()
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         cells = {r['board']: r['cells'] for r in doc['rows']}
         for n in ('bad-a', 'bad-b', 'worse'):
@@ -309,22 +331,22 @@ class BuildBoardContract(unittest.TestCase):
                           {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}},
                           {'name': 'esp', 'uid': '3', 'flasher': {'name': 'esptool', 'uid': 'p3'}}]}
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
-        rc, _, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
+        rc, _, dispatch, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
         self.assertEqual(rc, 0)
-        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['good'])
-        rc, d, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
+        self.assertEqual([b['name'] for b in dispatch.call_args[0][0]], ['good'])
+        rc, d, dispatch, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
         self.assertEqual(rc, 1)
-        pool.imap_unordered.assert_not_called()
+        dispatch.assert_not_called()
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['bad', 'esp']))
         self.assertIn('bad: no uid', doc['caveat'])
         # an unregistered probe names no flasher: the leg that takes every other flasher reports it
         cfg['boards'][0] = {'name': 'bad', 'uid': '1', 'probe': 'hil-bounded-unregistered-probe'}
         esp_row = ('esp', 0, [], [('esp', {'device/cdc_msc': 'pass'}, '1s')], None)
-        rc, _, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool', '--skip-flash'], set(), [esp_row])
+        rc, _, dispatch, _ = self.run_main(cfg, [], ['--flasher', 'esptool', '--skip-flash'], set(), [esp_row])
         self.assertEqual(rc, 0)
-        self.assertEqual([b['name'] for b in pool.imap_unordered.call_args[0][1]], ['esp'])
-        rc, d, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set())
+        self.assertEqual([b['name'] for b in dispatch.call_args[0][0]], ['esp'])
+        rc, d, dispatch, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set())
         self.assertEqual(rc, 1)
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         self.assertEqual(doc['_hil']['selection'], ['bad', 'good'])
@@ -337,11 +359,11 @@ class BuildBoardContract(unittest.TestCase):
         cfg = {'boards': [{'name': 'old', 'uid': '1', 'flasher': {'name': 'esptool', 'uid': 'p1'}, 'tests': stale},
                           {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}}]}
         good_row = ('good', 0, [], [('good', {'device/cdc_msc': 'pass'}, '1s')], None)
-        rc, _, pool, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
+        rc, _, dispatch, _ = self.run_main(cfg, [], ['--exclude-flasher', 'esptool'], set(), [good_row])
         self.assertEqual(rc, 0)
-        rc, d, pool, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
+        rc, d, dispatch, _ = self.run_main(cfg, [], ['--flasher', 'esptool'], set())
         self.assertEqual(rc, 1)
-        pool.imap_unordered.assert_not_called()
+        dispatch.assert_not_called()
         self.assertIn('old: tests.dev_attached is now', json.loads((d / hil_report.REPORT_JSON).read_text())['caveat'])
 
     def test_an_unreadable_registry_aborts_every_leg_naming_it(self):
@@ -353,9 +375,9 @@ class BuildBoardContract(unittest.TestCase):
         why = 'board registry /x/boards.json: Expecting value: line 1 column 1 (char 0)'
         with mock.patch.object(hil_test.hil_util.hil_boards(), 'registry', side_effect=ValueError(why)):
             for argv in (['--flasher', 'esptool', '--flasher', 'openocd_esp'], ['--exclude-flasher', 'esptool']):
-                rc, d, pool, _ = self.run_main(cfg, [], argv, set())
+                rc, d, dispatch, _ = self.run_main(cfg, [], argv, set())
                 self.assertEqual(rc, 1)
-                pool.imap_unordered.assert_not_called()
+                dispatch.assert_not_called()
                 doc = json.loads((d / hil_report.REPORT_JSON).read_text())
                 self.assertEqual(doc['_hil']['termination'], 'aborted', argv)
                 self.assertIn(why, doc['caveat'])
@@ -366,9 +388,9 @@ class BuildBoardContract(unittest.TestCase):
         cfg = {'boards': ['oops', {'probe': 'p0'}, {'name': 'good', 'uid': '2', 'probe': 'p2'}]}
         why = 'board registry /x/boards.json: Expecting value: line 1 column 1 (char 0)'
         with mock.patch.object(hil_test.hil_util.hil_boards(), 'registry', side_effect=ValueError(why)):
-            rc, d, pool, _ = self.run_main(cfg, [], [], set())
+            rc, d, dispatch, _ = self.run_main(cfg, [], [], set())
         self.assertEqual(rc, 1)
-        pool.imap_unordered.assert_not_called()
+        dispatch.assert_not_called()
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['good']))
         self.assertIn(why, doc['caveat'])
@@ -377,9 +399,9 @@ class BuildBoardContract(unittest.TestCase):
         from helper import hil_report
         cfg = {'boards': ['oops', {'probe': 'hil-bounded-unregistered-probe'},
                           {'name': 'good', 'uid': '2', 'flasher': {'name': 'jlink', 'uid': 'p2'}}]}
-        rc, d, pool, _ = self.run_main(cfg, [], [], set())
+        rc, d, dispatch, _ = self.run_main(cfg, [], [], set())
         self.assertEqual(rc, 1)
-        pool.imap_unordered.assert_not_called()
+        dispatch.assert_not_called()
         doc = json.loads((d / hil_report.REPORT_JSON).read_text())
         self.assertEqual((doc['_hil']['termination'], doc['_hil']['selection']), ('aborted', ['good']))
         self.assertIn('<unnamed>: not an object', doc['caveat'])
@@ -1099,8 +1121,8 @@ class RunWhileContract(unittest.TestCase):
 
 class UsbtestOuterBoundIsOneValue(unittest.TestCase):
     """run_cmd's kill is the ONE bound, and it must carry a recovery reserve only when a
-    recovery can actually run. Otherwise a board on a path that cannot recover holds a pool
-    worker idle for the difference."""
+    recovery can actually run. Otherwise a board on a path that cannot recover holds its
+    board process idle for the difference."""
 
     def _invoke(self, flasher, skip_flash=False, recover=None):
         from helper import hil_util, usb_observe
@@ -1146,7 +1168,7 @@ class UsbtestOuterBoundIsOneValue(unittest.TestCase):
 
     def test_the_reserve_follows_the_flasher_not_a_fleet_constant(self):
         """A flasher with a reset primitive reserves the reset bound, one without (esptool)
-        the reflash bound: the difference is dead time a pool worker would otherwise hold."""
+        the reflash bound: the difference is dead time a board process would otherwise hold."""
         import usbtest
         ocd = self._invoke({'name': 'openocd', 'vid_pid': '0x1366 0x1024',
                             'args': '-f target/rp2040.cfg'})
@@ -1298,65 +1320,6 @@ class UsbtestOuterKillStaysRetryable(unittest.TestCase):
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'UID1',
                                           'flasher': {'name': 'openocd'}})
         self.assertFalse(cm.exception.parsed)
-
-
-class PoolGuardKeepsWhatFinished(unittest.TestCase):
-    """The guard's 30-minute predecessor fired on 5 of the last 8 HIL jobs, so this is the
-    common failure, not an edge case: map_async discarded every board that had finished and
-    left the re-run spec unwritten, so CI re-tested all ~26 to find the one that wedged.
-
-    Calls hil_test.drain_pool -- the loop main() actually runs. The predecessor of this test
-    built its own ThreadPool and its own drain loop and asserted on those, so deleting the
-    production drain outright left it green."""
-
-    class _It:
-        """Stands in for imap_unordered: yields, then blocks past any deadline."""
-
-        def __init__(self, ready):
-            self.ready, self.i = ready, 0
-
-        def next(self, timeout=None):
-            if self.i < len(self.ready):
-                self.i += 1
-                return self.ready[self.i - 1]
-            raise MpTimeoutError
-
-    def test_finished_rows_survive_a_guard_expiry(self):
-        boards = [{'name': 'fast1'}, {'name': 'fast2'}, {'name': 'wedged'}]
-        rows = [('fast1', 0, [], [], None), ('fast2', 0, [], [], None)]
-        with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
-            hil_test.drain_pool(self._It(rows), boards, time.monotonic() + 5)
-        self.assertEqual([r[0] for r in cm.exception.finished], ['fast1', 'fast2'])
-
-    def test_an_expired_deadline_stops_before_asking_for_more(self):
-        """Left <= 0 must not be handed to it.next() as a zero/negative timeout."""
-        boards = [{'name': 'a'}, {'name': 'b'}]
-        it = self._It([('a', 0, [], [], None)])
-        with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
-            hil_test.drain_pool(it, boards, time.monotonic() - 1)     # already past
-        self.assertEqual(cm.exception.finished, [])
-        self.assertEqual(it.i, 0, 'asked the pool for a result after the deadline')
-
-    def test_rows_collected_before_the_deadline_expires_are_kept_too(self):
-        """The OTHER raise site: boards finish, then the clock runs out between results.
-        Both sites must carry the rows -- a bare raise here loses a worker-width of rig
-        time just as map_async did, and the it.next() path alone does not prove it."""
-        class Slow(self._It):
-            def next(self, timeout=None):
-                time.sleep(0.2)                       # each result eats into the deadline
-                return super().next(timeout)
-
-        boards = [{'name': n} for n in ('a', 'b', 'c', 'd')]
-        rows = [(n, 0, [], [], None) for n in ('a', 'b', 'c', 'd')]
-        with self.assertRaises(hil_test.PoolDrainTimeout) as cm:
-            hil_test.drain_pool(Slow(rows), boards, time.monotonic() + 0.3)
-        self.assertTrue(cm.exception.finished, 'rows collected before the expiry were lost')
-
-    def test_every_board_finishing_returns_them_all(self):
-        boards = [{'name': 'a'}, {'name': 'b'}]
-        rows = [('a', 0, [], [], None), ('b', 1, [], [], None)]
-        got = hil_test.drain_pool(self._It(rows), boards, time.monotonic() + 5)
-        self.assertEqual(got, rows)
 
 
 class WedgedBoardCosts(unittest.TestCase):

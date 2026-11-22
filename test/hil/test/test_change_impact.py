@@ -1088,6 +1088,7 @@ class TestTheHarnessTestsAreNotTheHarness(unittest.TestCase):
             'test/hil/test/test_hil_lock.py',
         'test/hil/test/test_hil_mtp_raw.py',
             'test/hil/test/test_hil_net.py',
+            'test/hil/test/test_hil_pool_signal.py',
             'test/hil/test/test_hil_pr_comment.py',
             'test/hil/test/test_hil_pyocd.py',
             'test/hil/test/test_hil_remote.py',
