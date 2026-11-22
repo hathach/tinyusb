@@ -683,7 +683,6 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
 //--------------------------------------------------------------------+
 
 static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir) {
-  dcd_qhd_t *p_qhd = &_dcd_data.qhd[epnum][dir];
   dcd_qtd_t *p_qtd = &_dcd_data.qtd[epnum][dir];
 
   uint8_t result = p_qtd->halted                            ? XFER_RESULT_STALLED
@@ -698,13 +697,16 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
 
   const uint16_t xferred_bytes = p_qtd->expected_bytes - p_qtd->total_bytes;
 
-  if (CFG_TUD_EDPT_XFER_FIFO && p_qhd->ff) {
+  #if CFG_TUD_EDPT_XFER_FIFO
+  dcd_qhd_t *p_qhd = &_dcd_data.qhd[epnum][dir];
+  if (p_qhd->ff) {
     if (dir == TUSB_DIR_IN) {
       tu_fifo_advance_read_pointer(p_qhd->ff, xferred_bytes);
     } else {
       tu_fifo_advance_write_pointer(p_qhd->ff, xferred_bytes);
     }
   }
+  #endif
 
   // only number of bytes in the IOC qtd
   dcd_event_xfer_complete(rhport, tu_edpt_addr(epnum, dir), xferred_bytes, result, true);
