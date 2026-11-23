@@ -301,12 +301,17 @@ void test_stream_zlp_refused_releases(void) {
 //--------------------------------------------------------------------+
 
 // another context clears the stream and queues new data before the refused bytes are kept: only the new data is sent
+static unsigned clears_after_refusal;
+
 static void clear_after_refusal(void) {
-  tu_edpt_stream_clear(&stream);
+  for (unsigned i = 0; i < clears_after_refusal; i++) {
+    tu_edpt_stream_clear(&stream);
+  }
   TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "new", 3));
 }
 
-void test_stream_clear_during_refused_submission(void) {
+static void clear_during_refused_submission(unsigned clears) {
+  clears_after_refusal = clears;
   uint8_t src[MPS + 3];
   memset(src, 'o', sizeof(src));
   xfer_result = false;
@@ -325,6 +330,15 @@ void test_stream_clear_during_refused_submission(void) {
   TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
   TEST_ASSERT_EQUAL_UINT16(3, xfer_len[2]);
   TEST_ASSERT_EQUAL_MEMORY("new", xfer_data[2], 3);
+}
+
+void test_stream_clear_during_refused_submission(void) {
+  clear_during_refused_submission(1);
+}
+
+// as many clears as an 8-bit clear count wraps after: the refused bytes still are not kept
+void test_stream_256_clears_during_refused_submission(void) {
+  clear_during_refused_submission(256);
 }
 
 // A clear while a submission reads the FIFO and tx_pending leaves them to it: the submission discards what was queued
@@ -388,4 +402,76 @@ void test_stream_clear_when_idle(void) {
   TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
   TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
   TEST_ASSERT_EQUAL(0, xfer_count);
+}
+
+// A submission holds the claim and has not yet applied the clear left to it
+static void clear_deferred_to_submission(bool overwritable, uint16_t depth, uint16_t queued) {
+  uint8_t old[sizeof(ff_buf)];
+  memset(old, 'o', sizeof(old));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, true, true, overwritable, ff_buf, depth, ep_buf));
+  TEST_ASSERT_TRUE(usbh_edpt_claim(DADDR, EP_OUT));
+  TEST_ASSERT_EQUAL_UINT32(queued, tu_edpt_stream_write(&stream, old, queued));
+  stream.tx_active = true;
+  tu_edpt_stream_clear(&stream);
+  TEST_ASSERT_EQUAL_UINT16(queued, tu_fifo_count(&stream.ff));
+}
+
+// the submission applies the clear and finishes; the next flush sends what was written after the clear
+static void submission_done_then_flush(const uint8_t *expected) {
+  stream.tx_active = false;
+  TEST_ASSERT_TRUE(usbh_edpt_release(DADDR, EP_OUT));
+  TEST_ASSERT_EQUAL_UINT32(MPS, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL(1, xfer_count);
+  TEST_ASSERT_EQUAL_MEMORY(expected, xfer_data[0], MPS);
+}
+
+// Writes while a clear is left to a submission count free space from the clear, not from the read index the submission
+// has yet to move: they are neither truncated nor overwritten by the discard
+void test_stream_write_during_deferred_clear(void) {
+  uint8_t src[sizeof(ff_buf)];
+  for (unsigned i = 0; i < sizeof(src); i++) {
+    src[i] = (uint8_t) i;
+  }
+  clear_deferred_to_submission(false, sizeof(ff_buf), 200);
+  TEST_ASSERT_EQUAL_UINT32(sizeof(ff_buf), tu_edpt_stream_write_available(&stream));
+  TEST_ASSERT_EQUAL_UINT32(sizeof(src), tu_edpt_stream_write(&stream, src, sizeof(src)));
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_available(&stream));
+
+  submission_done_then_flush(src);
+  TEST_ASSERT_EQUAL_UINT16(sizeof(ff_buf) - MPS, tu_fifo_count(&stream.ff));
+}
+
+void test_stream_overwrite_during_deferred_clear(void) {
+  uint8_t src[90];
+  for (unsigned i = 0; i < sizeof(src); i++) {
+    src[i] = (uint8_t) i;
+  }
+  clear_deferred_to_submission(true, MPS, MPS - 4);
+  for (unsigned i = 0; i < sizeof(src); i += 30) {
+    TEST_ASSERT_EQUAL_UINT32(30, tu_edpt_stream_write(&stream, src + i, 30));
+  }
+  submission_done_then_flush(src + sizeof(src) - MPS);
+}
+
+void test_stream_full_overwrite_during_deferred_clear(void) {
+  uint8_t src[MPS];
+  for (unsigned i = 0; i < sizeof(src); i++) {
+    src[i] = (uint8_t) i;
+  }
+  clear_deferred_to_submission(true, MPS, MPS - 4);
+  TEST_ASSERT_EQUAL_UINT32(MPS, tu_edpt_stream_write(&stream, src, MPS));
+  submission_done_then_flush(src);
+}
+
+// as many clears left to one submission as an 8-bit clear count wraps after: the submission still discards
+void test_stream_256_clears_deferred_to_submission(void) {
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "old", 3));
+  stream.tx_active = true;
+  for (unsigned i = 0; i < 256; i++) {
+    tu_edpt_stream_clear(&stream);
+  }
+  stream.tx_active = false;
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
 }

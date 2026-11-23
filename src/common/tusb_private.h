@@ -44,12 +44,13 @@ typedef struct {
   volatile uint16_t tx_pending; // tx: bytes left in ep_buf by a refused transfer, sent before the FIFO's (#4449)
 
   // tx: a clear that finds a submission active leaves it the discard, up to tx_clear_wr_idx (the FIFO's write index
-  // at the clear) and tx_pending; tx_clear_req counts clears, tx_clear_ack those applied
+  // at the clear) and tx_pending; tx_clear_req counts clears, tx_clear_ack those applied, 32-bit so that clears while
+  // a submission is preempted cannot wrap them to equal
   volatile uint16_t tx_clear_wr_idx;
   volatile bool     tx_clearing; // tu_edpt_stream_clear() is running
-  volatile uint8_t  tx_clear_req;
-  volatile uint8_t  tx_clear_ack;
-  // 1 byte padding
+  // 3 bytes padding
+  volatile uint32_t tx_clear_req;
+  volatile uint32_t tx_clear_ack;
   uint8_t  *ep_buf; // set to NULL to use xfer_fifo when CFG_TUD_EDPT_DEDICATED_HWFIFO = 1
   tu_fifo_t ff;
 

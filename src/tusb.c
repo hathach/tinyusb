@@ -428,17 +428,45 @@ static bool stream_xfer_keep_claim(tu_edpt_stream_t *s, uint16_t count) {
   #define stream_fence() do {} while (0) // nothing preempts a submission
 #endif
 
+#if OSAL_MUTEX_REQUIRED
+static void stream_lock(osal_mutex_t mutex) {
+  if (mutex != NULL) {
+    (void) osal_mutex_lock(mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  }
+}
+
+static void stream_unlock(osal_mutex_t mutex) {
+  if (mutex != NULL) {
+    (void) osal_mutex_unlock(mutex);
+  }
+}
+#else
+  #define stream_lock(_mutex)
+  #define stream_unlock(_mutex)
+#endif
+
 // Apply a clear left to the submission: discard the FIFO up to its write index at the clear, and the bytes a refused
 // transfer left. Return the clear count, read before the write index it pairs with.
-static uint8_t stream_tx_apply_clear(tu_edpt_stream_t *s) {
-  const uint8_t req = s->tx_clear_req;
+static uint32_t stream_tx_apply_clear(tu_edpt_stream_t *s) {
+  const uint32_t req = s->tx_clear_req;
   stream_fence();
   if (req != s->tx_clear_ack) {
-    s->ff.rd_idx    = s->tx_clear_wr_idx;
-    s->tx_pending   = 0;
+    s->ff.rd_idx  = s->tx_clear_wr_idx;
+    s->tx_pending = 0;
+    stream_fence(); // a writer that sees the ack sees the read index (stream_tx_write_base)
     s->tx_clear_ack = req;
   }
   return req;
+}
+
+// The read index writers count free space from. Until a submission applies a clear left to it, the FIFO is empty from
+// the clear's write index, not from the read index. A writer holds the write mutex, so no new clear comes meanwhile.
+static uint16_t stream_tx_write_base(const tu_edpt_stream_t *s) {
+  if (s->tx_clear_req != s->tx_clear_ack) {
+    return s->tx_clear_wr_idx;
+  }
+  stream_fence();
+  return s->ff.rd_idx;
 }
 
 // Start using the FIFO's read side and tx_pending. false if a clear is running: it then finds this submission gone
@@ -470,19 +498,13 @@ static void stream_tx_leave(tu_edpt_stream_t *s) {
 }
 
 void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
-#if OSAL_MUTEX_REQUIRED
   // as tu_fifo_clear(): excludes writers, readers and other clears, so the write index holds still
-  if (s->ff.mutex_wr != NULL) {
-    (void) osal_mutex_lock(s->ff.mutex_wr, OSAL_TIMEOUT_WAIT_FOREVER);
-  }
-  if (s->ff.mutex_rd != NULL) {
-    (void) osal_mutex_lock(s->ff.mutex_rd, OSAL_TIMEOUT_WAIT_FOREVER);
-  }
-#endif
+  stream_lock(s->ff.mutex_wr);
+  stream_lock(s->ff.mutex_rd);
 
   s->tx_clear_wr_idx = s->ff.wr_idx;
   stream_fence();
-  s->tx_clear_req = (uint8_t) (s->tx_clear_req + 1u);
+  s->tx_clear_req = s->tx_clear_req + 1u;
   for (;;) {
     s->tx_clearing = true;
     stream_fence();
@@ -499,21 +521,15 @@ void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
     }
   }
 
-#if OSAL_MUTEX_REQUIRED
-  if (s->ff.mutex_wr != NULL) {
-    (void) osal_mutex_unlock(s->ff.mutex_wr);
-  }
-  if (s->ff.mutex_rd != NULL) {
-    (void) osal_mutex_unlock(s->ff.mutex_rd);
-  }
-#endif
+  stream_unlock(s->ff.mutex_wr);
+  stream_unlock(s->ff.mutex_rd);
 }
 
 // Move queued bytes from the FIFO to ep_buf, behind those a refused transfer left. They are consumed only if no clear
 // came while they were peeked, else peeked again after its discard, so a later clear's write index is at or past
 // them. Return the bytes in ep_buf, and in *seq the clear count they were read under.
-static uint16_t stream_tx_read(tu_edpt_stream_t *s, uint8_t *seq) {
-  uint8_t  req;
+static uint16_t stream_tx_read(tu_edpt_stream_t *s, uint32_t *seq) {
+  uint32_t req;
   uint16_t pending;
   uint16_t n;
   do {
@@ -534,7 +550,7 @@ static uint16_t stream_tx_read(tu_edpt_stream_t *s, uint8_t *seq) {
 
 // Take what is queued for a transfer: into ep_buf, or counted for one that reads the FIFO itself. 0 if a clear is
 // running, which discards it.
-static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint8_t *seq) {
+static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint32_t *seq) {
   if (!stream_tx_enter(s)) {
     return 0;
   }
@@ -554,7 +570,7 @@ static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint8_t *seq) {
 // before the submission, so a completion handled before it returns cannot send them again. A refused submission keeps
 // the endpoint claimed until they are kept as tx_pending, unless a clear came since they were taken, and the next call
 // sends them ahead of the FIFO's.
-static uint32_t stream_tx_submit(tu_edpt_stream_t *s, uint16_t count, uint8_t seq) {
+static uint32_t stream_tx_submit(tu_edpt_stream_t *s, uint16_t count, uint32_t seq) {
   if (s->ep_buf == NULL) {
     return stream_xfer(s, count) ? count : 0;
   }
@@ -575,7 +591,7 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   for (;;) {
     TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
     TU_VERIFY(stream_claim(s), 0);
-    uint8_t        seq   = 0;
+    uint32_t       seq   = 0;
     const uint16_t count = stream_tx_take(s, &seq);
     if (count > 0) {
       return stream_tx_submit(s, count, seq);
@@ -598,7 +614,7 @@ bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferr
 
   // Checked under the claim: data a writer queued meanwhile ends the transfer instead of a ZLP. Send it now, since
   // the writer's own flush found the endpoint claimed and nothing else would. A running clear leaves nothing to send.
-  uint8_t        seq   = 0;
+  uint32_t       seq   = 0;
   const uint16_t count = stream_tx_take(s, &seq);
   if (count > 0) {
     (void) stream_tx_submit(s, count, seq);
@@ -614,7 +630,10 @@ bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferr
 // FIFO is full.
 uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t bufsize) {
   TU_VERIFY(bufsize > 0);
-  const uint16_t ret = tu_fifo_write_n(&s->ff, buffer, (uint16_t) tu_min32(bufsize, UINT16_MAX));
+  stream_lock(s->ff.mutex_wr);
+  const uint16_t ret =
+    tu_fifo_write_n_from(&s->ff, buffer, (uint16_t) tu_min32(bufsize, UINT16_MAX), stream_tx_write_base(s));
+  stream_unlock(s->ff.mutex_wr);
 
   // flush if fifo has more than packet size, a refused transfer left bytes to resend, or
   // in rare case: fifo depth is configured too small (which never reach packet size)
@@ -625,7 +644,7 @@ uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t 
 }
 
 uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s) {
-  return (uint32_t)tu_fifo_remaining(&s->ff);
+  return tu_ff_remaining_local(s->ff.depth, s->ff.wr_idx, stream_tx_write_base(s));
 }
 
 //--------------------------------------------------------------------+
