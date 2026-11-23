@@ -492,6 +492,40 @@ class FailedCleanup(LockDir):
         self.assertEqual(failure['retained'], [unwritten])
         self.assertIn(unwritten, rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL])
 
+    def test_a_pending_child_that_ends_after_the_release_still_fails_the_board(self):
+        # every test skipped beside it: the blocker seen under the lock stands, or the board reports
+        # green with no test run and drops out of the re-run spec
+        self.pending().add([{'receipt': self.TRACKED}])
+        patch(self, self.real.hil_process, 'recheck',
+              lambda receipt: 'pending' if hil_lock.record_state(self.lock)[0] == 'record' else 'done')
+        self.provider(self.op('done', rc=0))
+        name, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(hil_test.cleanup_pending(self.board), '')     # ended once the lock was released
+        self.assertEqual((err, failed, self.reads, self.flashes), (1, [], [], []))
+        self.assertEqual(rows[0][1]['device/cdc_msc'], f'{hil_test.hil_report.REPORT_CELL["skip"]} cleanup pending')
+        cell = rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL]
+        self.assertIn('esptool child, record /s/hil_op_t0k.json', cell)
+        self.assertIn('lock released', cell)
+        self.assertEqual(self.assert_released()['receipts'], [self.TRACKED])
+
+    def test_a_stray_beside_a_pending_record_is_never_swept_through_the_recovery_probe(self):
+        # a convoy-safe recovery entry other than openocd_esp resets the chip without consulting the USJ's record
+        self.board['flasher_recover'] = {'name': 'openocd', 'args': '-f interface/ftdi/esp32_devkitj_v1.cfg'}
+        self.pending().add([{'receipt': self.RECEIPT}])
+        resets = []
+        patch(self, hil_test.usbtest, 'strays_on', lambda uid: [{'pid': 40, 'start': '1', 'node': '/dev/bus/usb/1/2'}])
+        patch(self, hil_test.usbtest, 'RECOVER_SETTLE', 0)
+        patch(self, hil_test.usbtest, '_uo', lambda: types.SimpleNamespace(proc_holds=lambda stray: False))
+        patch(self, hil_flash, 'convoy_safe', lambda flasher: True)
+        patch(self, hil_flash, 'reset_openocd', lambda board, timeout=None, **kw: resets.append(board['flasher']))
+        self.provider(self.op('done', rc=0))
+        name, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual((resets, self.reads, self.flashes), ([], [], []))
+        self.assertEqual((err, failed), (1, []))      # the blocker alone
+        self.assertEqual(rows[0][1]['device/cdc_msc'], f'{hil_test.hil_report.REPORT_CELL["skip"]} cleanup pending')
+        self.assertIn(self.RECEIPT, rows[-1][1][hil_test.hil_report.CLEANUP_PENDING_CELL])
+        self.assertTrue(any('stray testusb not swept' in line for line in self.log), self.log)
+
     def security_state_dir(self):
         """The provider's write-ahead entry of its run_tracked state dir, with the marker its owner flocks
         until the child's receipt is listed (aheadLock), as a killed read leaves them: (entry, marker)."""

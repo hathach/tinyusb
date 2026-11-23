@@ -7,6 +7,7 @@
 # board process); the signal cases run in a run of their own session.
 # Run directly:
 #   python3 test/hil/test/test_hil_pool_signal.py
+import io
 import json
 import os
 import signal
@@ -51,14 +52,25 @@ def task(board):
         mark('cleaned', 'x')
         lock.close()
 
+def held_until_sigterm_pending():
+    # the window closes once the SIGTERM it is for is pending here, blocked; one never sent is a loud failure
+    mark('forked', '1')
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        with open('/proc/self/status') as f:
+            pending = [int(ln.split()[1], 16) for ln in f if ln.startswith(('SigPnd:', 'ShdPnd:'))]
+        if any(m & (1 << (signal.SIGTERM - 1)) for m in pending):
+            return
+        time.sleep(0.01)
+    mark('missed', 'no SIGTERM pending in 15 s')
+
 if window == 'child':     # the board process held between its fork and its handlers' unblock
-    hil_test._die_with_parent = lambda: (mark('forked', '1'), time.sleep(1))
+    hil_test._die_with_parent = held_until_sigterm_pending
 if window == 'parent':    # the run held between a board's fork and its enrolment in `live`
     start = hil_test._BoardProcess.__init__
     def enrolling(self, *args):
         start(self, *args)
-        mark('forked', '1')
-        time.sleep(1)
+        held_until_sigterm_pending()
     hil_test._BoardProcess.__init__ = enrolling
 
 # a terminal run's SIGINT handler, or a background run's inherited SIG_IGN
@@ -75,9 +87,10 @@ with hil_test._sigterm_as_interrupt():
         sys.exit(code)
 '''
 
-# main() itself over two fake boards: 'done' finishes while 'cut' is mid-battery, and cut's cleanup
-# outlasts the stop grace. The run's SIGTERM lands as done's row is taken ('taken'), or the test sends
-# it while done's process is stopped after writing only its result's header ('partial').
+# main() itself over two fake boards, run at once: 'done' finishes while 'cut' is mid-battery, and cut's
+# cleanup outlasts the stop grace. The run's SIGTERM lands as done's row is taken ('taken'), or the test
+# sends it while done's process is stopped after writing only its result's header ('partial'). In 'spec'
+# and 'report' both boards finish, cut failed, and the SIGTERM lands as that file is written.
 MAIN = r'''
 import json, os, signal, struct, sys, time
 from pathlib import Path
@@ -94,9 +107,11 @@ hil_test._save_controller_hints = lambda *a: None
 signal.signal(signal.SIGINT, signal.default_int_handler)
 
 def battery(board, parked):
+    publishing = mode in ('spec', 'report')
     if board['name'] == 'cut':
         (out / 'ready').touch()
-        time.sleep(30)
+        if not publishing:
+            time.sleep(30)
     while not (out / 'ready').exists():
         time.sleep(0.01)
     parked.append(board['name'])
@@ -111,6 +126,8 @@ def battery(board, parked):
                 return n
             return write(fd, data)
         os.write = header_then_stop
+    if publishing and board['name'] == 'cut':
+        return 1, ['device/cdc_msc'], False, [('cut', {'device/cdc_msc': 'fail'}, '1s')], ''
     return 0, [], False, [(board['name'], {'device/cdc_msc': 'pass', 'log': 'x' * 200000}, '1s')], ''
 hil_test._board_battery = battery
 verdict = hil_test._give_verdict
@@ -133,11 +150,23 @@ def sigterm_as_the_row_is_taken(frame, event, arg):
 if mode == 'taken':
     sys.settrace(sigterm_as_the_row_is_taken)
 
+def sigterm_first(write):
+    def signalled(*args, **kw):
+        (out / 'signalled').write_text(str(time.monotonic()))
+        os.kill(os.getpid(), signal.SIGTERM)
+        return write(*args, **kw)
+    return signalled
+if mode == 'spec':
+    hil_test._write_failed_spec = sigterm_first(hil_test._write_failed_spec)
+if mode == 'report':
+    hil_test.hil_report.accumulate_report = sigterm_first(hil_test.hil_report.accumulate_report)
+
 cfg = {'boards': [{'name': n, 'uid': str(i), 'flasher': {'name': 'jlink', 'uid': 'fake-' + n}}
                   for i, n in enumerate(('done', 'cut'))]}
 (out / 'rig.json').write_text(json.dumps(cfg))
 os.environ['HIL_REPORT_DIR'] = str(out)
 sys.argv = ['hil_test.py', str(out / 'rig.json')]
+os.cpu_count = lambda: 2     # 'done' waits for 'cut' to start
 hil_test.main()
 '''
 
@@ -252,6 +281,28 @@ class ABoardProcessThatDies(FakeBoards):
                                    ('dies-b', {hil_report.RUN_ABORTED_CELL: cell}, None)])
         self.assertEqual(sorted(r[0] for r in rows), ['dies', 'next'])
 
+    def test_killed_holding_the_print_lock_never_stalls_the_other_boards_logging(self):
+        tmp = TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        held = Path(tmp.name) / 'held'
+        log_line = hil_test.log_line
+        patch(self, sys, '__stdout__', io.StringIO())
+        patch(self, hil_test, 'PRINT_LOCK_WAIT_S', 0.5)
+
+        def task(board):
+            if board['name'] == 'dies':
+                hil_test.print_lock.acquire()
+                held.touch()
+                os.kill(os.getpid(), signal.SIGKILL)
+            assert wait_for(held.exists), 'the dying board never took the lock'
+            log_line('one')
+            log_line('two')     # the lock already given up: no second wait
+            return (board['name'], 0, [], [], None)
+        started = time.monotonic()
+        rows = self.run_boards([{'name': 'dies'}, {'name': 'next'}], time.monotonic() + 20, task, width=2)
+        self.assertLess(time.monotonic() - started, 10, 'logging waited on the dead board')
+        self.assertEqual(sorted((r[0], r[1]) for r in rows), [('dies', 1), ('next', 0)])
+
 
 @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux PR_SET_PDEATHSIG and /proc')
 class BoardProcessSignals(unittest.TestCase):
@@ -317,11 +368,13 @@ class BoardProcessSignals(unittest.TestCase):
         self.assertTrue(wait_for(lambda: self.read('worker')), 'the board never started')
         os.kill(run.pid, signal.SIGTERM)     # the run still blocks it: the board is not in `live` yet
         self.assert_ended_once(run, rc=143)
+        self.assertEqual(self.read('missed'), '')
 
     def test_a_sigterm_before_a_board_process_unblocks_ends_it_before_its_board(self):
         run = self.start(window='child', marker='forked')
         os.kill(run.pid, signal.SIGTERM)     # the run's stop SIGTERMs the board process, which still blocks it
         self.assert_ended_once(run, rc=143, reported='[] ')
+        self.assertEqual(self.read('missed'), '')
         self.assertEqual(self.read('worker'), '', 'the board started after its stop')
 
     def test_a_board_past_its_stop_grace_never_holds_up_the_runs_exit(self):
@@ -379,6 +432,18 @@ class AnInterruptedMain(unittest.TestCase):
         self.assert_reported(run, [], '--accumulate -b done -b cut')
         os.kill(int((self.out / 'paused').read_text()), signal.SIGCONT)
         self.assert_boards_end_on_their_own(run)
+
+    def test_a_sigterm_as_the_run_publishes_ends_it_once_the_spec_and_report_are_written(self):
+        # a fresh run unlinked the previous pair: the signal waits for their replacements, then ends the run
+        for mode in ('spec', 'report'):
+            with self.subTest(mode=mode):
+                run = self.main(mode)
+                self.assertTrue(wait_for(lambda: run.poll() is not None), 'the run hung')
+                self.assertTrue((self.out / 'signalled').exists(), 'never signalled')
+                self.assertEqual(run.returncode, -signal.SIGTERM)
+                doc = json.loads((self.out / hil_report.REPORT_JSON).read_text())
+                self.assertEqual(sorted(r['board'] for r in doc['rows']), ['cut', 'done'])
+                self.assertEqual((self.out / 'rig.json.failed').read_text(), '--accumulate -b cut -bt cut:device/cdc_msc')
 
 
 class SigtermAsInterrupt(unittest.TestCase):

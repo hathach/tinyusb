@@ -141,6 +141,7 @@ verbose = False
 # so this global is board-scoped; test_board resets it anyway.
 board_wedged = ''
 board_pci = None  # this board's host controller, learned at its first battery; board-scoped too
+board_pending = ''  # the last unproven cleanup cleanup_pending found under the board's task; board-scoped too
 max_retry = 1   # mirrors argparse's -r default (see main); defined HERE too so
                 # test_example is callable (and testable) without going through main()
 PROFILE = os.environ.get('HIL_PROFILE') == '1'  # timestamped logs + flash timing + controller dump
@@ -148,6 +149,7 @@ test_only = []
 board_test = {}
 skip_flash = False
 print_lock = None
+PRINT_LOCK_WAIT_S = 5   # a board process SIGKILLed mid-line holds print_lock for good
 shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SHUFFLE_SEED to replay)
 sysview_out = None  # --sysview-out; sysview_head/_commit: the checkout's full and short HEAD it records
 sysview_head = sysview_commit = None
@@ -237,13 +239,19 @@ def _interrupts_ignored():
 
 
 def log_line(msg: str) -> None:
+    global print_lock
     if PROFILE:
         msg = f'{time.time():.3f} {msg}'
     out = sys.__stdout__ if sys.__stdout__ is not None else sys.stdout
-    if print_lock is not None:
-        with print_lock:
+    if print_lock is None:
+        print(msg, file=out, flush=True)
+    elif print_lock.acquire(timeout=PRINT_LOCK_WAIT_S):
+        try:
             print(msg, file=out, flush=True)
-    else:
+        finally:
+            print_lock.release()
+    else:   # held past any line's write: its holder died with it, so this process logs unlocked from now on
+        print_lock = None
         print(msg, file=out, flush=True)
 
 
@@ -2084,14 +2092,19 @@ def cleanup_pending(board: Board) -> str:
     """Why nothing more may run on the board, or '': what an openocd_esp operation left not proven
     ended on its USJ, listed in the provider's pending record (pending_refusal) or left earlier in
     this run (hil_flash.left_pending, kept after the record clears an entry that has since ended),
-    logged when the board's task ends and releases its lock."""
+    logged when the board's task ends and releases its lock. Kept in board_pending, test_board's
+    blocker: an entry of an earlier run can end once the lock is released."""
+    global board_pending
     if not (serial := hil_flash.openocd_esp_serial(board)):
         return ''
     try:
         p = hil_util.openocd_esp()
     except ImportError as e:     # fail closed: the record may still list a running session
-        return f'openocd_esp pending record of USJ {serial} not checked: {e}'
-    return p.pending_refusal(serial) or hil_flash.left_refusal(p, serial)
+        why = f'openocd_esp pending record of USJ {serial} not checked: {e}'
+    else:
+        why = p.pending_refusal(serial) or hil_flash.left_refusal(p, serial)
+    board_pending = why or board_pending
+    return why
 
 
 def pending_evidence(board: Board, pending: str) -> dict:
@@ -2156,8 +2169,8 @@ def test_board(board: Board) -> tuple:
     name = board['name']
     lock = hil_util.lock_name(board)
 
-    global board_wedged, board_pci
-    board_wedged = ''
+    global board_wedged, board_pci, board_pending
+    board_wedged = board_pending = ''
     board_pci = None
     # protected for every flasher: a worker killed mid-task leaves its record for the next take to log
     parked, unrestored = [], ''   # the verdict's ledger: the final park's success, why the board is not restored
@@ -2186,7 +2199,7 @@ def test_board(board: Board) -> tuple:
         if previous_cleanup:
             previous_cleanup += '; board task notes: ' + '; '.join(task.errors)
     # a lock that did not end as its verdict asked is never a passing board either
-    if blocker := cleanup_pending(board) or ('' if task.ended_cleanly else 'board task ended with errors'):
+    if blocker := board_pending or ('' if task.ended_cleanly else 'board task ended with errors'):
         log_line(f'{name:25} BLOCKER: {blocker}; {ending}')
         rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {blocker}; {ending}'},
                      None))
@@ -2247,7 +2260,11 @@ def _board_battery(board: Board, parked: list) -> tuple:
         # board_wedged does not outlive a cancelled or SIGKILLed run, but its D-state
         # testusb does, and the first flash would block on it (#4126)
         strays = usbtest.strays_on(board['uid'])
-        if strays:
+        if strays and (pending := cleanup_pending(board)):
+            # a recovery entry other than openocd_esp resets without consulting the USJ's pending record;
+            # the tests below skip and the park refuses on the same pending cleanup
+            log_line(f'{name:25} stray testusb not swept: {pending}')
+        elif strays:
             sweep_out = io.StringIO()
             with redirect_stdout(sweep_out):
                 board_wedged = usbtest.recover_strays(board, strays)
@@ -3033,6 +3050,8 @@ def main() -> None:
     with _sigterm_as_interrupt():
         try:
             run_boards(config_boards, pool_deadline, mret, seed)
+            # a fresh run unlinked the previous spec and report: a signal from here waits for their replacements
+            unblocked = signal.pthread_sigmask(signal.SIG_BLOCK, _INTERRUPTS)
         except PoolGuardExpired:
             _abort_report(f'aborted: worker pool timed out after {POOL_TIMEOUT}s',
                           mret, config_boards, failed_fname, report_dir, fresh,
@@ -3054,34 +3073,37 @@ def main() -> None:
             _exit_past_left_boards(128 + sig)
             sys.exit(128 + sig)
 
-    err_count = build_err + sum(e[1] for e in mret)
-    _write_failed_spec(failed_fname, report_dir, mret)
-
-    # refresh controller hints with the pci each board resolved this run
     try:
-        ran = mret[len(refused_rows):]   # the refused rows lead mret and never ran
-        uid_of = {b['name']: b['uid'] for b in config['boards']}
-        if PROFILE:
-            # debug snapshot of this run's resolutions only; the cache also keeps old ones
-            report_dir.mkdir(parents=True, exist_ok=True)
-            with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
-                json.dump({uid_of[r[0]]: r[4] for r in ran if r[4]}, f, indent=1, sort_keys=True)
-        _save_controller_hints(ran, uid_of)
-    except Exception as e:
-        # best effort: the cache only orders the next run, nothing here is worth the report
-        print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: '
-              f'{type(e).__name__}: {e}')
+        err_count = build_err + sum(e[1] for e in mret)
+        _write_failed_spec(failed_fname, report_dir, mret)
 
-    # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout.
-    # -b/-bt means a filtered run (PR selection or a re-run spec): say so, or the report
-    # looks exactly like a full run that happened to be small
-    scoped = sorted(set(args.board) | set(board_test))
-    scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
-    try:
-        report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
-    except Exception as e:
-        hil_report.withdraw(report_dir, e)
-        raise
+        # refresh controller hints with the pci each board resolved this run
+        try:
+            ran = mret[len(refused_rows):]   # the refused rows lead mret and never ran
+            uid_of = {b['name']: b['uid'] for b in config['boards']}
+            if PROFILE:
+                # debug snapshot of this run's resolutions only; the cache also keeps old ones
+                report_dir.mkdir(parents=True, exist_ok=True)
+                with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
+                    json.dump({uid_of[r[0]]: r[4] for r in ran if r[4]}, f, indent=1, sort_keys=True)
+            _save_controller_hints(ran, uid_of)
+        except Exception as e:
+            # best effort: the cache only orders the next run, nothing here is worth the report
+            print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: '
+                  f'{type(e).__name__}: {e}')
+
+        # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout.
+        # -b/-bt means a filtered run (PR selection or a re-run spec): say so, or the report
+        # looks exactly like a full run that happened to be small
+        scoped = sorted(set(args.board) | set(board_test))
+        scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
+        try:
+            report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
+        except Exception as e:
+            hil_report.withdraw(report_dir, e)
+            raise
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, unblocked)   # a signal sent meanwhile lands here
     print()
     print(report)
     print(f'\nReport written to {(report_dir / hil_report.REPORT_MD).resolve()}')

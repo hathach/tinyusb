@@ -108,6 +108,7 @@ class Baseline(unittest.TestCase):
 
     def test_a_stalled_gh_call_or_no_agentrc_is_an_api_failure(self):
         # agentrc's gh_pr_comment.gh answers; its own timeout is agentrc's test (test_gh_pr_comment Gh)
+        ci.agentrc.load_file(ci.GH_PR_COMMENT)   # its first load runs git, which the mock below would stall
         with mock.patch('subprocess.run', side_effect=subprocess.TimeoutExpired('gh', 60)), \
              self.assertRaisesRegex(RuntimeError, 'no reply in 60 s'):
             ci.gh('repos/x')

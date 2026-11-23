@@ -11,6 +11,8 @@ import runpy
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import types
 import unittest
 from contextlib import redirect_stderr
@@ -397,8 +399,9 @@ class EngineWithProfile(EngineFixture):
 class Retain(unittest.TestCase):
     """_retain: what the provider's pending_entries (and this run's hil_flash.left_pending) hold open
     for the board's USJ joins the engine's ledger once, so nothing more starts on the board and its
-    task ends failed with that evidence: a session retained, a tracked child as a run the engine
-    rechecks, an unreceipted entry or an unreadable record as a run without a receipt."""
+    task ends failed with that evidence: a session retained; a tracked child, once the provider's
+    recheck leaves it open past the wait, an unreceipted entry or an unreadable record as a run
+    without a receipt, never one the engine rechecks and tidies."""
     TRACKED = {'token': 't', 'supervisor': {'pid': 1, 'start': '1', 'lock': [1, 2]}, 'lock': '/s/r.lock',
                'record': '/s/r.json', 'log': '/s/r.log', 'survivors': None}
 
@@ -436,20 +439,72 @@ class Retain(unittest.TestCase):
                                               'log /w/openocd.log',
                                        'cleanup': 'pending', 'receipt': None, 'retained': [native]}])
 
-    def test_a_tracked_child_is_a_run_the_engine_rechecks(self):
+    def test_a_tracked_child_left_open_is_an_entry_the_engine_never_rechecks(self):
         ctx = context(self)
-        state = {'t': 'pending'}
-        patch(self, eng.hil_process, 'recheck', lambda receipt: state[receipt['token']])
-        patch(self, eng.hil_process, 'tidy', lambda receipt: None)
+        patch(self, eng.hil_process, 'recheck', lambda receipt: 'pending')
+        patch(self, eng.hil_process, 'tidy', lambda receipt: self.fail(f'tidied {receipt}'))
         self.pending.add([{'receipt': self.TRACKED}])
         farm_profile._retain(ctx, self.board)
         farm_profile._retain(ctx, self.board)
         self.assertEqual(ctx.ledger, [{'cmd': 'esptool child, record /s/r.json', 'cleanup': 'pending',
-                                       'receipt': self.TRACKED}])
+                                       'receipt': None}])
         with self.assertRaises(eng.Outstanding):
             ctx.run(['reset'], timeout=1)
-        state['t'] = 'done'                               # its recheck ends it, as the engine's own runs
-        self.assertEqual(ctx.open_runs(), [])
+
+    def live_child(self):
+        """(receipt, end) of a real run_tracked esptool stand-in that runs until end(), listed in the
+        USJ's pending record as read_security lists a child its call left open. The call that started
+        it never tidies it (tidy patched for its lifetime), as one that returned it pending."""
+        state = Path(self.pending.path).parent / 'state'
+        state.mkdir(mode=0o700)
+        go = state / 'go'
+        cmd = [sys.executable, '-c', f'import os, time\nwhile not os.path.exists({str(go)!r}): time.sleep(0.02)']
+        untidied = mock.patch.object(eng.hil_process, 'tidy', lambda receipt: None)
+        untidied.start()
+        call = threading.Thread(target=eng.hil_process.run_tracked, args=(cmd,),
+                                kwargs={'timeout': 30, 'settle': 0, 'state_dir': str(state)})
+        call.start()
+        receipt = None
+
+        def end():
+            go.touch()
+            call.join()
+            # the supervisor holds its lock a moment past its report
+            deadline = time.monotonic() + 10
+            while receipt and eng.hil_process.recheck(receipt) == 'pending' and time.monotonic() < deadline:
+                time.sleep(0.01)
+            untidied.stop()
+        self.addCleanup(lambda: go.exists() or end())
+        for _ in range(500):
+            _, found = eng.hil_process.recheck_dir(str(state))
+            if found and 'unrecheckable' not in found[0]:
+                break
+            time.sleep(0.01)
+        receipt, = found
+        self.pending.add([{'receipt': receipt}])
+        return receipt, end
+
+    def test_a_child_ending_after_retain_leaves_its_usj_admitted(self):
+        receipt, end = self.live_child()
+        patch(self, eng, 'RECHECK_WAIT', 0)
+        ctx = eng.Context(args(), str(Path(receipt['lock']).parent))
+        farm_profile._retain(ctx, self.board)
+        end()
+        self.assertEqual([e['cleanup'] for e in ctx.open_runs()], ['pending'])   # the real recheck and tidy
+        self.assertTrue(all(Path(receipt[k]).exists() for k in ('lock', 'record', 'log')))
+        self.assertEqual(self.oe.pending_refusal(self.board['flasher']['uid']), '')
+
+    def test_a_child_ending_within_the_wait_leaves_nothing_open(self):
+        receipt, end = self.live_child()
+        patch(self, eng, 'RECHECK_WAIT', 30)
+        ctx = eng.Context(args(), str(Path(receipt['lock']).parent))
+        timer = threading.Timer(0.3, end)
+        timer.start()
+        self.addCleanup(timer.join)
+        farm_profile._retain(ctx, self.board)
+        self.assertEqual((ctx.ledger, ctx.open_runs()), ([], []))
+        timer.join()
+        self.assertEqual(self.oe.pending_refusal(self.board['flasher']['uid']), '')
 
     def test_an_unreceipted_entry_or_an_unreadable_record_stays_open(self):
         for name, setup in (('unreceipted', lambda: self.pending.add(
@@ -560,7 +615,8 @@ class EngineOpenocdEsp(EngineFixture):
         serial = self.board['flasher']['uid']
         patch(self, eng.hil_process, 'recheck', lambda receipt: 'pending')
         for name, setup, want in (
-                ('tracked', lambda: self.real.pending(serial).add([{'receipt': tracked}]), [tracked]),
+                ('tracked', lambda: self.real.pending(serial).add([{'receipt': tracked}]),
+                 [{'unrecheckable': ['esptool child, record /s/r.json']}]),
                 ('unreadable', lambda: Path(self.real.pending(serial).path).write_text('{not json'), None)):
             with self.subTest(name):
                 setup()
