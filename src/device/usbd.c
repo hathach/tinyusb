@@ -1764,7 +1764,8 @@ void usbd_edpt_rx_consume(uint8_t rhport, uint8_t ep_addr) {
   (void) osal_mutex_unlock(_usbd_mutex);
 }
 
-bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
+static bool edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr,
+                      bool release_on_fail) {
   rhport = _usbd_rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);
@@ -1785,10 +1786,10 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
 
 #if TUP_DCD_MEM_ALIGN > 1
   // The buffer must meet the device controller's alignment (TUP_DCD_MEM_ALIGN): declare it with CFG_TUD_MEM_ALIGN.
-  // A zero-length packet moves no data, so its buffer is not checked. A refused buffer ends the caller's claim, as a
-  // transfer the DCD refuses does.
+  // A zero-length packet moves no data, so its buffer is not checked. A refused buffer is handled as a transfer the
+  // DCD refuses.
   bool const aligned = (total_bytes == 0) || ((((uintptr_t) buffer) & (TUP_DCD_MEM_ALIGN - 1u)) == 0);
-  if (!aligned) {
+  if (!aligned && release_on_fail) {
     _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
   }
   TU_ASSERT(aligned);
@@ -1810,12 +1811,21 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
     // recoverable condition (e.g. a new setup superseding a control response), not a bug, so
     // do not break into the debugger - TU_BREAKPOINT() halts the CPU whenever a probe is
     // attached, which on a test rig is always.
-    _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+    const uint8_t clear = release_on_fail ? (TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED) : TU_EDPT_STATE_BUSY;
+    _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~clear;
     TU_LOG_USBD("FAILED\r\n");
   }
 
   TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_USBD_XFER);
   return ok;
+}
+
+bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
+  return edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr, true);
+}
+
+bool usbd_edpt_xfer_keep_claim(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
+  return edpt_xfer(rhport, ep_addr, buffer, total_bytes, is_isr, false);
 }
 
 // The number of bytes has to be given explicitly to allow more flexible control of how many

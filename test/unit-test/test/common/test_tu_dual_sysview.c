@@ -40,6 +40,10 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t t
   (void) rhport; (void) ep_addr; (void) buffer; (void) total_bytes; (void) is_isr;
   return true;
 }
+bool usbd_edpt_xfer_keep_claim(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes, bool is_isr) {
+  (void) rhport; (void) ep_addr; (void) buffer; (void) total_bytes; (void) is_isr;
+  return true;
+}
 bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes, bool is_isr) {
   (void) rhport; (void) ep_addr; (void) ff; (void) total_bytes; (void) is_isr;
   return true;
@@ -49,6 +53,10 @@ bool usbd_edpt_release(uint8_t rhport, uint8_t ep_addr) { (void) rhport; (void) 
 bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes,
                                   tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   (void) dev_addr; (void) ep_addr; (void) buffer; (void) total_bytes; (void) complete_cb; (void) user_data;
+  return true;
+}
+bool usbh_edpt_xfer_keep_claim(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+  (void) dev_addr; (void) ep_addr; (void) buffer; (void) total_bytes;
   return true;
 }
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; return true; }

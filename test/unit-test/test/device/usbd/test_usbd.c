@@ -957,6 +957,8 @@ void test_usbd_stream_write_refused_xfer_keeps_data(void) {
   TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, src, sizeof(src)));
   TEST_ASSERT_EQUAL_UINT16(64, stream.tx_pending);
   TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, 0x83));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x83)); // released once tx_pending is restored
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, 0x83));
 
   // nothing new to send yet beyond the kept packet: no ZLP in its place
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
@@ -1028,6 +1030,210 @@ void test_usbd_stream_write_refused_xfer_fifo_keeps_data(void) {
   TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write(&stream, src, sizeof(src)));
   TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_count(&stream.ff));
   TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x85)); // usbd_edpt_xfer_fifo() released the refused endpoint
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, 0x85));
+
+  // the next flush sends the queued bytes
+  dcd_edpt_xfer_fifo_ExpectAndReturn(rhport, 0x85, &stream.ff, 64, false, true);
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write_xfer(&stream));
+}
+
+//--------------------------------------------------------------------+
+// Endpoint stream: the endpoint claim serializes submissions (#4449, #4595)
+//--------------------------------------------------------------------+
+enum { EDPT_STREAM_IN = 0x88 };
+
+static const tusb_desc_endpoint_t stream_desc_ep = {
+  .bLength          = sizeof(tusb_desc_endpoint_t),
+  .bDescriptorType  = TUSB_DESC_ENDPOINT,
+  .bEndpointAddress = EDPT_STREAM_IN,
+  .bmAttributes     = { .xfer = TUSB_XFER_BULK },
+  .wMaxPacketSize   = 64,
+  .bInterval        = 0
+};
+
+static uint8_t stream_ff_buf[256];
+TU_ATTR_ALIGNED(TUP_DCD_MEM_ALIGN) static uint8_t stream_ep_buf[64 + TUP_DCD_MEM_ALIGN];
+
+// endpoint states start clear: a bus reset clears them
+static void stream_tx_setup(tu_edpt_stream_t *stream, uint8_t *ep_buf) {
+  replug();
+  memset(stream, 0, sizeof(*stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(stream, false, true, false, stream_ff_buf, sizeof(stream_ff_buf), ep_buf));
+  tu_edpt_stream_open(stream, rhport, &stream_desc_ep, 64);
+}
+
+// usbd_edpt_xfer_keep_claim() leaves a refused endpoint claimed, for the DCD refusal and the alignment rejection
+// alike; usbd_edpt_xfer() releases it
+void test_usbd_xfer_keep_claim_refused_keeps_claim(void) {
+  replug();
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, stream_ep_buf, 8, false, false);
+  TEST_ASSERT_FALSE(usbd_edpt_xfer_keep_claim(rhport, EDPT_STREAM_IN, stream_ep_buf, 8, false));
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+
+  // misaligned: never reaches the DCD
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_FALSE(usbd_edpt_xfer_keep_claim(rhport, EDPT_STREAM_IN, stream_ep_buf + 1, 8, false));
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, stream_ep_buf, 8, false, false);
+  TEST_ASSERT_FALSE(usbd_edpt_xfer(rhport, EDPT_STREAM_IN, stream_ep_buf, 8, false));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+}
+
+// A misaligned ep_buf is refused before the DCD: the bytes are kept as tx_pending and the endpoint released
+void test_usbd_stream_write_xfer_unaligned_ep_buf_keeps_data(void) {
+  tu_edpt_stream_t stream;
+  stream_tx_setup(&stream, stream_ep_buf + 1);
+
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL_UINT16(3, stream.tx_pending);
+  TEST_ASSERT_EQUAL_MEMORY("abc", stream_ep_buf + 1, 3);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+}
+
+// Between a refusal and the restore of tx_pending the submitter still holds the claim: a flush or ZLP from another
+// context fails to claim the endpoint and leaves ep_buf and the FIFO untouched
+void test_usbd_stream_competing_submission_waits_for_refusal_recovery(void) {
+  tu_edpt_stream_t stream;
+  stream_tx_setup(&stream, stream_ep_buf);
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "def", 3));
+
+  // a submission of "abc" from ep_buf, refused
+  memcpy(stream_ep_buf, "abc", 3);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_STREAM_IN, (uint8_t*) "abc", 3, 3, false, false);
+  TEST_ASSERT_FALSE(usbd_edpt_xfer_keep_claim(rhport, EDPT_STREAM_IN, stream_ep_buf, 3, false));
+
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+  TEST_ASSERT_EQUAL_MEMORY("abc", stream_ep_buf, 3);
+  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
+
+  // recovered: the kept bytes go first
+  stream.tx_pending = 3;
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_STREAM_IN, (uint8_t*) "abcdef", 6, 6, false, true);
+  TEST_ASSERT_EQUAL_UINT32(6, tu_edpt_stream_write_xfer(&stream));
+}
+
+static tu_edpt_stream_t *competing_stream;
+
+// another context flushes and sends a ZLP while the stream's own submission is in the DCD
+static bool dcd_xfer_refuse_after_competitor(uint8_t rhport_, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes,
+                                             bool is_isr, int num_calls) {
+  (void) rhport_; (void) ep_addr; (void) is_isr;
+  TEST_ASSERT_EQUAL_INT(0, num_calls); // the competitor never reaches the DCD
+  TEST_ASSERT_EQUAL_MEMORY("abc", buffer, total_bytes);
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(competing_stream));
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(competing_stream, 64));
+  TEST_ASSERT_EQUAL_MEMORY("abc", buffer, total_bytes);
+  return false;
+}
+
+void test_usbd_stream_competitor_during_refused_submission(void) {
+  tu_edpt_stream_t stream;
+  stream_tx_setup(&stream, stream_ep_buf);
+  competing_stream = &stream;
+
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  dcd_edpt_xfer_Stub(dcd_xfer_refuse_after_competitor);
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL_UINT16(3, stream.tx_pending);
+  TEST_ASSERT_EQUAL_MEMORY("abc", stream_ep_buf, 3);
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+}
+
+// The ZLP's data check is made under the claim: with data pending it releases without submitting, and a refused ZLP
+// releases the endpoint
+void test_usbd_stream_zlp_pending_data_releases(void) {
+  tu_edpt_stream_t stream;
+  stream_tx_setup(&stream, stream_ep_buf);
+
+  TEST_ASSERT_EQUAL_UINT32(1, tu_edpt_stream_write(&stream, "x", 1));
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+  tu_fifo_clear(&stream.ff);
+
+  stream.tx_pending = 3;
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+  stream.tx_pending = 0;
+
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, NULL, 0, false, false);
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+}
+
+static tu_edpt_stream_t *completing_stream;
+static uint8_t  completed_data[2][64];
+static uint16_t completed_len[2];
+
+// the transfer completes and tud_task() runs the class callback before dcd_edpt_xfer() returns
+static bool dcd_xfer_complete_inline(uint8_t rhport_, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes,
+                                     bool is_isr, int num_calls) {
+  (void) is_isr;
+  TEST_ASSERT_LESS_THAN_INT(2, num_calls);
+  memcpy(completed_data[num_calls], buffer, total_bytes);
+  completed_len[num_calls] = total_bytes;
+  if (num_calls == 0) {
+    dcd_event_xfer_complete(rhport_, ep_addr, total_bytes, XFER_RESULT_SUCCESS, false);
+    tud_task();
+  }
+  return true;
+}
+
+static bool mscd_xfer_cb_flush(uint8_t rhport_, uint8_t ep_addr, xfer_result_t result, uint32_t xferred_bytes,
+                               int num_calls) {
+  (void) rhport_; (void) ep_addr; (void) result; (void) xferred_bytes; (void) num_calls;
+  TEST_ASSERT_EQUAL_UINT32(64, tu_edpt_stream_write_xfer(completing_stream));
+  return true;
+}
+
+// A completion that submits the next packet before the first submission returns: each packet is sent once, and the
+// first submission changes no stream state after it
+void test_usbd_stream_completion_before_submit_returns(void) {
+  uint8_t src[128];
+  tu_edpt_stream_t stream;
+  for (unsigned i = 0; i < sizeof(src); i++) {
+    src[i] = (uint8_t) i;
+  }
+
+  msc_configured(); // EDPT_MSC_IN is bound to a class, so its completion reaches mscd_xfer_cb()
+  memset(&stream, 0, sizeof(stream));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, false, true, false, stream_ff_buf, sizeof(stream_ff_buf),
+                                       stream_ep_buf));
+  tusb_desc_endpoint_t desc_ep = stream_desc_ep;
+  desc_ep.bEndpointAddress = EDPT_MSC_IN;
+  tu_edpt_stream_open(&stream, rhport, &desc_ep, 64);
+  completing_stream = &stream;
+
+  dcd_edpt_xfer_Stub(dcd_xfer_complete_inline);
+  mscd_xfer_cb_Stub(mscd_xfer_cb_flush);
+  TEST_ASSERT_EQUAL_UINT32(128, tu_edpt_stream_write(&stream, src, sizeof(src)));
+
+  TEST_ASSERT_EQUAL_UINT16(64, completed_len[0]);
+  TEST_ASSERT_EQUAL_MEMORY(src, completed_data[0], 64);
+  TEST_ASSERT_EQUAL_UINT16(64, completed_len[1]);
+  TEST_ASSERT_EQUAL_MEMORY(src + 64, completed_data[1], 64);
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
+  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_MSC_IN));
+  replug();
 }
 
 //--------------------------------------------------------------------+

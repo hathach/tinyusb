@@ -284,6 +284,12 @@
       - CFG_TUSB_DEBUG=0
     :test_usbh_task_ready:
       - CFG_TUH_HUB=1
+    # keys match by substring, so this also configures test_usbh_stream_mutex
+    :test_usbh_stream:
+      - TUP_HCD_MEM_ALIGN=4 # a host controller that needs aligned buffers, for the alignment rejection tests
+    # real osal_none mutex, so a submission that waits for the TX FIFO's write mutex hangs (caught by the watchdog)
+    :test_usbh_stream_mutex:
+      - TUP_MCU_MULTIPLE_CORE=1
   :release: []
 
   # Enable to inject name of a test as a unique compilation symbol into its respective executable build.

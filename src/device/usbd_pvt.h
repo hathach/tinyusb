@@ -73,6 +73,10 @@ void usbd_edpt_close(uint8_t rhport, uint8_t ep_addr);
 // transfer.
 bool usbd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr);
 
+// As usbd_edpt_xfer(), but a refused submission leaves the endpoint claimed: the caller can recover from the refusal
+// before any other context can claim the endpoint, then must release it.
+bool usbd_edpt_xfer_keep_claim(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t total_bytes, bool is_isr);
+
 // Submit a usb ISO transfer by use of a FIFO (ring buffer) - all bytes in FIFO get transmitted
 bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t * ff, uint16_t total_bytes, bool is_isr);
 

@@ -386,54 +386,48 @@ static bool stream_release(tu_edpt_stream_t *s) {
   return false;
 }
 
+// Submit count bytes of ep_buf; a refused submission leaves the endpoint claimed
+static bool stream_xfer_keep_claim(tu_edpt_stream_t *s, uint16_t count) {
+  if (s->is_host) {
+    #if CFG_TUH_ENABLED
+    return usbh_edpt_xfer_keep_claim(s->hwid, s->ep_addr, s->ep_buf, count);
+  #endif
+  } else {
+    #if CFG_TUD_ENABLED
+    return usbd_edpt_xfer_keep_claim(s->hwid, s->ep_addr, s->ep_buf, count, false);
+  #endif
+  }
+  return false;
+}
+
 //--------------------------------------------------------------------+
 // Stream Write
 //--------------------------------------------------------------------+
 
-// Serialize the stream's own submissions (tu_edpt_stream_write_xfer(), tu_edpt_stream_write_zlp_if_needed()) with
-// the TX FIFO's write mutex. usbd/usbh release the endpoint as soon as they refuse a submission, so without it
-// another task could claim the endpoint and overwrite ep_buf before the refused bytes are restored as tx_pending
-// (#4449). Without an RTOS nothing preempts a submission, and the macros compile out.
-#if OSAL_MUTEX_REQUIRED
-TU_ATTR_ALWAYS_INLINE static inline void stream_tx_lock(tu_edpt_stream_t *s) {
-  if (s->ff.mutex_wr != NULL) {
-    (void) osal_mutex_lock(s->ff.mutex_wr, OSAL_TIMEOUT_WAIT_FOREVER);
-  }
-}
+// The endpoint claim, held from the claim through any refusal recovery, serializes every user of ep_buf and
+// tx_pending (#4449), so submissions take no mutex: they also run from transfer-complete callbacks in
+// tud_task()/tuh_task(), which may preempt a writer holding the FIFO's write mutex (#4595).
 
-TU_ATTR_ALWAYS_INLINE static inline void stream_tx_unlock(tu_edpt_stream_t *s) {
-  if (s->ff.mutex_wr != NULL) {
-    (void) osal_mutex_unlock(s->ff.mutex_wr);
-  }
-}
-#else
-  #define stream_tx_lock(_s)
-  #define stream_tx_unlock(_s)
-#endif
-
-static bool stream_write_zlp_locked(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
-  // ZLP condition: no pending data, last transferred bytes is multiple of packet size (a power of 2)
-  TU_VERIFY(s->mps > 0 && tu_fifo_empty(&s->ff) && s->tx_pending == 0 && last_xferred_bytes > 0 &&
-            (0 == (last_xferred_bytes & (s->mps - 1u))));
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
+  // ZLP condition: last transferred bytes is a non-zero multiple of packet size (a power of 2)
+  TU_VERIFY(s->mps > 0 && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (s->mps - 1u))));
   TU_VERIFY(stream_claim(s));
+
+  // checked under the claim: pending data ends the transfer instead of a ZLP
+  if (!tu_fifo_empty(&s->ff) || s->tx_pending > 0) {
+    stream_release(s);
+    return false;
+  }
+
   TU_ASSERT(stream_xfer(s, 0));
   return true;
 }
 
-bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
-  stream_tx_lock(s);
-  const bool ret = stream_write_zlp_locked(s, last_xferred_bytes);
-  stream_tx_unlock(s);
-  return ret;
-}
-
 // A submission the DCD/HCD refuses must not lose data (#4449). Without ep_buf the transfer reads the FIFO itself, so
-// a refused one leaves the bytes queued. With ep_buf the bytes are moved out of the FIFO before the submission: the
-// FIFO is advanced first so that a completion handled before stream_xfer() returns cannot send them again. A refused
-// submission keeps them in ep_buf as tx_pending, and the next call sends them ahead of the FIFO's. The caller holds
-// the stream lock, so no other submission of this stream runs between the refusal and the restore of tx_pending, and
-// a completion handled meanwhile waits for it before submitting again.
-static uint32_t stream_write_xfer_locked(tu_edpt_stream_t *s) {
+// a refused one leaves the bytes queued. With ep_buf the bytes are moved out of the FIFO and tx_pending is cleared
+// before the submission, so a completion handled before it returns cannot send them again. A refused submission keeps
+// the endpoint claimed until they are restored as tx_pending, and the next call sends them ahead of the FIFO's.
+uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
   TU_VERIFY(stream_claim(s), 0);
 
@@ -456,21 +450,16 @@ static uint32_t stream_write_xfer_locked(tu_edpt_stream_t *s) {
     return 0;
   }
 
-  if (!stream_xfer(s, count)) {
-    // refused: usbd/usbh already released the endpoint. Keep the bytes for the next call.
-    if (s->ep_buf != NULL) {
-      s->tx_pending = count;
-    }
+  if (s->ep_buf == NULL) {
+    return stream_xfer(s, count) ? count : 0;
+  }
+
+  if (!stream_xfer_keep_claim(s, count)) {
+    s->tx_pending = count;
+    stream_release(s);
     return 0;
   }
 
-  return count;
-}
-
-uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
-  stream_tx_lock(s);
-  const uint32_t count = stream_write_xfer_locked(s);
-  stream_tx_unlock(s);
   return count;
 }
 
