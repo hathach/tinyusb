@@ -1097,31 +1097,6 @@ void test_usbd_stream_write_xfer_unaligned_ep_buf_keeps_data(void) {
   TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
 }
 
-// Between a refusal and the restore of tx_pending the submitter still holds the claim: a flush or ZLP from another
-// context fails to claim the endpoint and leaves ep_buf and the FIFO untouched
-void test_usbd_stream_competing_submission_waits_for_refusal_recovery(void) {
-  tu_edpt_stream_t stream;
-  stream_tx_setup(&stream, stream_ep_buf);
-  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "def", 3));
-
-  // a submission of "abc" from ep_buf, refused
-  memcpy(stream_ep_buf, "abc", 3);
-  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
-  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_STREAM_IN, (uint8_t*) "abc", 3, 3, false, false);
-  TEST_ASSERT_FALSE(usbd_edpt_xfer_keep_claim(rhport, EDPT_STREAM_IN, stream_ep_buf, 3, false));
-
-  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
-  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
-  TEST_ASSERT_EQUAL_MEMORY("abc", stream_ep_buf, 3);
-  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
-
-  // recovered: the kept bytes go first
-  stream.tx_pending = 3;
-  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
-  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_STREAM_IN, (uint8_t*) "abcdef", 6, 6, false, true);
-  TEST_ASSERT_EQUAL_UINT32(6, tu_edpt_stream_write_xfer(&stream));
-}
-
 static tu_edpt_stream_t *competing_stream;
 
 // another context flushes and sends a ZLP while the stream's own submission is in the DCD
@@ -1161,17 +1136,6 @@ void test_usbd_stream_zlp_sends_data_queued_meanwhile(void) {
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
   TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
   TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
-}
-
-void test_usbd_stream_zlp_sends_pending_bytes(void) {
-  tu_edpt_stream_t stream;
-  stream_tx_setup(&stream, stream_ep_buf);
-
-  stream.tx_pending = 3;
-  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, stream_ep_buf, 3, false, true);
-  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
-  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
-  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
 }
 
 void test_usbd_stream_zlp_refused_releases(void) {

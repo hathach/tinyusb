@@ -1496,7 +1496,7 @@ static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16
     TU_LOG_USBH("OK\r\n");
     return true;
   } else {
-    // HCD error, clear busy (and claimed unless the caller keeps it) to allow next transfer
+    // HCD refused
     const uint8_t clear = release_on_fail ? (TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED) : TU_EDPT_STATE_BUSY;
     *ep_state &= (uint8_t) ~clear;
     TU_LOG1("Failed\r\n");

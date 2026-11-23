@@ -52,7 +52,6 @@ static volatile uint8_t *ep_state(void) {
   return &get_device(DADDR)->ep_status[tu_edpt_number(EP_OUT)][TUSB_DIR_OUT];
 }
 
-// the writer that the task preempted holds the FIFO's write mutex
 static void stream_setup(uint8_t *buf) {
   tu_memclr(&stream, sizeof(stream));
   TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, true, true, false, ff_buf, sizeof(ff_buf), buf));
@@ -61,6 +60,7 @@ static void stream_setup(uint8_t *buf) {
   TEST_ASSERT_EQUAL(1, stream.ff_mutexdef.count);
 }
 
+// the writer that the task preempted holds the FIFO's write mutex
 static void writer_lock(void) {
   TEST_ASSERT_TRUE(osal_mutex_lock(stream.ff.mutex_wr, OSAL_TIMEOUT_WAIT_FOREVER));
 }

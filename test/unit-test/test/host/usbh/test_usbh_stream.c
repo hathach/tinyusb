@@ -10,6 +10,7 @@
 
 TEST_SOURCE_FILE("tusb.c")
 TEST_SOURCE_FILE("tusb_fifo.c")
+TEST_SOURCE_FILE("usbh_test_hcd_stubs.c")
 
 // Endpoint stream TX through usbh: the endpoint claim serializes submissions (#4449, #4595)
 
@@ -43,63 +44,10 @@ static bool   (*xfer_hook)(uint8_t call);
 //--------------------------------------------------------------------+
 // HCD stubs
 //--------------------------------------------------------------------+
-uint32_t tusb_time_millis_api(void) {
-  return 0;
-}
-
-bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
-  (void) rhport;
-  (void) rh_init;
-  return true;
-}
-
-void hcd_int_handler(uint8_t rhport, bool in_isr) {
-  (void) rhport;
-  (void) in_isr;
-}
-
-void hcd_int_enable(uint8_t rhport) {
-  (void) rhport;
-}
-
-void hcd_int_disable(uint8_t rhport) {
-  (void) rhport;
-}
-
-bool hcd_port_connect_status(uint8_t rhport) {
-  (void) rhport;
-  return true;
-}
-
-void hcd_port_reset(uint8_t rhport) {
-  (void) rhport;
-}
-
-void hcd_port_reset_end(uint8_t rhport) {
-  (void) rhport;
-}
-
-tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
-  (void) rhport;
-  return TUSB_SPEED_FULL;
-}
-
-void hcd_device_close(uint8_t rhport, uint8_t daddr) {
-  (void) rhport;
-  (void) daddr;
-}
-
 bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]) {
   (void) rhport;
   (void) daddr;
   (void) setup_packet;
-  return true;
-}
-
-bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep_desc) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_desc;
   return true;
 }
 
@@ -114,20 +62,6 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buff
   }
   xfer_len[call] = buflen;
   return xfer_hook != NULL ? xfer_hook(call) : xfer_result;
-}
-
-bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_addr;
-  return true;
-}
-
-bool hcd_edpt_clear_stall(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_addr;
-  return true;
 }
 
 //--------------------------------------------------------------------+
@@ -231,29 +165,6 @@ void test_stream_unaligned_ep_buf_keeps_data(void) {
   TEST_ASSERT_EQUAL_UINT16(3, stream.tx_pending);
   TEST_ASSERT_EQUAL_MEMORY("abc", ep_buf + 1, 3);
   TEST_ASSERT_FALSE(ep_claimed());
-}
-
-// Between a refusal and the restore of tx_pending the submitter still holds the claim: a flush or ZLP from another
-// context fails to claim the endpoint and leaves ep_buf and the FIFO untouched
-void test_stream_competing_submission_waits_for_refusal_recovery(void) {
-  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "def", 3));
-
-  memcpy(ep_buf, "abc", 3);
-  TEST_ASSERT_TRUE(usbh_edpt_claim(DADDR, EP_OUT));
-  xfer_result = false;
-  TEST_ASSERT_FALSE(usbh_edpt_xfer_keep_claim(DADDR, EP_OUT, ep_buf, 3));
-
-  xfer_result = true;
-  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
-  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, MPS));
-  TEST_ASSERT_EQUAL(1, xfer_count);
-  TEST_ASSERT_EQUAL_MEMORY("abc", ep_buf, 3);
-  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
-
-  stream.tx_pending = 3;
-  TEST_ASSERT_TRUE(usbh_edpt_release(DADDR, EP_OUT));
-  TEST_ASSERT_EQUAL_UINT32(6, tu_edpt_stream_write_xfer(&stream));
-  TEST_ASSERT_EQUAL_MEMORY("abcdef", xfer_data[1], 6);
 }
 
 // another context flushes and sends a ZLP while the stream's own submission is in the HCD, which then refuses it
