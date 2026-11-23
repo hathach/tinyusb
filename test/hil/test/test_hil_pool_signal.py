@@ -20,6 +20,10 @@ from tempfile import TemporaryDirectory
 
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(TEST_DIR))
+
+if sys.platform == 'win32':
+    raise unittest.SkipTest("hil_test forks each board process and imports agentrc's fcntl board lock: POSIX only")
+
 from usbtest_harness import patch, wait_for   # noqa: E402 - stubs pyserial before hil_test imports it
 import hil_test  # noqa: E402
 from helper import hil_report  # noqa: E402
