@@ -459,10 +459,17 @@ static uint32_t stream_tx_apply_clear(tu_edpt_stream_t *s) {
   return req;
 }
 
+// A clear not yet applied. tx_clear_req is read before tx_clear_ack, one access per statement (IAR Pa082): an ack
+// equal to it then shows that clear applied.
+static bool stream_tx_clear_pending(const tu_edpt_stream_t *s) {
+  const uint32_t req = s->tx_clear_req;
+  return req != s->tx_clear_ack;
+}
+
 // The read index writers count free space from. Until a submission applies a clear left to it, the FIFO is empty from
 // the clear's write index, not from the read index. A writer holds the write mutex, so no new clear comes meanwhile.
 static uint16_t stream_tx_write_base(const tu_edpt_stream_t *s) {
-  if (s->tx_clear_req != s->tx_clear_ack) {
+  if (stream_tx_clear_pending(s)) {
     return s->tx_clear_wr_idx;
   }
   stream_fence();
@@ -494,7 +501,7 @@ static void stream_tx_leave(tu_edpt_stream_t *s) {
     stream_fence();
     s->tx_active = false;
     stream_fence();
-  } while (s->tx_clear_req != s->tx_clear_ack && stream_tx_enter(s));
+  } while (stream_tx_clear_pending(s) && stream_tx_enter(s));
 }
 
 void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
