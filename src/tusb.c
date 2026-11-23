@@ -440,36 +440,10 @@ static void stream_unlock(osal_mutex_t mutex) {
     (void) osal_mutex_unlock(mutex);
   }
 }
-
-// A writer of an overwritable FIFO may be overwriting its oldest bytes: a submission reads them only with the write
-// mutex, which it takes only if free (#4595). false if a writer holds it; *locked is set if this call took it.
-static bool stream_tx_lock_overwrite(tu_edpt_stream_t *s, bool *locked) {
-  *locked = false;
-  if (!s->ff.overwritable || s->ff.mutex_wr == NULL) {
-    return true;
-  }
-  *locked = osal_mutex_lock(s->ff.mutex_wr, 0);
-  return *locked;
-}
-
-static void stream_tx_unlock_overwrite(tu_edpt_stream_t *s, bool locked) {
-  if (locked) {
-    (void) osal_mutex_unlock(s->ff.mutex_wr);
-  }
-}
 #else
   #define stream_lock(_mutex)
   #define stream_unlock(_mutex)
-  #define stream_tx_lock_overwrite(_s, _locked)   ((void) (_s), *(_locked) = false, true)
-  #define stream_tx_unlock_overwrite(_s, _locked) ((void) (_s), (void) (_locked))
 #endif
-
-static bool stream_tx_overwrite_busy(tu_edpt_stream_t *s) {
-  bool       locked;
-  const bool idle = stream_tx_lock_overwrite(s, &locked);
-  stream_tx_unlock_overwrite(s, locked);
-  return !idle;
-}
 
 // Apply a clear left to the submission: discard the FIFO up to its write index at the clear, and the bytes a refused
 // transfer left. Return the clear count, read before the write index it pairs with.
@@ -553,34 +527,31 @@ void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
 
 // Move queued bytes from the FIFO to ep_buf, behind those a refused transfer left. They are consumed only if no clear
 // came while they were peeked, else peeked again after its discard, so a later clear's write index is at or past
-// them. While a writer may be overwriting them, only the bytes a refused transfer left are taken. Return the bytes in
-// ep_buf, and in *seq the clear count they were read under.
+// them. Return the bytes in ep_buf, and in *seq the clear count they were read under. An overwriting writer may replace
+// bytes being peeked, the overwrite-vs-reader race tusb_fifo.h documents: excluding it needs the write mutex (#4595).
 static uint16_t stream_tx_read(tu_edpt_stream_t *s, uint32_t *seq) {
-  bool       locked;
-  const bool readable = stream_tx_lock_overwrite(s, &locked);
-  uint32_t   req;
-  uint16_t   pending;
-  uint16_t   n;
+  uint32_t req;
+  uint16_t pending;
+  uint16_t n;
   do {
     req     = stream_tx_apply_clear(s);
     pending = s->tx_pending;
     n       = 0;
-    if (readable && pending < s->xfer_len) {
+    if (pending < s->xfer_len) {
       n = tu_fifo_peek_n(&s->ff, s->ep_buf + pending, (uint16_t) (s->xfer_len - pending));
     }
     stream_fence();
   } while (req != s->tx_clear_req);
 
   (void) tu_fifo_discard_n(&s->ff, n);
-  stream_tx_unlock_overwrite(s, locked);
   s->tx_pending = 0;
   *seq          = req;
   return (uint16_t) (pending + n);
 }
 
 // Take what is queued for a transfer: into ep_buf, or counted for one that reads the FIFO itself. 0 if a clear is
-// running, which discards it. A count for a transfer that reads the FIFO is returned with the submission still
-// active, so a clear while the DCD reads it is left to stream_tx_submit().
+// running, which discards it. A transfer that reads the FIFO does so unserialized with a clear: its completion lets the
+// next submission enter before this one returns, so this one cannot stay active across it.
 static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint32_t *seq) {
   if (!stream_tx_enter(s)) {
     return 0;
@@ -589,9 +560,6 @@ static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint32_t *seq) {
   if (s->ep_buf == NULL) {
     *seq  = stream_tx_apply_clear(s);
     count = tu_fifo_count(&s->ff);
-    if (count > 0) {
-      return count;
-    }
   } else {
     count = stream_tx_read(s, seq);
   }
@@ -606,9 +574,7 @@ static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint32_t *seq) {
 // sends them ahead of the FIFO's.
 static uint32_t stream_tx_submit(tu_edpt_stream_t *s, uint16_t count, uint32_t seq) {
   if (s->ep_buf == NULL) {
-    const bool ok = stream_xfer(s, count);
-    stream_tx_leave(s); // the DCD's reads from its ISR later stay unserialized with a clear
-    return ok ? count : 0;
+    return stream_xfer(s, count) ? count : 0;
   }
   if (stream_xfer_keep_claim(s, count)) {
     return count;
@@ -633,12 +599,11 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
       return stream_tx_submit(s, count, seq);
     }
 
-    // A clear discarded the data, or a writer may be overwriting it. A writer that queued more after it and found the
-    // endpoint claimed relies on this call to send it, unless the clear is still running or the writer still writing:
-    // such a writer then comes after this release.
+    // A clear discarded the data. A writer that queued more after it and found the endpoint claimed relies on this
+    // call to send it, unless the clear is still running: such a writer then comes after this release.
     stream_release(s);
     stream_fence();
-    if (s->tx_clearing || stream_tx_overwrite_busy(s)) {
+    if (s->tx_clearing) {
       return 0;
     }
   }

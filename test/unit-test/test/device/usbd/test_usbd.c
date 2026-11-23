@@ -1197,34 +1197,26 @@ void test_usbd_stream_clear_during_refused_submission(void) {
   TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
 }
 
-// the DCD loads the first packet from the FIFO before it returns, and another context clears the stream between the
-// read's load of the read index and its store
-static bool dcd_xfer_fifo_clear_mid_read(uint8_t rhport_, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes,
+// Without ep_buf the DCD reads the FIFO itself, during and after the submission
+static bool dcd_xfer_fifo_check_inactive(uint8_t rhport_, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes,
                                          bool is_isr, int num_calls) {
-  (void) rhport_; (void) ep_addr; (void) is_isr;
+  (void) rhport_; (void) ep_addr; (void) ff; (void) is_isr;
   TEST_ASSERT_EQUAL_INT(0, num_calls);
-  TEST_ASSERT_EQUAL_UINT16(128, total_bytes);
-  uint8_t packet[64];
-  const uint16_t rd_idx = ff->rd_idx;
-  TEST_ASSERT_EQUAL_UINT16(sizeof(packet), tu_fifo_peek_n(ff, packet, sizeof(packet)));
-  tu_edpt_stream_clear(clearing_stream);
-  ff->rd_idx = rd_idx;
-  TEST_ASSERT_EQUAL_UINT16(sizeof(packet), tu_fifo_discard_n(ff, sizeof(packet)));
+  TEST_ASSERT_EQUAL_UINT16(3, total_bytes);
+  TEST_ASSERT_FALSE(clearing_stream->tx_active);
   return true;
 }
 
-// Without ep_buf the DCD reads the FIFO itself: a clear meanwhile is left to the submission, so the read's stale
-// index cannot bring the discarded bytes back
-void test_usbd_stream_clear_during_xfer_fifo_read(void) {
-  uint8_t src[128] = { 0 };
+// A submission is no longer active while its transfer reads the FIFO: the transfer's completion lets the next
+// submission claim the endpoint before this one returns, and this one's end would then end the next one's
+void test_usbd_stream_xfer_fifo_submission_inactive(void) {
   tu_edpt_stream_t stream;
   stream_tx_setup(&stream, NULL);
   clearing_stream = &stream;
 
-  dcd_edpt_xfer_fifo_Stub(dcd_xfer_fifo_clear_mid_read);
-  TEST_ASSERT_EQUAL_UINT32(sizeof(src), tu_edpt_stream_write(&stream, src, sizeof(src)));
-  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
-  TEST_ASSERT_EQUAL_UINT32(sizeof(stream_ff_buf), tu_edpt_stream_write_available(&stream));
+  dcd_edpt_xfer_fifo_Stub(dcd_xfer_fifo_check_inactive);
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
   TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
 }
 

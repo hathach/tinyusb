@@ -52,12 +52,16 @@ static volatile uint8_t *ep_state(void) {
   return &get_device(DADDR)->ep_status[tu_edpt_number(EP_OUT)][TUSB_DIR_OUT];
 }
 
-static void stream_setup(uint8_t *buf) {
+static void stream_setup_mode(uint8_t *buf, bool overwritable) {
   tu_memclr(&stream, sizeof(stream));
-  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, true, true, false, ff_buf, sizeof(ff_buf), buf));
+  TEST_ASSERT_TRUE(tu_edpt_stream_init(&stream, true, true, overwritable, ff_buf, sizeof(ff_buf), buf));
   tu_edpt_stream_open(&stream, DADDR, &desc_ep, MPS);
   TEST_ASSERT_NOT_NULL(stream.ff.mutex_wr);
   TEST_ASSERT_EQUAL(1, stream.ff_mutexdef.count);
+}
+
+static void stream_setup(uint8_t *buf) {
+  stream_setup_mode(buf, false);
 }
 
 // the writer that the task preempted holds the FIFO's write mutex
@@ -100,6 +104,27 @@ void test_stream_data_submit_skips_write_mutex(void) {
   writer_lock();
   TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
   writer_unlock();
+}
+
+// an overwritable FIFO (CDC before DTR, printer) is drained without the mutex too
+void test_stream_overwritable_submit_skips_write_mutex(void) {
+  stream_setup_mode(ep_buf, true);
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  writer_lock();
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
+  writer_unlock();
+}
+
+// A completion's submission sends a short write even while a writer holds the mutex: that writer's own flush skips a
+// short write, so data left queued would wait for an unrelated write
+void test_stream_overwritable_short_write_not_stranded(void) {
+  stream_setup_mode(ep_buf, true);
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  writer_lock();
+  (void) tu_edpt_stream_write_xfer(&stream);
+  writer_unlock();
+  TEST_ASSERT_EQUAL_UINT32(1, tu_edpt_stream_write(&stream, "d", 1));
+  TEST_ASSERT_NOT_EQUAL(0, *ep_state() & TU_EDPT_STATE_BUSY);
 }
 
 // a refused submission (here the alignment check) recovers without the mutex too
