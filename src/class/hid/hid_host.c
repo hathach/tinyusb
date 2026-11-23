@@ -720,7 +720,8 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
 //  uint8_t ri_report_count = 0;
 //  uint8_t ri_report_size = 0;
 
-  uint8_t ri_collection_depth = 0;
+  // every item takes at least one byte of the uint16_t desc_len, so the depth cannot wrap
+  uint16_t ri_collection_depth = 0;
   while (desc_len && report_num < arr_count) {
     header.byte = *desc_report++;
     desc_len--;
@@ -762,8 +763,7 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
           case RI_MAIN_OUTPUT: break;
           case RI_MAIN_FEATURE: break;
           case RI_MAIN_COLLECTION:
-            // saturate: 256 nested collections would otherwise wrap the counter back to 0
-            if (ri_collection_depth < UINT8_MAX) ri_collection_depth++;
+            ri_collection_depth++;
             break;
 
           case RI_MAIN_COLLECTION_END:

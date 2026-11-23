@@ -400,10 +400,10 @@ void test_hid_parse_report_descriptor_long_item_truncated(void) {
   TEST_ASSERT_EQUAL_UINT8(0, tuh_hid_parse_report_descriptor(info, TU_ARRAY_SIZE(info), desc, sizeof(desc)));
 }
 
-// 256 nested collections saturate the depth counter instead of wrapping it to 0
+// 256 nested collections keep their full depth: the counter neither wraps to 0 nor closes the report one level early
 void test_hid_parse_report_descriptor_collection_depth_overflow(void) {
   enum { NEST = 256 };
-  static uint8_t desc[4 + 2 * NEST + 2 + 3 + NEST];
+  static uint8_t desc[4 + 2 * NEST + 2 + 3 + (NEST - 1) + 2 + 1 + 1];
   uint16_t       n = 0;
 
   desc[n++] = 0x05; desc[n++] = 0x01; // USAGE_PAGE (Generic Desktop)
@@ -411,11 +411,14 @@ void test_hid_parse_report_descriptor_collection_depth_overflow(void) {
   for (uint16_t i = 0; i < NEST; i++) {
     desc[n++] = 0xA1; desc[n++] = 0x00; // COLLECTION (Physical)
   }
-  desc[n++] = 0x85; desc[n++] = 0x01;               // REPORT_ID (1)
+  desc[n++] = 0x85; desc[n++] = 0x01;                   // REPORT_ID (1)
   desc[n++] = 0x06; desc[n++] = 0x00; desc[n++] = 0xFF; // USAGE_PAGE (Vendor 0xFF00), nested: must be ignored
-  for (uint16_t i = 0; i < NEST; i++) {
-    desc[n++] = 0xC0; // END_COLLECTION
+  for (uint16_t i = 0; i < NEST - 1; i++) {
+    desc[n++] = 0xC0; // END_COLLECTION, the outermost collection stays open
   }
+  desc[n++] = 0xA1; desc[n++] = 0x00; // COLLECTION (Physical), a child of the still-open outermost collection
+  desc[n++] = 0xC0;                   // END_COLLECTION, the child
+  desc[n++] = 0xC0;                   // END_COLLECTION, the outermost
   TEST_ASSERT_EQUAL(sizeof(desc), n);
 
   tuh_hid_report_info_t info[2];
