@@ -1125,6 +1125,78 @@ void test_usbd_stream_competitor_during_refused_submission(void) {
   TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
 }
 
+static tu_edpt_stream_t *refused_stream;
+static void (*breakpoint_hook)(void); // run once, at the next failed TU_ASSERT
+
+// CFG_TUSB_DEBUG_BREAKPOINT for this suite
+void usbd_breakpoint_hook(void) {
+  void (*hook)(void) = breakpoint_hook;
+  breakpoint_hook = NULL;
+  if (hook != NULL) {
+    hook();
+  }
+}
+
+// another context flushes, with new data queued, once usbd refused the stream's submission and before the stream
+// keeps the refused bytes
+static void competitor_after_refusal(void) {
+  TEST_ASSERT_FALSE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_FALSE(usbd_edpt_claim(rhport, EDPT_STREAM_IN)); // still the refused submission's
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(refused_stream, "XYZ", 3));
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(refused_stream));
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(refused_stream, 64));
+}
+
+// The refusal (here the alignment check, whose failed assertion runs the competitor) leaves the endpoint claimed
+// until the refused bytes are kept: the competitor cannot overwrite them in ep_buf
+void test_usbd_stream_competitor_after_refusal(void) {
+  tu_edpt_stream_t stream;
+  stream_tx_setup(&stream, stream_ep_buf + 1);
+  refused_stream = &stream;
+
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  breakpoint_hook = competitor_after_refusal;
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_NULL(breakpoint_hook);
+  TEST_ASSERT_EQUAL_UINT16(3, stream.tx_pending);
+  TEST_ASSERT_EQUAL_MEMORY("abc", stream_ep_buf + 1, 3);
+  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+}
+
+static tu_edpt_stream_t *clearing_stream;
+
+// another context clears the stream and queues new data while the stream's own submission is in the DCD, which then
+// refuses it
+static bool dcd_xfer_clear_then_refuse(uint8_t rhport_, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes,
+                                       bool is_isr, int num_calls) {
+  (void) rhport_; (void) ep_addr; (void) buffer; (void) total_bytes; (void) is_isr;
+  TEST_ASSERT_EQUAL_INT(0, num_calls);
+  tu_edpt_stream_clear(clearing_stream);
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(clearing_stream, "new", 3));
+  return false;
+}
+
+// The clear discards the refused bytes too: they are not kept to resend, and only the data written after it is sent
+void test_usbd_stream_clear_during_refused_submission(void) {
+  tu_edpt_stream_t stream;
+  stream_tx_setup(&stream, stream_ep_buf);
+  clearing_stream = &stream;
+
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  dcd_edpt_xfer_Stub(dcd_xfer_clear_then_refuse);
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
+
+  dcd_edpt_xfer_Stub(NULL);
+  dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, EDPT_STREAM_IN, (uint8_t *) "new", 3, 3, false, true);
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
+}
+
 // The ZLP's data check is made under the claim: data a writer queued meanwhile (its own flush found the endpoint
 // claimed) is sent instead of the ZLP, so it is not left queued with no transfer to flush it
 void test_usbd_stream_zlp_sends_data_queued_meanwhile(void) {

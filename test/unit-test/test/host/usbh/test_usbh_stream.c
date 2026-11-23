@@ -5,6 +5,11 @@
 
 #include "unity.h"
 
+// usbh.c logs a refused transfer after clearing its BUSY state, before the stream keeps the refused bytes: hook the
+// log there (this suite builds with CFG_TUSB_DEBUG=0, which leaves TU_LOG1 to the first definition)
+int refusal_log(const char *format, ...);
+#define TU_LOG1 refusal_log
+
 // Include the production implementation to set endpoint state directly.
 #include "host/usbh.c"
 
@@ -40,6 +45,16 @@ static uint8_t  xfer_data[4][MPS];
 static uint16_t xfer_len[4];
 static bool     xfer_result;
 static bool   (*xfer_hook)(uint8_t call);
+static void   (*refusal_hook)(void); // run once, at the refused transfer's log
+
+int refusal_log(const char *format, ...) {
+  void (*hook)(void) = refusal_hook;
+  if (hook != NULL && strcmp(format, "Failed\r\n") == 0) {
+    refusal_hook = NULL;
+    hook();
+  }
+  return 0;
+}
 
 //--------------------------------------------------------------------+
 // HCD stubs
@@ -95,6 +110,7 @@ void setUp(void) {
   xfer_count  = 0;
   xfer_result = true;
   xfer_hook   = NULL;
+  refusal_hook = NULL;
   tu_memclr(xfer_len, sizeof(xfer_len));
   stream_setup(ep_buf);
 }
@@ -185,6 +201,31 @@ void test_stream_competitor_during_refused_submission(void) {
   TEST_ASSERT_FALSE(ep_claimed());
 }
 
+// another context flushes, with new data queued, once the refusal cleared BUSY and before the refused bytes are kept
+static void competitor_after_refusal(void) {
+  TEST_ASSERT_FALSE(usbh_edpt_busy(DADDR, EP_OUT));
+  TEST_ASSERT_TRUE(ep_claimed());
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "XYZ", 3));
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, MPS));
+}
+
+void test_stream_competitor_after_refusal(void) {
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  xfer_result  = false;
+  refusal_hook = competitor_after_refusal;
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_NULL(refusal_hook);
+  TEST_ASSERT_EQUAL(1, xfer_count);
+  TEST_ASSERT_EQUAL_UINT16(3, stream.tx_pending);
+  TEST_ASSERT_EQUAL_MEMORY("abc", ep_buf, 3);
+  TEST_ASSERT_FALSE(ep_claimed());
+
+  xfer_result = true;
+  TEST_ASSERT_EQUAL_UINT32(6, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL_MEMORY("abcXYZ", xfer_data[1], 6);
+}
+
 // the transfer completes and tuh_task() runs the class callback, which flushes again, before hcd_edpt_xfer() returns
 static bool complete_and_flush(uint8_t call) {
   if (call == 0) {
@@ -253,4 +294,98 @@ void test_stream_zlp_refused_releases(void) {
   TEST_ASSERT_EQUAL(1, xfer_count);
   TEST_ASSERT_FALSE(ep_claimed());
   TEST_ASSERT_FALSE(usbh_edpt_busy(DADDR, EP_OUT));
+}
+
+//--------------------------------------------------------------------+
+// Stream clear
+//--------------------------------------------------------------------+
+
+// another context clears the stream and queues new data before the refused bytes are kept: only the new data is sent
+static void clear_after_refusal(void) {
+  tu_edpt_stream_clear(&stream);
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "new", 3));
+}
+
+void test_stream_clear_during_refused_submission(void) {
+  uint8_t src[MPS + 3];
+  memset(src, 'o', sizeof(src));
+  xfer_result = false;
+  TEST_ASSERT_EQUAL_UINT32(sizeof(src), tu_edpt_stream_write(&stream, src, sizeof(src)));
+  TEST_ASSERT_EQUAL(1, xfer_count); // the write flushed one packet, refused
+  TEST_ASSERT_EQUAL_UINT16(MPS, stream.tx_pending);
+
+  refusal_hook = clear_after_refusal;
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_NULL(refusal_hook);
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_FALSE(ep_claimed());
+
+  xfer_result = true;
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL_UINT16(3, xfer_len[2]);
+  TEST_ASSERT_EQUAL_MEMORY("new", xfer_data[2], 3);
+}
+
+// A clear while a submission reads the FIFO and tx_pending leaves them to it: the submission discards what was queued
+// at the clear, and the bytes a refused transfer left, before it reads; data written after the clear is kept
+void test_stream_clear_defers_to_active_submission(void) {
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "old", 3));
+  memcpy(ep_buf, "pnd", 3);
+  stream.tx_pending = 3;
+
+  stream.tx_active = true;
+  tu_edpt_stream_clear(&stream);
+  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_EQUAL_UINT16(3, stream.tx_pending);
+  stream.tx_active = false;
+
+  TEST_ASSERT_EQUAL_UINT32(2, tu_fifo_write_n(&stream.ff, "ok", 2));
+  TEST_ASSERT_EQUAL_UINT32(2, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL(1, xfer_count);
+  TEST_ASSERT_EQUAL_MEMORY("ok", xfer_data[0], 2);
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
+}
+
+// A clear left to a submission with nothing written after it: the submission discards and sends nothing
+void test_stream_deferred_clear_leaves_nothing_to_send(void) {
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "old", 3));
+  stream.tx_active = true;
+  tu_edpt_stream_clear(&stream);
+  stream.tx_active = false;
+
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
+  TEST_ASSERT_FALSE(ep_claimed());
+  TEST_ASSERT_EQUAL(stream.tx_clear_req, stream.tx_clear_ack);
+}
+
+// A submission that finds a clear running leaves the FIFO and tx_pending to it. The ZLP touches neither, so it is
+// still sent: the clear leaves nothing queued to end the transfer instead.
+void test_stream_submission_backs_off_during_clear(void) {
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  stream.tx_clearing = true;
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_FALSE(ep_claimed());
+  TEST_ASSERT_FALSE(stream.tx_active);
+
+  TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, MPS));
+  TEST_ASSERT_EQUAL(1, xfer_count);
+  TEST_ASSERT_EQUAL_UINT16(0, xfer_len[0]);
+  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_FALSE(stream.tx_active);
+}
+
+void test_stream_clear_when_idle(void) {
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
+  stream.tx_pending = 2;
+  tu_edpt_stream_clear(&stream);
+  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_EQUAL(0, xfer_count);
 }

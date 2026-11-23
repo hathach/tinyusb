@@ -304,6 +304,11 @@ uint32_t tu_edpt_stream_write(tu_edpt_stream_t *s, const void *buffer, uint32_t 
   return 0;
 }
 
+void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
+  tu_fifo_clear(&s->ff);
+  s->tx_pending = 0;
+}
+
 uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s) {
   (void)s;
   return 0;

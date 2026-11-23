@@ -336,8 +336,13 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
   }
   #endif
 
-  s->ep_buf     = ep_buf;
-  s->tx_pending = 0;
+  s->ep_buf          = ep_buf;
+  s->tx_pending      = 0;
+  s->tx_active       = false;
+  s->tx_clearing     = false;
+  s->tx_clear_req    = 0;
+  s->tx_clear_ack    = 0;
+  s->tx_clear_wr_idx = 0;
 
   return true;
 }
@@ -407,48 +412,182 @@ static bool stream_xfer_keep_claim(tu_edpt_stream_t *s, uint16_t count) {
 // The endpoint claim, held from the claim through any refusal recovery, serializes every user of ep_buf and
 // tx_pending (#4449), so submissions take no mutex: they also run from transfer-complete callbacks in
 // tud_task()/tuh_task(), which may preempt a writer holding the FIFO's write mutex (#4595).
+//
+// tu_edpt_stream_clear() also changes the FIFO's read side and tx_pending, and neither it nor a submission may wait
+// for the other. Each raises its flag (tx_clearing, tx_active), then checks the other's, so they never both proceed.
+// A clear that finds a submission active leaves the discard to it (tx_clear_req, tx_clear_wr_idx); a submission that
+// finds a clear running takes nothing. Each checks again after lowering its flag, so when both back off, one of them
+// still applies the discard.
+
+// Order a flag store before the load of the other side's flag, and a clear's write index before its count
+#if OSAL_MUTEX_REQUIRED && defined(TU_MEMORY_BARRIER)
+  #define stream_fence() TU_MEMORY_BARRIER()
+#elif TUP_MCU_MULTIPLE_CORE
+  #error "stream TX needs TU_MEMORY_BARRIER() on a multi-core MCU"
+#else
+  #define stream_fence() do {} while (0) // nothing preempts a submission
+#endif
+
+// Apply a clear left to the submission: discard the FIFO up to its write index at the clear, and the bytes a refused
+// transfer left. Return the clear count, read before the write index it pairs with.
+static uint8_t stream_tx_apply_clear(tu_edpt_stream_t *s) {
+  const uint8_t req = s->tx_clear_req;
+  stream_fence();
+  if (req != s->tx_clear_ack) {
+    s->ff.rd_idx    = s->tx_clear_wr_idx;
+    s->tx_pending   = 0;
+    s->tx_clear_ack = req;
+  }
+  return req;
+}
+
+// Start using the FIFO's read side and tx_pending. false if a clear is running: it then finds this submission gone
+// and discards on its own.
+static bool stream_tx_enter(tu_edpt_stream_t *s) {
+  for (;;) {
+    s->tx_active = true;
+    stream_fence();
+    if (!s->tx_clearing) {
+      return true;
+    }
+    s->tx_active = false;
+    stream_fence();
+    if (s->tx_clearing) {
+      return false;
+    }
+  }
+}
+
+// Stop using them, applying any clear left meanwhile, including one that found this submission active after the
+// apply and did not wait for it
+static void stream_tx_leave(tu_edpt_stream_t *s) {
+  do {
+    (void) stream_tx_apply_clear(s);
+    stream_fence();
+    s->tx_active = false;
+    stream_fence();
+  } while (s->tx_clear_req != s->tx_clear_ack && stream_tx_enter(s));
+}
+
+void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
+#if OSAL_MUTEX_REQUIRED
+  // as tu_fifo_clear(): excludes writers, readers and other clears, so the write index holds still
+  if (s->ff.mutex_wr != NULL) {
+    (void) osal_mutex_lock(s->ff.mutex_wr, OSAL_TIMEOUT_WAIT_FOREVER);
+  }
+  if (s->ff.mutex_rd != NULL) {
+    (void) osal_mutex_lock(s->ff.mutex_rd, OSAL_TIMEOUT_WAIT_FOREVER);
+  }
+#endif
+
+  s->tx_clear_wr_idx = s->ff.wr_idx;
+  stream_fence();
+  s->tx_clear_req = (uint8_t) (s->tx_clear_req + 1u);
+  for (;;) {
+    s->tx_clearing = true;
+    stream_fence();
+    if (!s->tx_active) {
+      (void) stream_tx_apply_clear(s);
+      stream_fence();
+      s->tx_clearing = false;
+      break;
+    }
+    s->tx_clearing = false;
+    stream_fence();
+    if (s->tx_active) {
+      break; // the submission applies it before it stops
+    }
+  }
+
+#if OSAL_MUTEX_REQUIRED
+  if (s->ff.mutex_wr != NULL) {
+    (void) osal_mutex_unlock(s->ff.mutex_wr);
+  }
+  if (s->ff.mutex_rd != NULL) {
+    (void) osal_mutex_unlock(s->ff.mutex_rd);
+  }
+#endif
+}
+
+// Move queued bytes from the FIFO to ep_buf, behind those a refused transfer left. They are consumed only if no clear
+// came while they were peeked, else peeked again after its discard, so a later clear's write index is at or past
+// them. Return the bytes in ep_buf, and in *seq the clear count they were read under.
+static uint16_t stream_tx_read(tu_edpt_stream_t *s, uint8_t *seq) {
+  uint8_t  req;
+  uint16_t pending;
+  uint16_t n;
+  do {
+    req     = stream_tx_apply_clear(s);
+    pending = s->tx_pending;
+    n       = 0;
+    if (pending < s->xfer_len) {
+      n = tu_fifo_peek_n(&s->ff, s->ep_buf + pending, (uint16_t) (s->xfer_len - pending));
+    }
+    stream_fence();
+  } while (req != s->tx_clear_req);
+
+  (void) tu_fifo_discard_n(&s->ff, n);
+  s->tx_pending = 0;
+  *seq          = req;
+  return (uint16_t) (pending + n);
+}
+
+// Take what is queued for a transfer: into ep_buf, or counted for one that reads the FIFO itself. false if a clear is
+// running, which discards it.
+static bool stream_tx_take(tu_edpt_stream_t *s, uint16_t *count, uint8_t *seq) {
+  if (!stream_tx_enter(s)) {
+    return false;
+  }
+  if (s->ep_buf == NULL) {
+    *seq   = stream_tx_apply_clear(s);
+    *count = tu_fifo_count(&s->ff);
+  } else {
+    *count = stream_tx_read(s, seq);
+  }
+  stream_tx_leave(s);
+  return true;
+}
 
 // A submission the DCD/HCD refuses must not lose data (#4449). Without ep_buf the transfer reads the FIFO itself, so
-// a refused one leaves the bytes queued. With ep_buf the bytes are moved out of the FIFO and tx_pending is cleared
+// a refused one leaves the bytes queued. With ep_buf the bytes were moved out of the FIFO and tx_pending cleared
 // before the submission, so a completion handled before it returns cannot send them again. A refused submission keeps
-// the endpoint claimed until they are restored as tx_pending, and the next call sends them ahead of the FIFO's.
-static uint32_t stream_write_claimed(tu_edpt_stream_t *s) {
-  // Pull data from FIFO -> EP buf, behind any bytes a refused submission left there
-  uint16_t count;
-  if (s->ep_buf == NULL) {
-    count = tu_fifo_count(&s->ff); // re-get count since fifo can be changed
-  } else {
-    count = s->tx_pending;
-    if (count < s->xfer_len) {
-      count = (uint16_t) (count + tu_fifo_read_n(&s->ff, s->ep_buf + count, (uint16_t) (s->xfer_len - count)));
-    }
-    s->tx_pending = 0;
-  }
-
-  if (count == 0) {
-    // Release endpoint since we don't make any transfer
-    // Note: data is dropped if terminal is not connected
-    stream_release(s);
-    return 0;
-  }
-
+// the endpoint claimed until they are kept as tx_pending, unless a clear came since they were taken, and the next call
+// sends them ahead of the FIFO's.
+static uint32_t stream_tx_submit(tu_edpt_stream_t *s, uint16_t count, uint8_t seq) {
   if (s->ep_buf == NULL) {
     return stream_xfer(s, count) ? count : 0;
   }
-
-  if (!stream_xfer_keep_claim(s, count)) {
-    s->tx_pending = count;
-    stream_release(s);
-    return 0;
+  if (stream_xfer_keep_claim(s, count)) {
+    return count;
   }
-
-  return count;
+  if (stream_tx_enter(s)) {
+    if (s->tx_clear_req == seq) {
+      s->tx_pending = count;
+    }
+    stream_tx_leave(s);
+  }
+  stream_release(s);
+  return 0;
 }
 
 uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
-  TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
-  TU_VERIFY(stream_claim(s), 0);
-  return stream_write_claimed(s);
+  for (;;) {
+    TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
+    TU_VERIFY(stream_claim(s), 0);
+    uint16_t count = 0;
+    uint8_t  seq   = 0;
+    if (stream_tx_take(s, &count, &seq) && count > 0) {
+      return stream_tx_submit(s, count, seq);
+    }
+
+    // A clear discarded the data. A writer that queued more after it and found the endpoint claimed relies on this
+    // call to send it, unless the clear is still running: such a writer then comes after this release.
+    stream_release(s);
+    stream_fence();
+    if (s->tx_clearing) {
+      return 0;
+    }
+  }
 }
 
 bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
@@ -457,9 +596,11 @@ bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferr
   TU_VERIFY(stream_claim(s));
 
   // Checked under the claim: data a writer queued meanwhile ends the transfer instead of a ZLP. Send it now, since
-  // the writer's own flush found the endpoint claimed and nothing else would.
-  if (!tu_fifo_empty(&s->ff) || s->tx_pending > 0) {
-    (void) stream_write_claimed(s);
+  // the writer's own flush found the endpoint claimed and nothing else would. A running clear leaves nothing to send.
+  uint16_t count = 0;
+  uint8_t  seq   = 0;
+  if (stream_tx_take(s, &count, &seq) && count > 0) {
+    (void) stream_tx_submit(s, count, seq);
     return false;
   }
 

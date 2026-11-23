@@ -119,3 +119,19 @@ void test_stream_zlp_skips_write_mutex(void) {
   TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, MPS));
   writer_unlock();
 }
+
+// A clear takes the write mutex, as tu_fifo_clear() does; a clear it left to a submission is applied without it
+void test_stream_deferred_clear_skips_write_mutex(void) {
+  stream_setup(ep_buf);
+  TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "old", 3));
+  stream.tx_active = true;
+  tu_edpt_stream_clear(&stream);
+  stream.tx_active = false;
+  TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_count(&stream.ff));
+  TEST_ASSERT_EQUAL_UINT16(2, tu_fifo_write_n(&stream.ff, "ok", 2));
+
+  writer_lock();
+  TEST_ASSERT_EQUAL_UINT32(2, tu_edpt_stream_write_xfer(&stream));
+  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
+  writer_unlock();
+}

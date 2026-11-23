@@ -278,6 +278,7 @@
       - CFG_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
     :test_usbd:
       - TUP_DCD_MEM_ALIGN=4 # a device controller that needs aligned buffers, for the alignment check tests
+      - CFG_TUSB_DEBUG_BREAKPOINT=usbd_breakpoint_hook # runs a test's competitor inside a refused submission
     :test_usbh:
       - CFG_TUH_ENABLED=1
       - CFG_TUD_ENABLED=0
