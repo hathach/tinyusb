@@ -627,7 +627,7 @@ uint32_t tud_audio_feedback_update(uint8_t func_id, uint32_t cycles) {
       break;
 
     case AUDIO_FEEDBACK_METHOD_FREQUENCY_FIXED: {
-      uint64_t fb64 = (((uint64_t) cycles) * audio->feedback.compute.fixed.sample_freq) << (16 - (audio->feedback.frame_shift - 1));
+      uint64_t fb64 = (((uint64_t) cycles) * audio->feedback.compute.fixed.sample_freq) << (16 - audio->feedback.frame_shift);
       feedback = (uint32_t) (fb64 / audio->feedback.compute.fixed.mclk_freq);
     } break;
 
@@ -1606,12 +1606,15 @@ static bool audiod_fb_params_prepare(uint8_t func_id, uint8_t alt) {
           return false;
         }
 
-        // Check if parameters really allow for a power of two division
-        if ((fb_param.frequency.mclk_freq % fb_param.sample_freq) == 0 && tu_is_power_of_two(fb_param.frequency.mclk_freq / fb_param.sample_freq)) {
+        // A power-of-two mclk/fs ratio makes the feedback a left shift of the cycle count, as long as the shift
+        // is not negative (a large ratio with a long interval); otherwise use the general computation
+        uint32_t const ratio = fb_param.frequency.mclk_freq / fb_param.sample_freq;
+        if ((fb_param.frequency.mclk_freq % fb_param.sample_freq) == 0 && tu_is_power_of_two(ratio) &&
+            tu_log2(ratio) <= 16 - audio->feedback.frame_shift) {
           audio->feedback.compute_method = AUDIO_FEEDBACK_METHOD_FREQUENCY_POWER_OF_2;
-          audio->feedback.compute.power_of_2 = (uint8_t) (16 - (audio->feedback.frame_shift - 1) - tu_log2(fb_param.frequency.mclk_freq / fb_param.sample_freq));
+          audio->feedback.compute.power_of_2 = (uint8_t) (16 - audio->feedback.frame_shift - tu_log2(ratio));
         } else if (audio->feedback.compute_method == AUDIO_FEEDBACK_METHOD_FREQUENCY_FLOAT) {
-          audio->feedback.compute.float_const = (float) fb_param.sample_freq / (float) fb_param.frequency.mclk_freq * (1UL << (16 - (audio->feedback.frame_shift - 1)));
+          audio->feedback.compute.float_const = (float) fb_param.sample_freq / (float) fb_param.frequency.mclk_freq * (1UL << (16 - audio->feedback.frame_shift));
         } else {
           audio->feedback.compute.fixed.sample_freq = fb_param.sample_freq;
           audio->feedback.compute.fixed.mclk_freq = fb_param.frequency.mclk_freq;
@@ -1689,9 +1692,8 @@ TU_ATTR_FAST_FUNC void audiod_sof_isr(uint8_t rhport, uint32_t frame_count) {
     audiod_function_t *audio = &_audiod_fct[i];
 
     if (audio->ep_fb != 0) {
-      // HS shift need to be adjusted since SOF event is generated for frame only
-      uint8_t const hs_adjust = (TUSB_SPEED_HIGH == tud_speed_get()) ? 3 : 0;
-      uint32_t const interval = 1UL << (audio->feedback.frame_shift - hs_adjust);
+      // DCDs report every SOF, frame_count counting frames (FS) or microframes (HS), the unit of frame_shift
+      uint32_t const interval = 1UL << audio->feedback.frame_shift;
       if (0 == (frame_count & (interval - 1))) {
         tud_audio_feedback_interval_isr(i, frame_count, audio->feedback.frame_shift);
       }
