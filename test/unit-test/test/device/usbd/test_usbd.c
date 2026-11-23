@@ -1197,92 +1197,26 @@ void test_usbd_stream_clear_during_refused_submission(void) {
   TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
 }
 
-// the transfer's completion releases the endpoint, as usbd does before the class's callback
-static void stream_xfer_complete(void) {
-  dcd_edpt_abort_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, true);
-  usbd_edpt_abort(rhport, EDPT_STREAM_IN);
-}
-
-static bool fifo_store_reread; // the read's store advances the read index loaded after the pull, as tu_fifo_read_n()
-
-// the DCD loads the first packet from the FIFO before it returns, and another context clears the stream between the
-// read's load of the read index and its store
-static bool dcd_xfer_fifo_clear_mid_read(uint8_t rhport_, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes,
+// Without ep_buf the DCD reads the FIFO itself, during and after the submission
+static bool dcd_xfer_fifo_check_inactive(uint8_t rhport_, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes,
                                          bool is_isr, int num_calls) {
-  (void) rhport_; (void) ep_addr; (void) is_isr;
+  (void) rhport_; (void) ep_addr; (void) ff; (void) is_isr;
   TEST_ASSERT_EQUAL_INT(0, num_calls);
-  TEST_ASSERT_EQUAL_UINT16(128, total_bytes);
-  uint8_t packet[64];
-  const uint16_t rd_idx = ff->rd_idx;
-  TEST_ASSERT_EQUAL_UINT16(sizeof(packet), tu_fifo_peek_n(ff, packet, sizeof(packet)));
-  tu_edpt_stream_clear(clearing_stream);
-  const uint16_t base = fifo_store_reread ? ff->rd_idx : rd_idx;
-  ff->rd_idx = (uint16_t) ((base + sizeof(packet)) % (2u * ff->depth));
+  TEST_ASSERT_EQUAL_UINT16(3, total_bytes);
+  TEST_ASSERT_FALSE(clearing_stream->tx_active);
   return true;
 }
 
-// Without ep_buf the DCD reads the FIFO itself: a clear meanwhile is left to the next submission, so the read's index
-// neither brings the discarded bytes back nor passes the write index. The transfer still sends what it took.
-static void stream_clear_during_xfer_fifo_read(bool store_reread) {
-  uint8_t src[128] = { 0 };
-  tu_edpt_stream_t stream;
-  stream_tx_setup(&stream, NULL);
-  clearing_stream   = &stream;
-  fifo_store_reread = store_reread;
-
-  dcd_edpt_xfer_fifo_Stub(dcd_xfer_fifo_clear_mid_read);
-  TEST_ASSERT_EQUAL_UINT32(sizeof(src), tu_edpt_stream_write(&stream, src, sizeof(src)));
-  TEST_ASSERT_EQUAL_UINT32(sizeof(stream_ff_buf), tu_edpt_stream_write_available(&stream));
-  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
-
-  // the transfer loads its second packet and completes: nothing is left to send
-  TEST_ASSERT_EQUAL_UINT16(64, tu_fifo_discard_n(&stream.ff, 64));
-  stream_xfer_complete();
-  TEST_ASSERT_EQUAL_UINT32(0, tu_edpt_stream_write_xfer(&stream));
-  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
-  TEST_ASSERT_EQUAL_UINT32(sizeof(stream_ff_buf), tu_edpt_stream_write_available(&stream));
-}
-
-void test_usbd_stream_clear_during_xfer_fifo_read(void) {
-  stream_clear_during_xfer_fifo_read(false);
-}
-
-void test_usbd_stream_clear_during_xfer_fifo_pull(void) {
-  stream_clear_during_xfer_fifo_read(true);
-}
-
-// the stream's first transfer completes while its submission is still in the DCD, and the class's callback submits the
-// next one
-static bool dcd_xfer_fifo_complete_then_resubmit(uint8_t rhport_, uint8_t ep_addr, tu_fifo_t *ff, uint16_t total_bytes,
-                                                 bool is_isr, int num_calls) {
-  (void) rhport_; (void) ep_addr; (void) is_isr;
-  if (num_calls == 0) {
-    TEST_ASSERT_EQUAL_UINT16(3, total_bytes);
-    TEST_ASSERT_EQUAL_UINT16(3, tu_fifo_discard_n(ff, 3));
-    stream_xfer_complete();
-    TEST_ASSERT_EQUAL_UINT32(2, tu_edpt_stream_write(clearing_stream, "de", 2));
-    TEST_ASSERT_EQUAL_UINT32(2, tu_edpt_stream_write_xfer(clearing_stream));
-  } else {
-    TEST_ASSERT_EQUAL_INT(1, num_calls);
-    TEST_ASSERT_EQUAL_UINT16(2, total_bytes);
-  }
-  return true;
-}
-
-// The older submission's return does not end the newer one's activity: a clear while the newer transfer reads the
-// FIFO is still left to the next submission
-void test_usbd_stream_xfer_fifo_older_submission_keeps_newer_active(void) {
+// A submission is no longer active while its transfer reads the FIFO: the transfer's completion lets the next
+// submission claim the endpoint before this one returns, and this one's end would then end the next one's
+void test_usbd_stream_xfer_fifo_submission_inactive(void) {
   tu_edpt_stream_t stream;
   stream_tx_setup(&stream, NULL);
   clearing_stream = &stream;
 
-  dcd_edpt_xfer_fifo_Stub(dcd_xfer_fifo_complete_then_resubmit);
+  dcd_edpt_xfer_fifo_Stub(dcd_xfer_fifo_check_inactive);
   TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write(&stream, "abc", 3));
   TEST_ASSERT_EQUAL_UINT32(3, tu_edpt_stream_write_xfer(&stream));
-
-  tu_edpt_stream_clear(&stream);
-  TEST_ASSERT_EQUAL_UINT16(2, tu_fifo_count(&stream.ff)); // still the newer transfer's
-  TEST_ASSERT_EQUAL_UINT32(sizeof(stream_ff_buf), tu_edpt_stream_write_available(&stream));
   TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
 }
 

@@ -461,7 +461,6 @@ static uint32_t stream_tx_apply_clear(tu_edpt_stream_t *s) {
 
 // The read index writers count free space from. Until a submission applies a clear left to it, the FIFO is empty from
 // the clear's write index, not from the read index. A writer holds the write mutex, so no new clear comes meanwhile.
-// A transfer still reading the FIFO itself reads bytes before that index, which a writer filling the FIFO overwrites.
 static uint16_t stream_tx_write_base(const tu_edpt_stream_t *s) {
   if (s->tx_clear_req != s->tx_clear_ack) {
     return s->tx_clear_wr_idx;
@@ -529,8 +528,7 @@ void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
 // Move queued bytes from the FIFO to ep_buf, behind those a refused transfer left. They are consumed only if no clear
 // came while they were peeked, else peeked again after its discard, so a later clear's write index is at or past
 // them. Return the bytes in ep_buf, and in *seq the clear count they were read under. An overwriting writer may replace
-// bytes being peeked, or those a transfer reads from the FIFO itself, the overwrite-vs-reader race tusb_fifo.h
-// documents: excluding it needs the write mutex (#4595).
+// bytes being peeked, the overwrite-vs-reader race tusb_fifo.h documents: excluding it needs the write mutex (#4595).
 static uint16_t stream_tx_read(tu_edpt_stream_t *s, uint32_t *seq) {
   uint32_t req;
   uint16_t pending;
@@ -552,9 +550,8 @@ static uint16_t stream_tx_read(tu_edpt_stream_t *s, uint32_t *seq) {
 }
 
 // Take what is queued for a transfer: into ep_buf, or counted for one that reads the FIFO itself. 0 if a clear is
-// running, which discards it. A count for a transfer that reads the FIFO is returned still active, so a clear while
-// the DCD reads it is left to the next take. The transfer's completion may let the next submission claim the endpoint
-// before this one returns: only a claim holder, by its own take, ever ends this activity.
+// running, which discards it. A transfer that reads the FIFO does so unserialized with a clear: its completion lets the
+// next submission enter before this one returns, so this one cannot stay active across it.
 static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint32_t *seq) {
   if (!stream_tx_enter(s)) {
     return 0;
@@ -563,9 +560,6 @@ static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint32_t *seq) {
   if (s->ep_buf == NULL) {
     *seq  = stream_tx_apply_clear(s);
     count = tu_fifo_count(&s->ff);
-    if (count > 0) {
-      return count;
-    }
   } else {
     count = stream_tx_read(s, seq);
   }
