@@ -3053,17 +3053,20 @@ def main() -> None:
             # a fresh run unlinked the previous spec and report: a signal from here waits for their replacements
             unblocked = signal.pthread_sigmask(signal.SIG_BLOCK, _INTERRUPTS)
         except PoolGuardExpired:
-            _abort_report(f'aborted: worker pool timed out after {POOL_TIMEOUT}s',
-                          mret, config_boards, failed_fname, report_dir, fresh,
-                          cell=hil_report.POOL_TIMEOUT_CELL)
-            _exit_past_left_boards(1, f'HIL worker pool timed out after {POOL_TIMEOUT}s')
+            # a signal raised here would escape this clause past the report and the bounded exit
+            with _interrupts_ignored():
+                _abort_report(f'aborted: worker pool timed out after {POOL_TIMEOUT}s',
+                              mret, config_boards, failed_fname, report_dir, fresh,
+                              cell=hil_report.POOL_TIMEOUT_CELL)
+                _exit_past_left_boards(1, f'HIL worker pool timed out after {POOL_TIMEOUT}s')
             raise RuntimeError(f'HIL worker pool timed out after {POOL_TIMEOUT}s')
         except Exception as e:
             # A board RAISED something no per-test handler guards: `mret` already holds every
             # board that finished, so keep those rows and name only the ones still in flight.
-            _abort_report(f'aborted: a worker raised {type(e).__name__}: {e}',
-                          mret, config_boards, failed_fname, report_dir, fresh)
-            _exit_past_left_boards(1, f'{type(e).__name__}: {e}')
+            with _interrupts_ignored():
+                _abort_report(f'aborted: a worker raised {type(e).__name__}: {e}',
+                              mret, config_boards, failed_fname, report_dir, fresh)
+                _exit_past_left_boards(1, f'{type(e).__name__}: {e}')
             raise
         except KeyboardInterrupt as e:
             sig = signal.Signals(getattr(e, 'signum', signal.SIGINT))

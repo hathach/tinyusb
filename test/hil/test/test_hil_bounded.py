@@ -216,8 +216,9 @@ class BuildBoardContract(unittest.TestCase):
         self.assertIn('was configured with CFLAGS_CLI', printed)
         self.assertEqual(self.build(1, 'Traceback')[0], (1, False))
 
-    def run_main(self, cfg, prior_rows, argv, refuse, results=(), interrupt=None):
-        """main() over a fake rig in a temp report dir: (exit code, report dir, run_boards, hints)."""
+    def run_main(self, cfg, prior_rows, argv, refuse, results=(), interrupt=None, raises=SystemExit):
+        """main() over a fake rig in a temp report dir: (exit code, or what main raised other than
+        SystemExit, report dir, run_boards, hints)."""
         from unittest import mock
         from helper import hil_report
         for g in ('verbose', 'test_only', 'max_retry', 'skip_flash'):
@@ -243,9 +244,10 @@ class BuildBoardContract(unittest.TestCase):
              mock.patch.object(hil_test, '_load_controller_hints', return_value={}), \
              mock.patch.object(hil_test, '_save_controller_hints') as hints, \
              mock.patch.object(hil_test, 'log_line'), \
-             redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as exited:
+             redirect_stdout(io.StringIO()), self.assertRaises(raises) as exited:
             hil_test.main()
-        return exited.exception.code, d, dispatch, hints
+        e = exited.exception
+        return (e.code if isinstance(e, SystemExit) else e), d, dispatch, hints
 
     def test_a_refused_board_is_reported_failed_over_its_accumulated_pass(self):
         from helper import hil_report
@@ -284,6 +286,33 @@ class BuildBoardContract(unittest.TestCase):
                 self.assertEqual(doc['_hil']['termination'], 'aborted')
                 self.assertIn(f'interrupted by {"SIGTERM" if rc == 143 else "SIGINT"}', doc['caveat'])
                 self.assertIn('cut', doc['caveat'])
+                self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b cut')
+
+    def test_a_sigterm_as_a_timed_out_or_failed_run_reports_still_writes_it_and_exits_bounded(self):
+        """The signal lands inside the abort report's spec write: it must not escape the except
+        clause past the spec, the report and _exit_past_left_boards."""
+        from unittest import mock
+        from helper import hil_report
+        cfg = {'boards': [{'name': n, 'uid': str(i), 'flasher': {'name': 'jlink', 'uid': 'p'}}
+                          for i, n in enumerate(('done', 'cut'))]}
+        done = ('done', 0, [], [('done', {'device/cdc_msc': 'pass'}, '1s')], None)
+        write_spec = hil_test._write_failed_spec
+        def signalled(*args):
+            os.kill(os.getpid(), signal.SIGTERM)
+            return write_spec(*args)
+        for cause, raised, termination in ((hil_test.PoolGuardExpired(), RuntimeError, 'timeout'),
+                                           (ValueError('worker failed'), ValueError, 'aborted')):
+            with self.subTest(cause=type(cause).__name__), \
+                 mock.patch.object(hil_test, '_write_failed_spec', side_effect=signalled), \
+                 mock.patch.object(hil_test, '_exit_past_left_boards') as bounded_exit:
+                # BaseException: an escaped RunInterrupted must fail this test, not stop the runner
+                e, d, _, _ = self.run_main(cfg, [], [], set(), [done], interrupt=cause, raises=BaseException)
+                self.assertIs(type(e), raised)
+                bounded_exit.assert_called_once()
+                self.assertEqual(bounded_exit.call_args[0][0], 1)
+                doc = json.loads((d / hil_report.REPORT_JSON).read_text())
+                self.assertEqual([r['board'] for r in doc['rows']], ['done'])
+                self.assertEqual(doc['_hil']['termination'], termination)
                 self.assertEqual((d / 'rig.json.failed').read_text(), '--accumulate -b cut')
 
     def all_refused(self, argv):
