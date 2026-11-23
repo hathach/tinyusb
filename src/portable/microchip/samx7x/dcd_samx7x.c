@@ -212,9 +212,12 @@ static void dcd_ep_handler(uint8_t ep_ix) {
         }
         if (xfer->buffer) {
           memcpy(xfer->buffer + xfer->queued_len, ptr, count);
-        } else {
+        }
+#if CFG_TUD_EDPT_XFER_FIFO
+        else {
           tu_hwfifo_read_to_fifo(ptr, xfer->fifo, count, NULL);
         }
+#endif
         xfer->queued_len = (uint16_t)(xfer->queued_len + count);
       }
       // Acknowledge the interrupt
@@ -255,9 +258,12 @@ static void dcd_ep_handler(uint8_t ep_ix) {
         uint8_t *ptr = EP_GET_FIFO_PTR(ep_ix, 8);
         if (xfer->buffer) {
           memcpy(xfer->buffer + xfer->queued_len, ptr, count);
-        } else {
+        }
+#if CFG_TUD_EDPT_XFER_FIFO
+        else {
           tu_hwfifo_read_to_fifo(ptr, xfer->fifo, count, NULL);
         }
+#endif
         xfer->queued_len = (uint16_t)(xfer->queued_len + count);
       }
       // Clear the FIFO control flag to receive more data.
@@ -490,9 +496,12 @@ static void dcd_transmit_packet(xfer_ctl_t *xfer, uint8_t ep_ix) {
     uint8_t *ptr = EP_GET_FIFO_PTR(ep_ix, 8);
     if (xfer->buffer) {
       memcpy(ptr, xfer->buffer + xfer->queued_len, len);
-    } else {
+    }
+#if CFG_TUD_EDPT_XFER_FIFO
+    else {
       tu_hwfifo_write_from_fifo(ptr, xfer->fifo, len, NULL);
     }
+#endif
     __DSB();
     __ISB();
     xfer->queued_len = (uint16_t)(xfer->queued_len + len);

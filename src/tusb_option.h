@@ -805,6 +805,14 @@
   #define CFG_TUD_EDPT_DEDICATED_HWFIFO 0
 #endif
 
+// usbd_edpt_xfer_fifo(): the DCD moves packets between its hardware FIFO and a tu_fifo. On by default when
+// a built-in class transfers that way; set to 1 for an application class driver calling it.
+#ifndef CFG_TUD_EDPT_XFER_FIFO
+  #define CFG_TUD_EDPT_XFER_FIFO \
+    (CFG_TUD_EDPT_DEDICATED_HWFIFO && (CFG_TUD_CDC || CFG_TUD_AUDIO || CFG_TUD_MIDI || CFG_TUD_MIDI2 || \
+                                       CFG_TUD_PRINTER || CFG_TUD_VENDOR))
+#endif
+
 //--------------------------------------------------------------------
 // Host Options (Default)
 //--------------------------------------------------------------------

@@ -500,6 +500,7 @@ static void pipe_read_packet(void *buff, volatile void *fifo, unsigned cnt)
 	}
 }
 
+#if CFG_TUD_EDPT_XFER_FIFO
 static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigned len, unsigned dir)
 {
   static const struct {
@@ -523,6 +524,7 @@ static void pipe_read_write_packet_ff(tu_fifo_t *f, volatile void *fifo, unsigne
   }
   ops[dir].tu_fifo_advance(f, total_len - rem);
 }
+#endif
 
 /*------------------------------------------------------------------
  * TRANSFER FUNCTION DECLARATION
@@ -563,9 +565,12 @@ static bool handle_xfer_in(uint_fast8_t ep_addr)
   // TU_LOG1("   %p mps %d len %d rem %d\r\n", buf, mps, len, rem);
   if (len) {
     volatile void* addr = (volatile void*)(USBC_REG_EPFIFO1(USBC0_BASE) + (epnum_minus1 << 2));
+#if CFG_TUD_EDPT_XFER_FIFO
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_IN] & TU_BIT(epnum_minus1)) {
       pipe_read_write_packet_ff((tu_fifo_t *)(uintptr_t) buf, addr, len, TUSB_DIR_IN);
-    } else {
+    } else
+#endif
+    {
       pipe_write_packet(buf, addr, len);
       pipe->buf       = buf + len;
     }
@@ -591,9 +596,12 @@ static bool handle_xfer_out(uint_fast8_t ep_addr)
   uint8_t          *buf = pipe->buf;
   if (len) {
     volatile void* addr = (volatile void*)(USBC_REG_EPFIFO1(USBC0_BASE) + (epnum_minus1 << 2));
+#if CFG_TUD_EDPT_XFER_FIFO
     if (_dcd.pipe_buf_is_fifo[TUSB_DIR_OUT] & TU_BIT(epnum_minus1)) {
       pipe_read_write_packet_ff((tu_fifo_t *)(uintptr_t )buf, addr, len, TUSB_DIR_OUT);
-    } else {
+    } else
+#endif
+    {
       pipe_read_packet(buf, addr, len);
       pipe->buf       = buf + len;
     }

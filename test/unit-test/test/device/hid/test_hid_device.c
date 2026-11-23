@@ -69,6 +69,67 @@ void setUp(void) {
 
 void tearDown(void) {}
 
+//--------------------------------------------------------------------+
+// FIFO transfer default (project.yml leaves CFG_TUD_EDPT_XFER_FIFO unset)
+//--------------------------------------------------------------------+
+
+// HID (and MSC) move linear buffers only: with a dedicated hardware FIFO the default leaves FIFO transfers and the
+// tu_fifo <-> hardware FIFO copies out, while the linear hardware FIFO API stays
+void test_edpt_xfer_fifo_default_off_without_fifo_class(void) {
+  TEST_ASSERT_EQUAL(0, CFG_TUD_MSC);
+  TEST_ASSERT_EQUAL(1, CFG_TUD_EDPT_DEDICATED_HWFIFO);
+  TEST_ASSERT_EQUAL(0, CFG_TUD_EDPT_XFER_FIFO);
+  TEST_ASSERT_EQUAL(0, CFG_TUSB_FIFO_HWFIFO_XFER);
+  TEST_ASSERT_EQUAL(1, CFG_TUSB_FIFO_HWFIFO_API);
+}
+
+// with FIFO transfers compiled out usbd_edpt_xfer_fifo() refuses: the DCD is never reached (the mock fails on an
+// unexpected dcd_edpt_xfer_fifo() call), the endpoint is not left busy and the FIFO keeps its data
+void test_edpt_xfer_fifo_refused_when_compiled_out(void) {
+  TU_FIFO_DEF(ff, 16, false);
+  const uint8_t data[] = { 0x01, 0x02, 0x03, 0x04 };
+  TEST_ASSERT_EQUAL(sizeof(data), tu_fifo_write_n(&ff, data, sizeof(data)));
+
+  TEST_ASSERT_FALSE(usbd_edpt_busy(0, EP_HID_IN));
+  TEST_ASSERT_FALSE(usbd_edpt_xfer_fifo(0, EP_HID_IN, &ff, sizeof(data), false));
+  TEST_ASSERT_FALSE(usbd_edpt_busy(0, EP_HID_IN));
+  TEST_ASSERT_EQUAL(sizeof(data), tu_fifo_count(&ff));
+}
+
+// the linear hardware FIFO copies still work with FIFO transfers compiled out
+void test_hwfifo_linear_copies_without_fifo_xfer(void) {
+  static const tu_hwfifo_access_t access_32 = { .data_stride = 4, .param = 0 };
+  static const tu_hwfifo_access_t access_16 = { .data_stride = 2, .param = 0 };
+  const uint8_t src[] = { 0x11, 0x22, 0x33, 0x44, 0x55 };
+
+  // fixed address register: each word lands on the same register, the odd tail is zero padded
+  volatile uint32_t reg32 = 0;
+  tu_hwfifo_write(&reg32, src, 4, &access_32);
+  TEST_ASSERT_EQUAL_HEX32(tu_unaligned_read32(src), reg32);
+  tu_hwfifo_write(&reg32, src, 5, &access_32);
+  const uint8_t tail32[4] = { 0x55, 0, 0, 0 };
+  TEST_ASSERT_EQUAL_HEX32(tu_unaligned_read32(tail32), reg32);
+
+  volatile uint16_t reg16 = 0;
+  tu_hwfifo_write(&reg16, src, 3, &access_16);
+  const uint8_t tail16[2] = { 0x33, 0 };
+  TEST_ASSERT_EQUAL_HEX16(tu_unaligned_read16(tail16), reg16);
+
+  // reads repeat the register, the odd tail takes its low-address bytes
+  uint8_t dest[7];
+  memset(dest, 0xEE, sizeof(dest));
+  reg32 = tu_unaligned_read32(src);
+  tu_hwfifo_read(&reg32, dest, 6, &access_32);
+  const uint8_t expect32[7] = { 0x11, 0x22, 0x33, 0x44, 0x11, 0x22, 0xEE };
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expect32, dest, sizeof(dest));
+
+  memset(dest, 0xEE, sizeof(dest));
+  reg16 = tu_unaligned_read16(src + 2);
+  tu_hwfifo_read(&reg16, dest, 3, &access_16);
+  const uint8_t expect16[7] = { 0x33, 0x44, 0x33, 0xEE, 0xEE, 0xEE, 0xEE };
+  TEST_ASSERT_EQUAL_HEX8_ARRAY(expect16, dest, sizeof(dest));
+}
+
 // a zero-length report stalls rather than send the report ID byte alone
 void test_get_report_zero_length_stalls(void) {
   get_report_ret = 0;
