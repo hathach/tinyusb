@@ -43,18 +43,21 @@
 # ACTION=="add", SUBSYSTEM=="block", SUBSYSTEMS=="usb", ENV{ID_FS_USAGE}=="filesystem", MODE="0666", PROGRAM="/bin/sh -c 'echo $$ID_SERIAL_SHORT | rev | cut -c -8 | rev'", RUN{program}+="/usr/bin/systemd-mount --no-block --automount=yes --collect $devnode /media/blkUSB_%c.%s{bInterfaceNumber}"
 
 import collections
+import ctypes
 import io
 import itertools
 import math
 import os
+import pickle
 import random
 import re
 import signal
 import shlex
+import struct
 import sys
 import tempfile
 import time
-from contextlib import redirect_stdout
+from contextlib import contextmanager, redirect_stdout
 from pathlib import Path
 from typing import TypedDict, NotRequired, cast
 
@@ -63,7 +66,7 @@ import subprocess
 import json
 import glob
 import multiprocessing
-from multiprocessing import TimeoutError as MpTimeoutError
+import multiprocessing.connection
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
 import hil_flash
@@ -71,25 +74,23 @@ import sysview_ci
 import usbtest    # the recovery bounds and the device id; batteries run it as a subprocess
 from helper import agentrc, hil_args, hil_lock, hil_report, hil_tt, hil_util, usb_observe
 from helper.hil_util import device_tests, dual_tests, host_test
-# Loaded before the fork Pool starts, under one name, so a worker's RttError pickles back.
+# Loaded before the board processes fork, under one name, so a board's RttError pickles back.
 rtt = agentrc.load_file('skills/rtt/scripts/rtt.py')
-# The flash provider and its runner, likewise once before the Pool so every worker shares them;
+# The flash provider and its runner, likewise once before the fork so every board shares them;
 # refused here, before any board, when agentrc lacks a file the provider loads or launches.
 hil_util.provider()
 hil_util.openocd_esp()
 
-# Raw Lock objects in Pool initargs are inheritable only under fork
-# (spawn/forkserver pickle them and fail at Pool creation), so pin it against an
-# interpreter default change.
+# A board process inherits this module's state (the provider, the loaded scripts) only under
+# fork, so pin it against an interpreter default change.
 
 _mp = multiprocessing.get_context('fork')
-Pool, Lock = _mp.Pool, _mp.Lock
 import string
 
 # Enumeration wait budget: first attempt ENUM_TIMEOUT, retries the shorter
 # ENUM_TIMEOUT_RETRY -- a device that will enumerate shows up within seconds, so a failing
 # test costs ~3-5x a passing one instead of 10-30x. Set per attempt by test_example(); a
-# module global is safe because each pool worker is its own process.
+# module global is safe because each board runs in its own process.
 ENUM_TIMEOUT = 8
 ENUM_TIMEOUT_RETRY = 4
 # Board-as-host tests must outlast one usbh watchdog recovery: CFG_TUH_CONTROL_TIMEOUT_MS (5 s)
@@ -136,10 +137,11 @@ class TestFail(AssertionError):
 verbose = False
 # Set when a HUNG usbtest case could not be recovered: the DUT's usbfs node still has a
 # D-state holder, so every later flash on that board enumerates into it, blocks, survives
-# SIGKILL and becomes another stray. maxtasksperchild=1 gives each board its own worker,
+# SIGKILL and becomes another stray. run_boards gives each board its own process,
 # so this global is board-scoped; test_board resets it anyway.
 board_wedged = ''
 board_pci = None  # this board's host controller, learned at its first battery; board-scoped too
+board_pending = ''  # the last unproven cleanup cleanup_pending found under the board's task; board-scoped too
 max_retry = 1   # mirrors argparse's -r default (see main); defined HERE too so
                 # test_example is callable (and testable) without going through main()
 PROFILE = os.environ.get('HIL_PROFILE') == '1'  # timestamped logs + flash timing + controller dump
@@ -147,29 +149,109 @@ test_only = []
 board_test = {}
 skip_flash = False
 print_lock = None
+PRINT_LOCK_WAIT_S = 5   # a board process SIGKILLed mid-line holds print_lock for good
 shuffle_seed = None  # per-run seed for the per-board test-order shuffle (HIL_SHUFFLE_SEED to replay)
 sysview_out = None  # --sysview-out; sysview_head/_commit: the checkout's full and short HEAD it records
 sysview_head = sysview_commit = None
 sysview_identity = None  # sysview_ci.checkout_identity, recorded for the PR comment's baseline
-pool_deadline = None  # time.monotonic() the pool guard fires at: the drain's and, inherited by fork, each worker's
+pool_deadline = None  # time.monotonic() the pool guard fires at: run_boards' and, inherited by fork, each board's
 _current_fw = None  # firmware test_example resolved for the RUNNING test (set before each test fn)
 _current_variant = None  # and its build variant
 
 
-def init_worker(lock, seed):
-    global print_lock, shuffle_seed
-    print_lock = lock
-    shuffle_seed = seed
+_INTERRUPTS = {signal.SIGINT, signal.SIGTERM}
+_interrupted = False   # a board process's: its first interrupt was raised
+PR_SET_PDEATHSIG = 1   # <linux/prctl.h>
+
+
+class RunInterrupted(KeyboardInterrupt):
+    """The run's SIGTERM, unwinding as a Ctrl-C does; `signum` is the signal."""
+
+    def __init__(self, signum: int):
+        super().__init__(signal.Signals(signum).name)
+        self.signum = signum
+
+
+def _interrupt_once(sig, frame):
+    """A board process's SIGINT and SIGTERM: the first raises KeyboardInterrupt into its board
+    task, so the task's interrupt path runs (the provider's listing, the verdict, the lock's
+    release); a later one is the same interrupt arriving again (a terminal's group SIGINT, then
+    the run's SIGTERM as it stops its boards, or the parent's death) and is not raised into that
+    cleanup."""
+    global _interrupted
+    if _interrupted:
+        return
+    _interrupted = True
+    raise KeyboardInterrupt(signal.Signals(sig).name)
+
+
+def _die_with_parent() -> None:
+    """Linux: SIGTERM this board process when the run that forked it dies (SIGKILLed), so it never
+    goes on flashing and testing a board under its lock with no one to report it; a no-op where
+    prctl is unavailable. A parent already gone by then is the same death."""
+    try:
+        prctl = ctypes.CDLL(None, use_errno=True).prctl
+    except (OSError, AttributeError):
+        return
+    if prctl(PR_SET_PDEATHSIG, signal.SIGTERM, 0, 0, 0) != 0:
+        return
+    parent = multiprocessing.parent_process()
+    if parent is not None and os.getppid() != parent.pid:
+        os._exit(1)   # before its board: nothing touched yet
+
+
+@contextmanager
+def _sigterm_as_interrupt():
+    """The run's own SIGTERM unwinds like a Ctrl-C: run_boards then stops its board processes,
+    whose SIGTERM runs each board task's interrupt path, and main reports what finished. The
+    default action would end this process alone and leave its boards running; a second SIGTERM
+    is ignored so it cannot cut that unwinding short."""
+    def terminated(sig, frame):
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        raise RunInterrupted(sig)
+    previous = signal.signal(signal.SIGTERM, terminated)
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+@contextmanager
+def _interrupts_blocked():
+    """A board process forking: the run's signal waits until the process is in run_boards' `live`,
+    so its stop reaches it, and the child gets it once its handlers are in (_board_process)."""
+    previous = signal.pthread_sigmask(signal.SIG_BLOCK, _INTERRUPTS)
+    try:
+        yield
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, previous)
+
+
+@contextmanager
+def _interrupts_ignored():
+    """Stopping the boards and writing what they left: a repeated Ctrl-C or SIGTERM must not cut it short."""
+    previous = {sig: signal.signal(sig, signal.SIG_IGN) for sig in _INTERRUPTS}
+    try:
+        yield
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
 
 
 def log_line(msg: str) -> None:
+    global print_lock
     if PROFILE:
         msg = f'{time.time():.3f} {msg}'
     out = sys.__stdout__ if sys.__stdout__ is not None else sys.stdout
-    if print_lock is not None:
-        with print_lock:
+    if print_lock is None:
+        print(msg, file=out, flush=True)
+    elif print_lock.acquire(timeout=PRINT_LOCK_WAIT_S):
+        try:
             print(msg, file=out, flush=True)
-    else:
+        finally:
+            print_lock.release()
+    else:   # held past any line's write: its holder died with it, so this process logs unlocked from now on
+        print_lock = None
         print(msg, file=out, flush=True)
 
 
@@ -1888,7 +1970,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
                             msg += f'  {last_detail}'
                         msg += f'  in {time.time() - start_s:.1f}s'
                         log_line(msg)
-                    elif pending := cleanup_pending(board['name']):
+                    elif pending := cleanup_pending(board):
                         log_line(f'{test_name}  not retrying: {pending}')
                         wedge_break = True
                         break
@@ -1901,7 +1983,7 @@ def test_example(board: Board, variant: str, example: str) -> tuple[int, str, st
             else:
                 last_err = 'Flash failed'
                 last_detail = compact_output(attempt_out.getvalue())
-                if pending := cleanup_pending(board['name']):
+                if pending := cleanup_pending(board):
                     log_line(f'{test_name}  not retrying: {pending}')
                     wedge_break = True
                     break
@@ -2006,23 +2088,41 @@ def _tests_for(board: Board) -> tuple:
     return [t for t in test_list if t not in skipped], skipped
 
 
-def cleanup_pending(name: str) -> str:
-    """Why nothing more may run on the board, or '': an openocd_esp session the provider left
-    running, or an esptool child not proven ended (hil_flash.cleanup_pending), logged when the
-    board's task ends and releases its lock."""
-    receipts = hil_flash.cleanup_pending.get(name)
-    return '' if receipts is None else \
-        f'openocd_esp cleanup pending, receipt {", ".join(map(hil_flash.receipt_text, receipts))}'
+def cleanup_pending(board: Board) -> str:
+    """Why nothing more may run on the board, or '': what an openocd_esp operation left not proven
+    ended on its USJ, listed in the provider's pending record (pending_refusal) or left earlier in
+    this run (hil_flash.left_pending, kept after the record clears an entry that has since ended),
+    logged when the board's task ends and releases its lock. Kept in board_pending, test_board's
+    blocker: an entry of an earlier run can end once the lock is released."""
+    global board_pending
+    if not (serial := hil_flash.openocd_esp_serial(board)):
+        return ''
+    try:
+        p = hil_util.openocd_esp()
+    except ImportError as e:     # fail closed: the record may still list a running session
+        why = f'openocd_esp pending record of USJ {serial} not checked: {e}'
+    else:
+        why = p.pending_refusal(serial) or hil_flash.left_refusal(p, serial)
+    board_pending = why or board_pending
+    return why
 
 
-def pending_evidence(name: str, pending: str) -> dict:
-    """The failed verdict's evidence for an unproven cleanup: run_tracked child receipts, which a
-    recheck can end, apart from the provider sessions it retained; with neither, `pending` as
-    unrecheckable evidence, so no later park closes the failure."""
-    receipts = hil_flash.cleanup_pending.get(name, ())
-    tracked = [r for r in receipts if hil_flash.tracked_receipt(r)]
-    retained = [r for r in receipts if not hil_flash.tracked_receipt(r)]
-    return {'receipts': tracked if receipts else [{'unrecheckable': pending}], 'retained': retained}
+def pending_evidence(board: Board, pending: str) -> dict:
+    """The failed verdict's evidence for an unproven cleanup: the provider's pending_entries of the
+    board's USJ with what this run left there (hil_flash.left_pending): run_tracked child receipts,
+    which a recheck can end, the sessions retained apart, and what nothing can recheck as
+    unrecheckable evidence, as `pending` itself when neither names anything, so no later park
+    closes the failure."""
+    serial = hil_flash.openocd_esp_serial(board)
+    try:
+        p = hil_util.openocd_esp()
+        evidence = hil_flash.left_evidence(p, serial)
+    except (ImportError, ValueError):
+        return {'receipts': [{'unrecheckable': pending}], 'retained': []}
+    receipts = evidence['receipts'] + [{'unrecheckable': p.describe(r)} for r in evidence['unrecheckable']]
+    if not (receipts or evidence['retained']):
+        receipts = [{'unrecheckable': pending}]
+    return {'receipts': receipts, 'retained': evidence['retained']}
 
 
 def previous_cleanup_text(name: str, failures: list) -> str:
@@ -2069,8 +2169,8 @@ def test_board(board: Board) -> tuple:
     name = board['name']
     lock = hil_util.lock_name(board)
 
-    global board_wedged, board_pci
-    board_wedged = ''
+    global board_wedged, board_pci, board_pending
+    board_wedged = board_pending = ''
     board_pci = None
     # protected for every flasher: a worker killed mid-task leaves its record for the next take to log
     parked, unrestored = [], ''   # the verdict's ledger: the final park's success, why the board is not restored
@@ -2099,7 +2199,7 @@ def test_board(board: Board) -> tuple:
         if previous_cleanup:
             previous_cleanup += '; board task notes: ' + '; '.join(task.errors)
     # a lock that did not end as its verdict asked is never a passing board either
-    if blocker := cleanup_pending(name) or ('' if task.ended_cleanly else 'board task ended with errors'):
+    if blocker := board_pending or ('' if task.ended_cleanly else 'board task ended with errors'):
         log_line(f'{name:25} BLOCKER: {blocker}; {ending}')
         rows.append((name, {hil_report.CLEANUP_PENDING_CELL: f'{hil_report.REPORT_CELL["fail"]} {blocker}; {ending}'},
                      None))
@@ -2117,11 +2217,10 @@ def _give_verdict(task, board: Board, parked: list, unrestored: str, exc: BaseEx
     """The battery's cleanup verdict, the board task's collector (the HIL contract's Reservation).
     A battery that raised `exc` is restored when its final park still succeeded (the run itself
     stays aborted by `exc`), failed with unrecheckable evidence for an openocd_esp interrupt that
-    may have landed after the provider returned a pending session but before hil_flash stored its
-    receipt, and otherwise failed, the task naming `exc` after its detail."""
-    name = board['name']
-    if pending := cleanup_pending(name):
-        task.failed(detail=pending, **pending_evidence(name, pending))
+    may have landed after the provider's session ended pending but before it listed the receipt in
+    its pending record, and otherwise failed, the task naming `exc` after its detail."""
+    if pending := cleanup_pending(board):
+        task.failed(detail=pending, **pending_evidence(board, pending))
     elif exc is not None:
         if parked:
             task.restored(evidence='device/board_test park succeeded')
@@ -2161,7 +2260,13 @@ def _board_battery(board: Board, parked: list) -> tuple:
         # board_wedged does not outlive a cancelled or SIGKILLed run, but its D-state
         # testusb does, and the first flash would block on it (#4126)
         strays = usbtest.strays_on(board['uid'])
-        if strays:
+        if strays and (pending := cleanup_pending(board)):
+            # a recovery entry other than openocd_esp resets without consulting the USJ's pending record.
+            # Latched: the entry can end mid-battery, and every later flash would block on the unswept
+            # stray; board_pending's blocker already charges the error
+            board_wedged = f'{name}: stray testusb not swept: {pending}'
+            log_line(f'{name:25} stray testusb not swept: {pending}')
+        elif strays:
             sweep_out = io.StringIO()
             with redirect_stdout(sweep_out):
                 board_wedged = usbtest.recover_strays(board, strays)
@@ -2184,12 +2289,12 @@ def _board_battery(board: Board, parked: list) -> tuple:
                 run_list[0], run_list[-1] = run_list[-1], run_list[0]
         cells = {}
         # beside a pending cleanup no park may flash; the loop below skips every test instead
-        if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(name):
+        if run_list and run_list[0] == prev_last and not skip_flash and not cleanup_pending(board):
             # Same example (same PID) still repeats across the boundary (a one-test
             # -bt run has nothing to swap with). Park on board_test first: it disables
             # the board's USB, so the next flash must re-enumerate to be seen.
             park_ec, park_status, _ = (
-                test_example(board, vname, 'device/board_test') if _should_park(skip_flash)
+                test_example(board, vname, 'device/board_test') if _should_park(board, skip_flash)
                 else (0, 'skip', None))
             if park_ec or park_status == 'skip':
                 # Boundary not cleared: the previous variant may still be enumerated
@@ -2220,7 +2325,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
             prev_last = run_list[-1]
         t_variant = time.monotonic()
         for test in run_list:
-            if cleanup_pending(name):
+            if cleanup_pending(board):
                 cells[test] = f'{hil_report.REPORT_CELL["skip"]} cleanup pending'
                 board_wide_fail = True
                 continue
@@ -2262,7 +2367,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
         # park: flash board_test last to disable the board's usb, after the capture too and when
         # it is interrupted; teardown, not a test, so it is not recorded in the report.
         park_error = None
-        if _should_park(skip_flash):
+        if _should_park(board, skip_flash):
             park_ec, park_status, _ = test_example(board, variants[0]['name'], 'device/board_test')
             if park_ec == 0 and park_status == 'pass':
                 parked.append(True)
@@ -2270,7 +2375,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
                           'no park (device/board_test) firmware' if park_status == 'skip' else None)
         elif sv_capture and sv_capture[2]:
             # the capture left the board wedged or a provider cleanup pending
-            park_error = f'not parked: {_park_refusal()}'
+            park_error = f'not parked: {_park_refusal(board)}'
     if sv_capture:
         capture, error, flashed = sv_capture
         try:
@@ -2288,7 +2393,7 @@ def _board_battery(board: Board, parked: list) -> tuple:
     elif skip_flash and not park_error:
         unrestored = ''     # nothing flashed: no park owed
     else:
-        unrestored = park_error or f'not parked: {_park_refusal()}'
+        unrestored = park_error or f'not parked: {_park_refusal(board)}'
     return err_count, failed_tests, board_wide_fail, rows, unrestored
 
 
@@ -2341,48 +2446,191 @@ def _write_failed_spec(failed_fname: Path, report_dir: Path, mret: list) -> None
         failed_fname.unlink(missing_ok=True)
 
 
-class PoolDrainTimeout(MpTimeoutError):
-    """Guard expiry, carrying the rows that DID finish.
-
-    They ride on the exception because the raise is the abort path: losing them here is
-    what map_async did, and what the drain exists to stop.
-    """
-
-    def __init__(self, finished: list):
-        super().__init__()
-        self.finished = finished
+class PoolGuardExpired(Exception):
+    """The run's deadline passed with boards unfinished; what finished is in run_boards' `out`."""
 
 
-def drain_pool(it, boards: list, deadline: float, out: list | None = None) -> list:
-    """Collect imap_unordered results against ONE deadline. Returns the finished rows.
+# seconds a stopped board process gets for its interrupt path before the run reports without it
+STOP_GRACE_S = 60
+_left_running: list = []   # board processes still running past their stop grace (_exit_past_left_boards)
 
-    Raises PoolDrainTimeout (carrying those same rows) when the deadline passes with boards
-    still in flight -- the caller keeps them, names only what is missing, and writes a
-    re-run spec covering just those.
 
-    A function, not an inline loop, so the tests can call THIS instead of a copy of it: the
-    loop's previous test built its own ThreadPool and its own drain and asserted on those,
-    so deleting the real one outright kept the suite green.
-    """
-    # `out` is the CALLER's list: a worker that raises something other than a timeout
-    # propagates bare, and a local accumulator would take every finished board with it --
-    # the exact loss the drain replaced map_async to prevent.
-    mret: list = out if out is not None else []
-    for _ in boards:
-        left = deadline - time.monotonic()
-        if left <= 0:
-            raise PoolDrainTimeout(mret)
+def _board_process(board: Board, rfd: int, wfd: int, lock, seed) -> None:
+    """One board, in a process of its own: writes (True, row) or (False, the exception test_board
+    raised) to `wfd` as one frame (_RESULT_HEADER, then its pickle). An interrupt writes nothing;
+    the process just ends after the task's interrupt path."""
+    global print_lock, shuffle_seed
+    os.close(rfd)
+    print_lock, shuffle_seed = lock, seed
+    for sig in _INTERRUPTS:
+        if signal.getsignal(sig) is not signal.SIG_IGN:   # a run started with SIGINT ignored keeps it so
+            signal.signal(sig, _interrupt_once)
+    _die_with_parent()
+    # forked with them blocked (_interrupts_blocked): one sent meanwhile lands here, before any board access
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, _INTERRUPTS)
+    try:
+        result = (True, test_board(board))
+    except Exception as e:  # noqa: BLE001 - main's abort path names it
+        result = (False, e)
+    try:
+        payload = pickle.dumps(result)
+    except Exception as e:  # noqa: BLE001 - an exception that does not pickle
+        unpicklable = f'{type(result[1]).__name__}: {result[1]} ({type(e).__name__}: {e})'
+        payload = pickle.dumps((False, RuntimeError(unpicklable)))
+    frame = memoryview(_RESULT_HEADER.pack(len(payload)) + payload)
+    while frame:
+        frame = frame[os.write(wfd, frame):]
+    os.close(wfd)
+
+
+_RESULT_HEADER = struct.Struct('!Q')   # a board's result frame: its pickle's length
+
+
+def _frame_result(frame: bytes):
+    """The result a board's whole frame holds; None for a frame cut short (the board died) or torn."""
+    if len(frame) < _RESULT_HEADER.size:
+        return None
+    (size,) = _RESULT_HEADER.unpack_from(frame)
+    if len(frame) != _RESULT_HEADER.size + size:
+        return None
+    try:
+        return pickle.loads(frame[_RESULT_HEADER.size:])
+    except Exception as e:  # noqa: BLE001 - a torn result loses the board's row, not the run's bookkeeping
+        print(f'warning: board result unreadable: {type(e).__name__}: {e}', flush=True)
+        return None
+
+
+def _aborted_row(board: Board, cell: str) -> tuple:
+    """A failed row for a board its battery gave none for: `cell` on every variant."""
+    return (board['name'], 1, [], [(v['name'], {hil_report.RUN_ABORTED_CELL: cell}, None)
+                                   for v in hil_report.board_variants(board)], None)
+
+
+def _died_row(board: Board, exitcode) -> tuple:
+    """The failed row of a board whose process ended without sending one."""
+    how = f'killed by {signal.Signals(-exitcode).name}' if exitcode and exitcode < 0 else f'exit code {exitcode}'
+    cell = f'{hil_report.REPORT_CELL["fail"]} board process died ({how})'
+    log_line(f'{board["name"]:25} {cell}')
+    return _aborted_row(board, cell)
+
+
+class _BoardProcess:
+    """A started board process and its result pipe, read without ever blocking: `frame` collects
+    what it wrote, `result` is the result that frame holds once the process ended (None for a
+    process that ended without a whole one)."""
+
+    def __init__(self, board: Board, lock, seed):
+        self.board, self.frame, self.result = board, bytearray(), None
+        self.fd, wfd = os.pipe()
         try:
-            mret.append(it.next(timeout=left))
-        except MpTimeoutError:
-            raise PoolDrainTimeout(mret) from None
-    return mret
+            self.proc = _mp.Process(target=_board_process, args=(board, self.fd, wfd, lock, seed),
+                                    name=f'board-{board["name"]}', daemon=True)
+            self.proc.start()
+        finally:
+            os.close(wfd)   # the process holds the only write end: its EOF is the process's end
+        os.set_blocking(self.fd, False)
+
+    def waitables(self) -> list:
+        return [self.proc.sentinel] + ([self.fd] if self.fd is not None else [])
+
+    def ended(self, ready) -> bool:
+        """Reads what the pipe holds now; True once the process ended, its result taken. Safe to
+        call again after an interrupt anywhere in it."""
+        if self.fd is not None and (self.fd in ready or self.proc.sentinel in ready):
+            eof = False
+            try:
+                while chunk := os.read(self.fd, 1 << 16):
+                    self.frame += chunk
+                eof = True
+            except BlockingIOError:
+                pass
+            finally:
+                if eof or self.proc.sentinel in ready:   # ended: what it left in the pipe is all there is
+                    fd, self.fd = self.fd, None
+                    os.close(fd)
+                    self.result = _frame_result(self.frame)
+        if self.fd is not None or self.proc.sentinel not in ready:
+            return False
+        self.proc.join()
+        return True
 
 
-def _park_refusal() -> str:
+def run_boards(boards: list, deadline: float, out: list, seed: str) -> None:
+    """Each board in a fresh process forked from this (main) thread, at most os.cpu_count() at
+    once, started in `boards` order; their rows are appended to `out` as their processes end. A
+    board process that ends without a row is a failed row naming its exit at once.
+
+    Raises PoolGuardExpired when `deadline` passes with boards unfinished, and re-raises a board's
+    exception; on any way out, the boards still running are stopped first (_stop_boards), so
+    `out` also holds a row sent while they stopped.
+
+    A fresh process per board makes cross-board contamination structural rather than dependent
+    on every module global being reset by hand (board_wedged, _current_fw, hil_flash's warn-once
+    sets); the extra fork is noise against a flash+test cycle."""
+    lock, queued, live = _mp.Lock(), list(boards), []
+    try:
+        while queued or live:
+            left = deadline - time.monotonic()
+            if left <= 0:
+                raise PoolGuardExpired()
+            while queued and len(live) < (os.cpu_count() or 1):
+                with _interrupts_blocked():
+                    live.append(_BoardProcess(queued.pop(0), lock, seed))
+            ready = multiprocessing.connection.wait([w for b in live for w in b.waitables()], timeout=left)
+            with _interrupts_blocked():   # a signal lands once `live` and `out` agree on what ended
+                for b in [b for b in live if b.ended(ready)]:
+                    live.remove(b)
+                    if b.result is None:
+                        out.append(_died_row(b.board, b.proc.exitcode))
+                    elif not b.result[0]:
+                        raise b.result[1]
+                    else:
+                        out.append(b.result[1])
+    finally:
+        _stop_boards(live, out)
+
+
+def _stop_boards(live: list, out: list) -> None:
+    """SIGTERM each board process still running and wait up to STOP_GRACE_S for them; a row one
+    sends meanwhile is kept. A process outliving the grace is named and left in _left_running to
+    end on its own: never killed in its cleanup."""
+    with _interrupts_ignored():
+        try:
+            for b in live:
+                if b.proc.exitcode is None:
+                    b.proc.terminate()
+            deadline = time.monotonic() + STOP_GRACE_S
+            while live and (left := deadline - time.monotonic()) > 0:
+                ready = multiprocessing.connection.wait([w for b in live for w in b.waitables()], timeout=left)
+                for b in [b for b in live if b.ended(ready)]:
+                    live.remove(b)
+                    if b.result and b.result[0]:
+                        out.append(b.result[1])
+        finally:
+            for b in live:
+                print(f'warning: {b.board["name"]} board process {b.proc.pid} still running '
+                      f'{STOP_GRACE_S}s after SIGTERM; left to end on its own', flush=True)
+            _left_running.extend(live)
+
+
+def _exit_past_left_boards(code: int, why: str = '') -> None:
+    """With a board process past its stop grace, exit now, the report written: multiprocessing
+    joins its children at interpreter exit without bound, which would hang this run on the board's
+    cleanup. The board ends on its own (its SIGTERM is latched: _interrupt_once)."""
+    if not _left_running:
+        return
+    if why:
+        print(why, file=sys.stderr)
+    print(f'exiting {code} past board process(es) still running: '
+          + ', '.join(f'{b.board["name"]} (pid {b.proc.pid})' for b in _left_running), flush=True)
+    sys.stderr.flush()
+    os._exit(code)
+
+
+def _park_refusal(board: Board) -> str:
     """Why _should_park() refuses, for a caller that reports it."""
     return ('--skip-flash' if skip_flash else f'the board is wedged: {board_wedged}' if board_wedged else
-            '; '.join(f'{n}: {cleanup_pending(n)}' for n in hil_flash.cleanup_pending))
+            cleanup_pending(board))
 
 
 # what a SystemView capture leaves of the pool guard besides its own bound and the park's: the board's
@@ -2431,8 +2679,8 @@ def _sysview_capture(board: Board, park_variant: str) -> tuple:
     void the whole run's report."""
     name = board['name']
     why = None
-    if not _should_park(skip_flash):
-        why = _park_refusal()
+    if not _should_park(board, skip_flash):
+        why = _park_refusal(board)
     elif not hil_flash.find_firmware(park_variant, 'device/board_test', board['flasher']['name']):
         why = 'no park (device/board_test) firmware to restore the board with'
     else:
@@ -2451,16 +2699,16 @@ def _sysview_capture(board: Board, park_variant: str) -> tuple:
     return capture, err, True
 
 
-def _should_park(skip_flash: bool) -> bool:
+def _should_park(board: Board, skip_flash: bool) -> bool:
     """Flash the teardown park (device/board_test, to switch the DUT's USB off)?
 
     Not on a wedged board. The latch has just skipped every remaining test precisely
     because flashing through a D-state-held node blocks, survives SIGKILL and leaves a
     stray -- and the park is a flash like any other. test_example's own guard does not stop
     it either: that one only suppresses RETRIES, and the park is always attempt 0. Nor beside
-    an openocd_esp session the provider left running (cleanup_pending).
+    what an openocd_esp operation left not proven ended (cleanup_pending).
     """
-    return not skip_flash and not board_wedged and not hil_flash.cleanup_pending
+    return not skip_flash and not board_wedged and not cleanup_pending(board)
 
 
 def _read_controller_cache() -> dict:
@@ -2505,7 +2753,7 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
                   cell: str = hil_report.RUN_ABORTED_CELL) -> None:
     """Keep what finished, name what did not, and get a report on disk. Never raises.
 
-    Both abort paths -- the pool guard expiring and a worker raising -- need exactly this,
+    Every abort path -- the pool guard expiring, a board raising, the run interrupted -- needs this,
     and in this order. The re-run spec goes FIRST: a fresh run already unlinked it, and
     leaving it unwritten is what made a GitHub re-run repeat the whole fleet. Only the
     boards that never reported go in it.
@@ -2517,7 +2765,7 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
     under a red job.
     """
     stuck = [b['name'] for b in config_boards if b['name'] not in {r[0] for r in mret}]
-    # main() seeds mret with the boards check_build.py refused; they never entered the pool
+    # main() seeds mret with the boards check_build.py refused; they never ran
     refused = [r[0] for r in mret if any(c.get(hil_report.RUN_ABORTED_CELL) == hil_report.BUILD_REFUSED
                                          for _, c, _ in r[3])]
     try:
@@ -2549,16 +2797,6 @@ def _abort_report(reason: str, mret: list, config_boards: list, failed_fname: Pa
     except Exception as re2:  # noqa: BLE001
         print(f'warning: fallback report failed too: {type(re2).__name__}: {re2}',
               flush=True)
-
-
-def _start_pool(seed: str):
-    """maxtasksperchild=1: a fresh worker per board makes cross-board contamination
-    structural rather than dependent on every module global being reset by hand
-    (board_wedged, _current_fw, hil_flash's warn-once sets). The extra fork is noise
-    against a flash+test cycle.
-    """
-    return Pool(processes=os.cpu_count() or 1, initializer=init_worker,
-                initargs=(Lock(), seed), maxtasksperchild=1)
 
 
 def main() -> None:
@@ -2673,7 +2911,7 @@ def main() -> None:
         try:
             hil_report.board_variants(e)
         except ValueError as err:
-            # here, not in a pool worker after other boards have started flashing
+            # here, not in a board process after other boards have started flashing
             _config_abort(str(err))
     # the capture and its record read these unchecked: a gap would cost the board its sysview record
     bad_sysview = dict.fromkeys(f'{e["name"]}: {why}' for e in config_boards if 'sysview' in e
@@ -2759,9 +2997,7 @@ def main() -> None:
                 build_err += nfail
             else:
                 refused.append(board['name'])
-                refused_rows.append((board['name'], 1, [], [
-                    (v['name'], {hil_report.RUN_ABORTED_CELL: hil_report.BUILD_REFUSED}, None)
-                    for v in hil_report.board_variants(board)], None))
+                refused_rows.append(_aborted_row(board, hil_report.BUILD_REFUSED))
         print('-' * 30)
         print(f'Build phase done: {build_err + len(refused)} failed')
         print('-' * 30)
@@ -2812,61 +3048,67 @@ def main() -> None:
             (report_dir / f).unlink(missing_ok=True)
         failed_fname.unlink(missing_ok=True)
     pool_deadline = time.monotonic() + POOL_TIMEOUT
-    pool = _start_pool(seed)
-    # `with` terminates and joins the pool. A worker stuck in uninterruptible sleep hangs
-    # that join until the CI job ceiling; the abort paths below have written the report
-    # and the re-run spec by then.
-    with pool:
-        # imap_unordered, NOT map_async: map_async is all-or-nothing, so a guard expiry
-        # threw away every board that had already finished and left the re-run spec
-        # unwritten. Draining as results arrive keeps what finished and names only what
-        # was still in flight.
-        mret = list(refused_rows)
-        it = pool.imap_unordered(test_board, config_boards)
+    mret = list(refused_rows)
+    with _sigterm_as_interrupt():
         try:
-            mret = drain_pool(it, config_boards, pool_deadline, out=mret)
-        except MpTimeoutError as te:
-            mret = te.finished
-            _abort_report(f'aborted: worker pool timed out after {POOL_TIMEOUT}s',
-                          mret, config_boards, failed_fname, report_dir, fresh,
-                          cell=hil_report.POOL_TIMEOUT_CELL)
+            run_boards(config_boards, pool_deadline, mret, seed)
+            # a fresh run unlinked the previous spec and report: a signal from here waits for their replacements
+            unblocked = signal.pthread_sigmask(signal.SIG_BLOCK, _INTERRUPTS)
+        except PoolGuardExpired:
+            # a signal raised here would escape this clause past the report and the bounded exit
+            with _interrupts_ignored():
+                _abort_report(f'aborted: worker pool timed out after {POOL_TIMEOUT}s',
+                              mret, config_boards, failed_fname, report_dir, fresh,
+                              cell=hil_report.POOL_TIMEOUT_CELL)
+                _exit_past_left_boards(1, f'HIL worker pool timed out after {POOL_TIMEOUT}s')
             raise RuntimeError(f'HIL worker pool timed out after {POOL_TIMEOUT}s')
         except Exception as e:
-            # A worker RAISED something no per-test handler guards. The drain means `mret`
-            # already holds every board that finished, so keep those rows and name only the
-            # ones still in flight.
-            _abort_report(f'aborted: a worker raised {type(e).__name__}: {e}',
-                          mret, config_boards, failed_fname, report_dir, fresh)
+            # A board RAISED something no per-test handler guards: `mret` already holds every
+            # board that finished, so keep those rows and name only the ones still in flight.
+            with _interrupts_ignored():
+                _abort_report(f'aborted: a worker raised {type(e).__name__}: {e}',
+                              mret, config_boards, failed_fname, report_dir, fresh)
+                _exit_past_left_boards(1, f'{type(e).__name__}: {e}')
             raise
+        except KeyboardInterrupt as e:
+            sig = signal.Signals(getattr(e, 'signum', signal.SIGINT))
+            with _interrupts_ignored():
+                _abort_report(f'interrupted by {sig.name}', mret, config_boards, failed_fname,
+                              report_dir, fresh)
+            _exit_past_left_boards(128 + sig)
+            sys.exit(128 + sig)
 
-    err_count = build_err + sum(e[1] for e in mret)
-    _write_failed_spec(failed_fname, report_dir, mret)
-
-    # refresh controller hints with the pci each board resolved this run
     try:
-        ran = mret[len(refused_rows):]   # the refused rows lead mret and never ran
-        uid_of = {b['name']: b['uid'] for b in config['boards']}
-        if PROFILE:
-            # debug snapshot of this run's resolutions only; the cache also keeps old ones
-            report_dir.mkdir(parents=True, exist_ok=True)
-            with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
-                json.dump({uid_of[r[0]]: r[4] for r in ran if r[4]}, f, indent=1, sort_keys=True)
-        _save_controller_hints(ran, uid_of)
-    except Exception as e:
-        # best effort: the cache only orders the next run, nothing here is worth the report
-        print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: '
-              f'{type(e).__name__}: {e}')
+        err_count = build_err + sum(e[1] for e in mret)
+        _write_failed_spec(failed_fname, report_dir, mret)
 
-    # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout.
-    # -b/-bt means a filtered run (PR selection or a re-run spec): say so, or the report
-    # looks exactly like a full run that happened to be small
-    scoped = sorted(set(args.board) | set(board_test))
-    scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
-    try:
-        report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
-    except Exception as e:
-        hil_report.withdraw(report_dir, e)
-        raise
+        # refresh controller hints with the pci each board resolved this run
+        try:
+            ran = mret[len(refused_rows):]   # the refused rows lead mret and never ran
+            uid_of = {b['name']: b['uid'] for b in config['boards']}
+            if PROFILE:
+                # debug snapshot of this run's resolutions only; the cache also keeps old ones
+                report_dir.mkdir(parents=True, exist_ok=True)
+                with (report_dir / 'hil_profile_ctrl.json').open('w') as f:
+                    json.dump({uid_of[r[0]]: r[4] for r in ran if r[4]}, f, indent=1, sort_keys=True)
+            _save_controller_hints(ran, uid_of)
+        except Exception as e:
+            # best effort: the cache only orders the next run, nothing here is worth the report
+            print(f'warning: cannot persist controller hints to {CONTROLLER_CACHE}: '
+                  f'{type(e).__name__}: {e}')
+
+        # board x test result matrix -> hil_report.md (accumulates across re-runs) + stdout.
+        # -b/-bt means a filtered run (PR selection or a re-run spec): say so, or the report
+        # looks exactly like a full run that happened to be small
+        scoped = sorted(set(args.board) | set(board_test))
+        scope = f'{len(scoped)} board(s) — {", ".join(scoped)}' if scoped else ''
+        try:
+            report = hil_report.accumulate_report(mret, report_dir, fresh, scope)
+        except Exception as e:
+            hil_report.withdraw(report_dir, e)
+            raise
+    finally:
+        signal.pthread_sigmask(signal.SIG_SETMASK, unblocked)   # a signal sent meanwhile lands here
     print()
     print(report)
     print(f'\nReport written to {(report_dir / hil_report.REPORT_MD).resolve()}')

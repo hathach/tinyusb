@@ -134,10 +134,13 @@ class SysviewCapture(unittest.TestCase):
                 self.assertEqual((err, r['capture']['status'], r['capture']['park_error']), (0, 'failed', None))
 
     def test_refused_beside_a_pending_provider_cleanup(self):
-        patch(self, hil_flash, 'cleanup_pending', {'other-board': ['r.json']})
+        serial = '30:ED:A0:E0:C9:02'
+        self.board['flasher'] = {'name': 'openocd_esp', 'uid': serial, 'args': '-f board/esp32p4-builtin.cfg'}
+        hil_util.openocd_esp().pending(serial).add([{'receipt': '/x/receipt.json'}])
         capture, error, flashed = hil_test._sysview_capture(self.board, BOARD)
-        self.assertEqual((capture, error, flashed),
-                         (None, 'skipped: other-board: openocd_esp cleanup pending, receipt r.json', False))
+        self.assertEqual((capture, flashed), (None, False))
+        self.assertRegex(error, rf'^skipped: USJ {serial} has 1 operation\(s\) not proven ended .*'
+                                r'openocd_esp session, receipt /x/receipt\.json')
         self.assertEqual(self.events, [])
 
     def test_a_capture_that_fits_before_the_pool_guard_runs(self):

@@ -9,8 +9,10 @@ on:
 jobs:
   # Resolve the PR number from trusted workflow_run metadata, NOT from build artifacts: a forked PR
   # controls its own Build run and could plant any number, which the privileged jobs below would
-  # then post to. Same-repo PRs populate workflow_run.pull_requests; for forks it is empty, so look
-  # the PR up by the trusted head SHA.
+  # then post to. agentrc's gh_pr_comment.py (at the default branch's pin) takes a same-repo PR from
+  # workflow_run.pull_requests whose base is this repo, else a fork's open PR by its trusted head
+  # repo, branch and SHA. None, or several, leave the number empty and the comment jobs skip; an
+  # API error fails this job, never read as "no PR".
   pr_number:
     if: github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
@@ -20,6 +22,11 @@ jobs:
     outputs:
       number: ${{ steps.resolve.outputs.number }}
     steps:
+      - name: Checkout default branch scripts
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
       - name: Resolve PR number
         id: resolve
         env:
@@ -30,17 +37,10 @@ jobs:
           HEAD_REPO: ${{ github.event.workflow_run.head_repository.full_name }}
           PRS_JSON: ${{ toJSON(github.event.workflow_run.pull_requests) }}
         run: |
-          # Every lookup is best-effort: on any miss the number stays empty and the comment jobs
-          # below simply skip (never a failed check).
-          # Same-repo PRs: workflow_run.pull_requests is populated.
-          num=$(printf '%s' "$PRS_JSON" | jq -r '.[0].number // empty')
-          # Fork PRs: pull_requests is empty. Find the open PR by its trusted head ref and confirm
-          # its head SHA matches the built commit.
-          if [ -z "$num" ] && [ -n "$HEAD_BRANCH" ] && [ -n "$HEAD_REPO" ]; then
-            num=$(gh api --method GET "repos/$REPO/pulls" \
-              -f state=open -f head="${HEAD_REPO%%/*}:$HEAD_BRANCH" \
-              --jq '[.[] | select(.head.sha == env.HEAD_SHA)][0].number // empty' 2>/dev/null || true)
-          fi
+          # assignments, so a failed fetch or lookup (exit 2: the API cannot tell) fails the step
+          agentrc=$(python3 test/hil/helper/agentrc.py fetch)
+          num=$(python3 "$agentrc/skills/hil/scripts/gh_pr_comment.py" pr --repo "$REPO" --head-sha "$HEAD_SHA" \
+            --head-branch "$HEAD_BRANCH" --head-repo "$HEAD_REPO" --prs "$PRS_JSON")
           echo "number=$num" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------
@@ -68,6 +68,11 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: false
+
+      # agentrc at the default branch's pin: is-current's gh_pr_comment.py and the SystemView decoder; without it
+      # the post gate cannot tell (exit 2) and fails, so a failed fetch fails here first
+      - name: Get agentrc
+        run: python3 test/hil/helper/agentrc.py fetch
 
       - name: Download HIL reports
         uses: actions/download-artifact@v5
@@ -135,10 +140,15 @@ jobs:
             echo '_SystemView report unavailable: checking the HIL reports for captures failed (see the job log)._' \
               > "$SV/notice.md"
           fi
-          if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
-               --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then
-            echo "current=true" >> "$GITHUB_OUTPUT"
-          fi
+          # 1: superseded, nothing to render; 2: unknown, left to "Skip a superseded run" to fail on
+          rc=0
+          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
+            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
+          case $rc in
+            0) echo "current=true" >> "$GITHUB_OUTPUT" ;;
+            1) ;;
+            *) echo "::warning::cannot tell whether run $RUN_ID is still the PR's latest (exit $rc): no SystemView" ;;
+          esac
 
       # Every SystemView step is best effort and bounded: a failure or a step its timeout cut leaves a notice in the
       # section, never the HIL comment unposted.
@@ -189,8 +199,7 @@ jobs:
               note: "the captures of baseline run \($run) did not download (see the job log)"}' > "$SV/baseline.json"
             rm -rf "$SV/base" && mkdir "$SV/base"
           fi
-          # the default branch's decoder (agentrc at its pin); a failed fetch leaves every record undecoded
-          python3 test/hil/helper/agentrc.py fetch || true
+          # the default branch's decoder: agentrc at its pin, which "Get agentrc" fetched
           python3 test/hil/sysview_ci.py decode "$SV/pr" --budget-s 300 || true
           python3 test/hil/sysview_ci.py decode "$SV/base" --budget-s 300 || true
           if python3 test/hil/sysview_ci.py report "$SV/base" "$SV/pr" --baseline-info "$SV/baseline.json" \
@@ -254,10 +263,16 @@ jobs:
           ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
-               --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then
-            echo "post=true" >> "$GITHUB_OUTPUT"
-          fi
+          # 1: superseded, a newer run posts; 2: unknown, never a silent skip
+          rc=0
+          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
+            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
+          case $rc in
+            0) echo "post=true" >> "$GITHUB_OUTPUT" ;;
+            1) ;;
+            *) echo "::error::cannot tell whether run $RUN_ID is still the PR's latest (exit $rc): not posting"
+               exit 1 ;;
+          esac
 
       - name: Post HIL report as sticky PR comment
         if: steps.current.outputs.post == 'true'
@@ -360,10 +375,16 @@ jobs:
           ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
-               --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then
-            echo "post=true" >> "$GITHUB_OUTPUT"
-          fi
+          # 1: superseded, a newer run posts; 2: unknown, never a silent skip
+          rc=0
+          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
+            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
+          case $rc in
+            0) echo "post=true" >> "$GITHUB_OUTPUT" ;;
+            1) ;;
+            *) echo "::error::cannot tell whether run $RUN_ID is still the PR's latest (exit $rc): not posting"
+               exit 1 ;;
+          esac
 
       - name: Post code size as sticky PR comment
         if: steps.current.outputs.post == 'true'

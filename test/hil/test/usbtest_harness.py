@@ -4,6 +4,7 @@ needs, a stdout that survives main's reconfigure, and the collaborators that wou
 sysfs, dmesg or a device, stubbed. Import before hil_test."""
 import io
 import sys
+import time
 import types
 
 # hil_test imports pyserial, which the bare pre-commit runner lacks; no test opens a port
@@ -24,6 +25,16 @@ class Out(io.StringIO):
 def patch(test, obj, name, value):
     test.addCleanup(setattr, obj, name, getattr(obj, name))
     setattr(obj, name, value)
+
+
+def wait_for(cond, bound: float = 15) -> bool:
+    """Polls `cond` for up to `bound` s; its last value."""
+    deadline = time.monotonic() + bound
+    while time.monotonic() < deadline:
+        if cond():
+            return True
+        time.sleep(0.05)
+    return cond()
 
 
 def stub_device(test, usbtest, run_case):

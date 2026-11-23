@@ -43,15 +43,16 @@ jobs:
       pull-requests: write
     steps:
       # the whole default branch, as pr_comment.yml: code_size_ci.py imports tools/code_size.py,
-      # which imports test/hil/helper (no agentrc fetch needed for is-current)
+      # which imports test/hil/helper; the step below fetches agentrc at the pin for gh_pr_comment.py
       - name: Checkout default branch scripts and the comment template
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       # The PR from trusted workflow_run metadata (never from build artifacts, which a fork
-      # controls), then the same freshness gate as pr_comment.yml: a Build that a newer push,
-      # run or attempt has superseded must not overwrite the comment with an older report.
+      # controls) by agentrc's gh_pr_comment.py, then the same freshness gate as pr_comment.yml:
+      # a Build that a newer push, run or attempt has superseded must not overwrite the comment
+      # with an older report. An API error (exit 2) fails the step, never a silent skip.
       - name: Resolve the PR and skip a superseded run
         id: current
         env:
@@ -71,20 +72,21 @@ jobs:
             echo "post=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # same-repo PRs populate pull_requests; for forks, find the open PR by its head ref
-          # and confirm its head SHA is the built commit
-          num=$(printf '%s' "$PRS_JSON" | jq -r '.[0].number // empty')
-          if [ -z "$num" ] && [ -n "$HEAD_BRANCH" ] && [ -n "$HEAD_REPO" ]; then
-            num=$(gh api --method GET "repos/$REPO/pulls" \
-              -f state=open -f head="${HEAD_REPO%%/*}:$HEAD_BRANCH" \
-              --jq '[.[] | select(.head.sha == env.HEAD_SHA)][0].number // empty' 2>/dev/null || true)
-          fi
-          [ -n "$num" ] || { echo "no open PR for $HEAD_SHA, not commenting"; exit 0; }
+          # assignments, so a failed fetch or lookup fails the step; none or several PRs print nothing
+          agentrc=$(python3 test/hil/helper/agentrc.py fetch)
+          num=$(python3 "$agentrc/skills/hil/scripts/gh_pr_comment.py" pr --repo "$REPO" --head-sha "$HEAD_SHA" \
+            --head-branch "$HEAD_BRANCH" --head-repo "$HEAD_REPO" --prs "$PRS_JSON")
+          [ -n "$num" ] || { echo "no single open PR for $HEAD_SHA, not commenting"; exit 0; }
           echo "number=$num" >> "$GITHUB_OUTPUT"
-          if python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$num" \
-               --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA"; then
-            echo "post=true" >> "$GITHUB_OUTPUT"
-          fi
+          rc=0
+          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$num" \
+            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
+          case $rc in
+            0) echo "post=true" >> "$GITHUB_OUTPUT" ;;
+            1) ;;
+            *) echo "::error::cannot tell whether run $RUN_ID is still the PR's latest (exit $rc): not posting"
+               exit 1 ;;
+          esac
 
       - name: Post Membrowse PR comment
         if: steps.current.outputs.post == 'true'

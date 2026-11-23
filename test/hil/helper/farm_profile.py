@@ -6,7 +6,7 @@ module docstring is the contract), run by helper/hil_farm_check.py.
 Per board: the flash probe matched by its uid (never a TinyUSB DUT), then a reset through it
 with tinyusb's hil_flash (esptool: rom_reset_esptool) and the engine's tracked runner. A reset
 that exits 0 counts only when the provider's reset_problem finds none; lm4flash has no
-reset-only mode. An openocd_esp session the provider leaves running joins the engine's ledger
+reset-only mode. What an openocd_esp operation leaves open on the USJ joins the engine's ledger
 (_retain).
 
 Rosters by hostname: ci -> tinyusb.json, tusb (hifiphile rig) -> hfp.json; any other host
@@ -16,11 +16,12 @@ names its roster (a dev PC: test/hil/local.json) or is refused.
 import functools
 import json
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # hil_flash + the helper package
 import hil_flash
-from helper import hil_util, usb_observe
+from helper import agentrc, hil_util, usb_observe
 
 
 # --- roster -----------------------------------------------------------------------------------
@@ -67,13 +68,36 @@ def busy(board: dict) -> list:
 
 
 def _retain(ctx, board: dict) -> None:
-    """An openocd_esp session the provider left running (hil_flash.cleanup_pending) goes to the
-    engine's ctx.retain, its detail naming the receipts (its receipt path, or its native record
-    when that file was not written), which only the contract's recovery ends. The session is
-    the provider's own, so ctx.run never saw it; an esptool child's tracked receipt is ctx.run's,
-    already on the ledger with its recheck."""
-    receipts = [r for r in hil_flash.cleanup_pending.get(board['name'], ()) if not hil_flash.tracked_receipt(r)]
-    ctx.retain(f'openocd_esp session, receipt {", ".join(map(hil_flash.receipt_text, receipts))}', receipts)
+    """What the provider's pending_entries, and this run's hil_flash.left_pending, hold open for the
+    board's USJ goes on the engine's ledger, so nothing more starts on the board and its task ends
+    failed with that evidence: sessions through ctx.retain (only the contract's recovery ends them),
+    the rest as entries without a receipt, which keep the logged failure open. A tracked esptool
+    child gets the engine's RECHECK_WAIT to end by the provider's own recheck, and its receipt is
+    never the engine's: a receipt the engine rechecks done it tidies, deleting the files by which
+    the USJ's pending record proves the child ended."""
+    if not (serial := hil_flash.openocd_esp_serial(board)):
+        return
+    p = hil_util.openocd_esp()
+    children = _open_children(p, serial, time.monotonic() + _engine().RECHECK_WAIT)
+    evidence = hil_flash.left_evidence(p, serial)
+    ctx.retain('; '.join(map(p.describe, evidence['retained'])), evidence['retained'])
+    # the engine's ledger rows (ctx.run's shape): it has no retain for tracked or unrecheckable evidence
+    for r, cleanup in [(r, 'pending') for r in children] + [(r, 'unknown') for r in evidence['unrecheckable']]:
+        entry = {'cmd': p.describe(r), 'cleanup': cleanup, 'receipt': None}
+        if entry not in ctx.ledger:
+            ctx.ledger.append(entry)
+
+
+def _engine():
+    return agentrc.load_file('skills/hil/scripts/hil_farm_check.py')
+
+
+def _open_children(p, serial, deadline) -> list:
+    """The tracked esptool children the provider still lists open for the USJ once none is, or at
+    `deadline`: this run's left_pending ones are latched into the same record (or held unlisted)."""
+    while (children := p.pending_entries(serial)['receipts']) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    return children
 
 
 def reset(ctx, board: dict):

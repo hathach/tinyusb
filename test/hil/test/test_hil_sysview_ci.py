@@ -1238,7 +1238,7 @@ class Baseline(unittest.TestCase):
         self.records({"base_sha": self.BASE, "base_ref": "sysview"})
         out = os.path.join(self.tmp, "info.json")
 
-        def boom(path, paginate=False):
+        def boom(path, paginate_key=None):
             raise RuntimeError("HTTP 502")
         with unittest.mock.patch.object(self.ci, "gh", boom), \
                 unittest.mock.patch.object(sys, "argv", ["sysview_ci.py", "baseline", "--repo", "o/r", "--pr", "5",

@@ -209,34 +209,19 @@ def rom_reset_esptool(board: Board, timeout=None, *, run=None) -> subprocess.Com
 # hil_openocd_esp, the `hil` skill's Flashers). Not convoy-safe, so usbtest never recovers
 # through it.
 # -------------------------------------------------------------
-# board name -> receipts of what an openocd_esp operation left not proven ended: a session the
-# provider left running (cleanup 'pending'), or a tracked esptool child 'pending' or 'unknown'
-# with its receipt. No later session starts on that board in this run; hil_test logs the
-# unproven cleanup and releases the lock when its task ends.
-cleanup_pending = {}
+# What an operation leaves not proven ended is listed in the provider's per-USJ pending record
+# (pending(serial)), which refuses every later flash, reset and security read on that USJ. The
+# record clears an entry once it ends, so this run keeps its own latch too: USJ serial ->
+# pending_entries()-shaped evidence of what an operation here left, which stops the board for
+# the rest of the run whatever the record later says.
+left_pending = {}
 OPENOCD_ESP_DIR = None   # the sessions' dir; None: one per user under the temp dir, named when used
 
 
-# hil_process.run_tracked's receipt keys that a native openocd_esp session record (its
-# _RECEIPT_KEYS, kept when the session's receipt file could not be written) never has
-_TRACKED_KEYS = {'supervisor', 'lock', 'record'}
-
-
-def tracked_receipt(receipt) -> bool:
-    """Whether a cleanup_pending receipt is hil_process.run_tracked's (an esptool child, ended once
-    its recheck answers `done`) rather than an openocd_esp session's (its receipt path, or the
-    native record when that file could not be written), which only the reviewed `end` ends."""
-    return isinstance(receipt, dict) and _TRACKED_KEYS <= receipt.keys()
-
-
-def receipt_text(receipt) -> str:
-    """A cleanup_pending receipt as a cell names it."""
-    if tracked_receipt(receipt):
-        return f'esptool child, record {receipt["record"]}'
-    if isinstance(receipt, dict):
-        return (f'openocd_esp session pid {receipt.get("pid")} start {receipt.get("startTime")}, receipt file '
-                f'unwritten, log {receipt.get("log")}')
-    return str(receipt)
+def openocd_esp_serial(board: dict) -> str:
+    """The USJ serial keying the provider's pending record of this board ('' without an
+    openocd_esp flasher; a recovery entry's uid is the primary's)."""
+    return board['flasher']['uid'] if flashers(board, 'openocd_esp') else ''
 
 
 def openocd_esp_refused(board: dict, *, retains_lock: bool) -> str:
@@ -258,30 +243,58 @@ def openocd_esp_entry_problem(flasher: dict) -> str:
 
 
 def _openocd_esp_session(board, operation):
-    """Run operation(provider) unless the board has an outstanding session, latching a new one
-    (cleanup 'pending', returned or on an exception's `.operation`) into cleanup_pending."""
-    name, provider = board['name'], hil_util.openocd_esp()
-    if why := provider.refusal(retains_lock=True):    # refuse before preparatory esptool commands
+    """operation(provider), which refuses and lists what it leaves pending itself, unless the CI
+    job, the USJ's pending record or this run's latch refuses first, before any host-side esptool.
+    What it leaves not proven ended, returned or on a raised `.operation` (a failed listing's
+    included), goes in left_pending."""
+    p, serial = hil_util.openocd_esp(), board['flasher']['uid']
+    if why := p.refusal(retains_lock=True) or p.pending_refusal(serial) or left_refusal(p, serial):
         raise RuntimeError(why)
-    if name in cleanup_pending:
-        held = ', '.join(map(receipt_text, cleanup_pending[name]))
-        raise RuntimeError(f'{name}: openocd_esp cleanup pending ({held}); no session starts until the logged '
-                           f'cleanup failure is recovered')
     op = None
     try:
-        op = operation(provider)
+        op = operation(p)
     except BaseException as e:
         op = getattr(e, 'operation', None)
         raise
     finally:
-        # 'unknown' with a receipt (a tracked child whose supervisor did not report) is no proof either
-        if op is not None and (op.cleanup == 'pending' or op.cleanup == 'unknown' and op.receipts):
-            cleanup_pending[name] = op.receipts
+        if op is not None and op.cleanup != 'done':
+            _note_left(p, serial, op)
     if op.returncode != 0:
         print(f'openocd_esp: {op.session["failure"]} (cleanup {op.cleanup}, log {op.session["log"]})', flush=True)
     elif op.cleanup == 'done':
         shutil.rmtree(op.session['dir'], ignore_errors=True)   # read-back copies, a few hundred KB per flash
     return op
+
+
+def _note_left(p, serial, op):
+    """Add what `op` left to left_pending[serial], by the provider's receipt kinds; for an operation
+    that left no receipt, the unreceipted entries the provider holds for the USJ (latch's), else one
+    naming it."""
+    evidence = left_pending.setdefault(serial, {'receipts': [], 'retained': [], 'unrecheckable': []})
+    left = op.receipts or p.pending_entries(serial)['unrecheckable'] or \
+        [{'unreceipted': f'openocd_esp operation: cleanup {op.cleanup}', 'serial': serial}]
+    for r in left:
+        kept = evidence[{'tracked': 'receipts', 'session': 'retained'}.get(p.receipt_kind(r), 'unrecheckable')]
+        if r not in kept:
+            kept.append(r)
+
+
+def left_evidence(p, serial) -> dict:
+    """The provider's pending_entries of the USJ with what this run left there (left_pending), each
+    entry once: {'receipts', 'retained', 'unrecheckable'}."""
+    evidence = p.pending_entries(serial)
+    for kind, left in left_pending.get(serial, {}).items():
+        evidence[kind] += [r for r in left if r not in evidence[kind]]
+    return evidence
+
+
+def left_refusal(p, serial) -> str:
+    """Why this run starts nothing more on the USJ ('' when nothing was left here)."""
+    if not (evidence := left_pending.get(serial)):
+        return ''
+    left = [r for kind in evidence.values() for r in kind]
+    return (f'USJ {serial}: {len(left)} openocd_esp operation(s) earlier in this run were not proven ended: '
+            + '; '.join(map(p.describe, left[:3])) + '; nothing more runs on it in this run')
 
 
 def _openocd_esp_dir() -> str:
@@ -290,46 +303,22 @@ def _openocd_esp_dir() -> str:
     return str(path)
 
 
-def _tracked(cmd, cwd=None, *, timeout, env=None):
-    """The security read's runner: the provider's hil_process.run_tracked, whose receipt says
-    whether the esptool child is proven ended, with this harness's REAP_GRACE and verbosity and
-    its state in the sessions' private dir."""
-    state_dir = Path(_openocd_esp_dir()) / 'tracked'
-    state_dir.mkdir(mode=0o700, exist_ok=True)
-    # settle: s waited for the child's descendants once it ended, as agentrc's farm check engine does
-    return hil_util.provider().hil_process.run_tracked(cmd, cwd, timeout=timeout, settle=2.0,
-                                                       state_dir=str(state_dir), reap_grace=hil_util.REAP_GRACE,
-                                                       verbose=hil_util.verbose, env=env)
-
-
-def _read_security(p, flasher: dict, chip: str, timeout, run) -> dict:
-    """read_security's evidence, once its esptool child is proven ended (cleanup `done`): an
-    openocd session started beside a survivor would share the USJ with it. Otherwise raises
-    carrying the read's Operation, whose receipt _openocd_esp_session latches."""
-    op = p.read_security(flasher['uid'], chip=chip, workdir=_openocd_esp_dir(), timeout=_bound(timeout),
-                         retains_lock=True, run=run)
-    if op.cleanup != 'done':
-        e = RuntimeError(f'esptool security read cleanup {op.cleanup}: its child is not proven ended, so no '
-                         f'openocd session starts beside it')
-        e.operation = op
-        raise e
-    return op.security
-
-
 def flash_openocd_esp(board, firmware, timeout=None, *, run=None):
     """The build's flash_args as the provider's ordered segments, the chip's security state read
     over its USJ tty (the esptool package of the `esptool` on PATH, the contract's runtime), then
-    the flash; the provider spaces its session BOOT_SETTLE from the security read's hard reset.
-    `run` runs the two esptool children; the security read's runner must report its cleanup
-    (run_tracked's), by default _tracked."""
+    the flash, which takes that read's Operation; the provider spaces its session BOOT_SETTLE from
+    the security read's hard reset. `run` runs the merge-bin; the security read always takes the
+    provider's own run_tracked, which lists its state dir before the child starts (write-ahead, lost
+    to a caller's runner), with this harness's REAP_GRACE and verbosity."""
     flasher = board['flasher']
 
     def operation(p):
         chip, _ = p.admit(flasher)
         segments = p.segments_from_flash_args(Path(firmware).parent, chip, timeout=_bound(timeout),
                                               run=_runner(run))
-        security = _read_security(p, flasher, chip, timeout, _tracked if run is None else run)
-        return p.flash_openocd_esp(flasher, segments, security=security, workdir=_openocd_esp_dir(),
+        read = p.read_security(flasher['uid'], chip=chip, workdir=_openocd_esp_dir(), timeout=_bound(timeout),
+                               retains_lock=True, reap_grace=hil_util.REAP_GRACE, verbose=hil_util.verbose)
+        return p.flash_openocd_esp(flasher, segments, security=read, workdir=_openocd_esp_dir(),
                                    timeout=_bound(timeout), retains_lock=True)
     return _openocd_esp_session(board, operation)
 
