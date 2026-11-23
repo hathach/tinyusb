@@ -532,20 +532,21 @@ static uint16_t stream_tx_read(tu_edpt_stream_t *s, uint8_t *seq) {
   return (uint16_t) (pending + n);
 }
 
-// Take what is queued for a transfer: into ep_buf, or counted for one that reads the FIFO itself. false if a clear is
+// Take what is queued for a transfer: into ep_buf, or counted for one that reads the FIFO itself. 0 if a clear is
 // running, which discards it.
-static bool stream_tx_take(tu_edpt_stream_t *s, uint16_t *count, uint8_t *seq) {
+static uint16_t stream_tx_take(tu_edpt_stream_t *s, uint8_t *seq) {
   if (!stream_tx_enter(s)) {
-    return false;
+    return 0;
   }
+  uint16_t count;
   if (s->ep_buf == NULL) {
-    *seq   = stream_tx_apply_clear(s);
-    *count = tu_fifo_count(&s->ff);
+    *seq  = stream_tx_apply_clear(s);
+    count = tu_fifo_count(&s->ff);
   } else {
-    *count = stream_tx_read(s, seq);
+    count = stream_tx_read(s, seq);
   }
   stream_tx_leave(s);
-  return true;
+  return count;
 }
 
 // A submission the DCD/HCD refuses must not lose data (#4449). Without ep_buf the transfer reads the FIFO itself, so
@@ -574,9 +575,9 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   for (;;) {
     TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
     TU_VERIFY(stream_claim(s), 0);
-    uint16_t count = 0;
-    uint8_t  seq   = 0;
-    if (stream_tx_take(s, &count, &seq) && count > 0) {
+    uint8_t        seq   = 0;
+    const uint16_t count = stream_tx_take(s, &seq);
+    if (count > 0) {
       return stream_tx_submit(s, count, seq);
     }
 
@@ -597,9 +598,9 @@ bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferr
 
   // Checked under the claim: data a writer queued meanwhile ends the transfer instead of a ZLP. Send it now, since
   // the writer's own flush found the endpoint claimed and nothing else would. A running clear leaves nothing to send.
-  uint16_t count = 0;
-  uint8_t  seq   = 0;
-  if (stream_tx_take(s, &count, &seq) && count > 0) {
+  uint8_t        seq   = 0;
+  const uint16_t count = stream_tx_take(s, &seq);
+  if (count > 0) {
     (void) stream_tx_submit(s, count, seq);
     return false;
   }
