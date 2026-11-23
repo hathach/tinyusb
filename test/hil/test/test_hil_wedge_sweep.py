@@ -169,6 +169,27 @@ class TestBoardSweep(unittest.TestCase):
         self.assertEqual(err, 0)
         self.assertEqual(self.ran, ['device/cdc_msc', 'device/board_test'])
 
+    def test_a_stray_left_unswept_beside_a_pending_record_blocks_every_later_flash(self):
+        # the earlier run's entry ends right after the stray check: the record reads '' from then on
+        self.addCleanup(setattr, hil_test, 'board_pending', hil_test.board_pending)
+        refusals = iter(['USJ P: an earlier run is not proven ended'])
+        record = type('Record', (), {'pending_refusal': staticmethod(lambda serial: next(refusals, ''))})
+        usbtest_harness.patch(self, hil_flash, 'openocd_esp_serial', lambda board: 'P')
+        usbtest_harness.patch(self, hil_test.hil_util, 'openocd_esp', lambda: record)
+        usbtest_harness.patch(self, usbtest, 'recover_strays', lambda board, strays: self.fail('swept'))
+        verdicts = []
+        give_verdict = hil_test._give_verdict
+        usbtest_harness.patch(self, hil_test, '_give_verdict', lambda task, board, parked, unrestored, exc: (
+            verdicts.append(unrestored), give_verdict(task, board, parked, unrestored, exc)))
+        # two variants put a same-PID boundary park between the tests
+        self.board['variant'] = [{'name': 'v1'}, {'name': 'v2'}]
+        name, err, failed, rows, _ = hil_test.test_board(self.board)
+        self.assertEqual(self.ran, [], 'no test, boundary park or final park may flash past the unswept stray')
+        self.assertEqual(err, 1, 'the pending blocker alone')
+        self.assertIn(hil_test.hil_report.CLEANUP_PENDING_CELL, rows[-1][1])
+        self.assertEqual(len(verdicts), 1)
+        self.assertIn('stray testusb not swept', verdicts[0], 'the board is not restored')
+
     def test_skip_flash_runs_no_sweep(self):
         hil_test.skip_flash = True
         usbtest_harness.patch(self, usbtest, 'strays_on', lambda serial: self.fail('swept'))

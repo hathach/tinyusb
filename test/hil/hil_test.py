@@ -2261,8 +2261,10 @@ def _board_battery(board: Board, parked: list) -> tuple:
         # testusb does, and the first flash would block on it (#4126)
         strays = usbtest.strays_on(board['uid'])
         if strays and (pending := cleanup_pending(board)):
-            # a recovery entry other than openocd_esp resets without consulting the USJ's pending record;
-            # the tests below skip and the park refuses on the same pending cleanup
+            # a recovery entry other than openocd_esp resets without consulting the USJ's pending record.
+            # Latched: the entry can end mid-battery, and every later flash would block on the unswept
+            # stray; board_pending's blocker already charges the error
+            board_wedged = f'{name}: stray testusb not swept: {pending}'
             log_line(f'{name:25} stray testusb not swept: {pending}')
         elif strays:
             sweep_out = io.StringIO()
