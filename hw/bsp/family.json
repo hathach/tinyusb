@@ -521,7 +521,8 @@
     "ch32v307v_r1_1v0": {
       "cmake": {
         "defines": {
-          "CFG_TUD_WCH_USBIP_USBHS": "1"
+          "CFG_TUD_WCH_USBIP_USBHS": "1",
+          "CFG_TUH_WCH_USBIP_USBHS": "1"
         },
         "family_mcus": [
           "CH32V307"
@@ -544,7 +545,8 @@
     "nanoch32v305": {
       "cmake": {
         "defines": {
-          "CFG_TUD_WCH_USBIP_USBHS": "1"
+          "CFG_TUD_WCH_USBIP_USBHS": "1",
+          "CFG_TUH_WCH_USBIP_USBHS": "1"
         },
         "family_mcus": [
           "CH32V307"

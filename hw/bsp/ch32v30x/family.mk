@@ -14,6 +14,14 @@ SDK_SRC_DIR = $(SDK_DIR)/EVT/EXAM/SRC
 include $(TOP)/$(BOARD_PATH)/board.mk
 CPU_CORE ?= rv32imac-ilp32
 
+# Device and host on the same port (examples/dual/dynamic_switch): both on USBHS port 0, switched at run time.
+# override: a command-line SPEED/WCH_HOST_USBIP/RHPORT_HOST would split the roles across controllers
+ifeq ($(DUAL_ROLE_SINGLE_PORT),1)
+  override WCH_HOST_USBIP = usbhs
+  override SPEED = high
+  override RHPORT_HOST = 0
+endif
+
 RHPORT_HOST ?= 1
 CFLAGS += -DBOARD_TUH_RHPORT=$(RHPORT_HOST)
 

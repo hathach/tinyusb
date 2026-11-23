@@ -87,6 +87,9 @@ Partial workaround:
 
 - Give the USB interrupt the highest priority allowed for an ISR that calls the RTOS (e.g.
   ``configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY`` with FreeRTOS), or the highest priority without an RTOS.
+  It must be a higher *preemption* level than every other interrupt, the system tick included: an
+  interrupt at the same level runs to completion first. On CH32V30x the startup enables nesting with
+  two preemption bits (IPRIOR bits 7:6), and the BSP sets SysTick to ``0x80`` below USBHS at ``0``.
 - Force full speed (``dev_init.speed = TUSB_SPEED_FULL`` in ``tusb_init()``, see
   :ref:`item 2 <wch-usbhs-interrupt-starvation>`) to give software more time to process a transfer
   before the next one completes.
@@ -95,6 +98,16 @@ Partial workaround:
 - Run ``tud_task()`` often enough to handle each isochronous transfer within one (micro)frame:
   125 us at high speed, 1 ms at full speed. On USBHS a later completion can find its OUT packet
   overwritten by the next one, since isochronous OUT cannot be NAKed.
+
+On CH32V30x the USBHS device driver reads ``INT_ST`` and ``RX_LEN`` in the first instructions of its
+interrupt entry (see :ref:`item 2 <wch-usbhs-interrupt-starvation>`). This narrows the window but
+does not close it: a completion can still be overwritten while interrupts are disabled or a higher
+priority interrupt runs. The window can be very short. With Windows 10 polling three interrupt IN
+endpoints and then a UAC2 headset's isochronous OUT and IN in each microframe, the IN token came
+2 us after the last interrupt endpoint's ACK and overwrote a speaker packet's status unless the
+interrupt for that ACK had already returned. One speaker packet in about 12,000 was lost while the
+tick interrupt could delay the USB one; with the tick below USBHS and the shorter event handler, none
+of 2.4 million packets were lost over 5 minutes.
 
 .. _wch-usbhs-interrupt-starvation:
 
@@ -106,12 +119,36 @@ on different endpoints can reduce throughput or starve an interrupt endpoint, ev
 is ready. Disabling ``INT_BUSY`` is not a safe workaround: an OUT endpoint can accept another packet
 before software processes the previous packet and updates its buffer and response.
 
-For example, on NanoCH32V305 with Windows, three 20-byte interrupt IN endpoints polled every
-125 us at HS had NAK rates of approximately 80%, 20%, and 0%; the longest gap between successful
-EP1 reports was 4 ms. At FS with 1 ms polling, all three delivered approximately 1,000 reports/s
-without sequence gaps in an 8-second test.
+The window is set by how fast one interrupt is finished and the next one taken: the next
+endpoint's transaction is NAKed until the ISR of the previous completion has returned and the next
+ISR has cleared its flag. A host polls consecutive interrupt endpoints back to back; Windows 10 on an
+xHCI controller sent them about 2 us apart at HS. An endpoint that always follows two completions
+starves completely when that path takes longer, and gets every poll when it is shorter, so small
+changes in ISR time decide between the two.
 
-Workaround: force full speed on the USBHS controller when the application's bandwidth permits it:
+The CH32V30x USBHS device driver keeps that path short:
+
+- Its interrupt entry ``dcd_int_handler_fast()`` reads the status registers, NAKs a non-isochronous
+  endpoint and clears the transfer flag before any C code runs. The CH32V30x and CH32F20x BSPs vector
+  USBHS there; EP0, reset and suspend take the C path. An application keeps ``tud_int_handler(0)``
+  working in an ordinary handler, or gets the fast entry by naming ``dcd_int_handler_fast`` as the
+  USBHS vector (CH32V30x: with hardware prologue stacking enabled, as WCH's startup does, and
+  optionally as a PFIC fast vector); the driver's "Application integration" comment has the details.
+- Without an RTOS, the device task reads its event queue without masking the USB interrupt, and the
+  ISR queues a completion as a few words, so the task never holds off the next interrupt.
+
+On NanoCH32V305 with Windows 10 at HS, three 20-byte interrupt IN endpoints polled every 125 us
+completed 16,000 reports/s on master, the first endpoint almost none; with the fast entry they
+complete 24,000 reports/s, every poll. With a UAC2 headset streaming 48 kHz 16-bit stereo in both
+directions next to them, the audio stream stalled on master (a lost isochronous IN completion leaves
+the microphone endpoint unarmed); it now runs, and over 5 minutes the interrupt endpoints kept every
+poll and none of 2.4 million speaker packets were lost. This depends on the host's polling pattern
+and on the application's own interrupt load: heavier traffic can still starve an endpoint or lose
+isochronous data as in :ref:`item 1 <wch-iso-status-overwrite>`. RTOS builds get only the interrupt
+entry; the other WCH controllers get only the no-RTOS queue.
+
+If an application still sees starvation, force full speed on the USBHS controller when its bandwidth
+permits it:
 
 .. code-block:: c
 
@@ -132,8 +169,10 @@ limitation; validate the application's endpoint mix, especially when using isoch
 
 The USBFS and USBHS device drivers both enable the ``INT_BUSY`` NAK of
 :ref:`item 2 <wch-usbhs-interrupt-starvation>`, so ISR time before the transfer flag is cleared is
-time the bus NAKs. USBFS clears the flag at the end of its ISR; USBHS clears it first for endpoints
-other than EP0. SystemView records the ISR entry inside that window at every ``SYSVIEW`` level.
+time the bus NAKs. USBFS clears the flag at the end of its ISR, and SystemView records the ISR entry
+inside that window at every ``SYSVIEW`` level; so does an ordinary handler calling
+``tud_int_handler(0)`` on USBHS. USBHS's own vector clears the flag before recording for endpoints
+other than EP0, so there tracing delays only the completion work and re-arming.
 Levels 2-4 add records before an endpoint is re-armed, in task context or from the ISR (audio).
 Records or logging executed before the transfer flag is cleared widen the window further. Traced
 builds can therefore see more NAKs and lower throughput: compare WCH timings only between builds at

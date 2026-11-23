@@ -39,6 +39,12 @@
 #define LED_STATE_ON          0
 #define LED_CLOCK_EN()        RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE)
 
+// Reserve one PFIC fast-vector slot for USBHS. Applications using slot 0 can
+// select another slot (0..3), or set -1 to keep the ordinary vector table.
+#ifndef CFG_BOARD_USBHS_VTF_SLOT
+#define CFG_BOARD_USBHS_VTF_SLOT 0
+#endif
+
 // TODO UART port
 
 #ifdef __cplusplus
