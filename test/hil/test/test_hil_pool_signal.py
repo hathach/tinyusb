@@ -57,9 +57,7 @@ def held_until_sigterm_pending():
     mark('forked', '1')
     deadline = time.monotonic() + 15
     while time.monotonic() < deadline:
-        with open('/proc/self/status') as f:
-            pending = [int(ln.split()[1], 16) for ln in f if ln.startswith(('SigPnd:', 'ShdPnd:'))]
-        if any(m & (1 << (signal.SIGTERM - 1)) for m in pending):
+        if signal.SIGTERM in signal.sigpending():
             return
         time.sleep(0.01)
     mark('missed', 'no SIGTERM pending in 15 s')
