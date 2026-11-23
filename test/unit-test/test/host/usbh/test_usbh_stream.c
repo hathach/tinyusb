@@ -316,17 +316,24 @@ void test_stream_zlp_sent_when_idle(void) {
   TEST_ASSERT_TRUE(usbh_edpt_busy(DADDR, EP_OUT));
 }
 
-// The data check is made under the claim: with data pending the ZLP releases without submitting
-void test_stream_zlp_pending_data_releases(void) {
+// The data check is made under the claim: data a writer queued meanwhile is sent instead of the ZLP
+void test_stream_zlp_sends_data_queued_meanwhile(void) {
   TEST_ASSERT_EQUAL_UINT32(1, tu_edpt_stream_write(&stream, "x", 1));
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, MPS));
-  TEST_ASSERT_FALSE(ep_claimed());
-  tu_fifo_clear(&stream.ff);
+  TEST_ASSERT_EQUAL(1, xfer_count);
+  TEST_ASSERT_EQUAL_UINT16(1, xfer_len[0]);
+  TEST_ASSERT_EQUAL_UINT8('x', xfer_data[0][0]);
+  TEST_ASSERT_TRUE(usbh_edpt_busy(DADDR, EP_OUT));
+}
 
+void test_stream_zlp_sends_pending_bytes(void) {
+  memcpy(ep_buf, "abc", 3);
   stream.tx_pending = 3;
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, MPS));
-  TEST_ASSERT_FALSE(ep_claimed());
-  TEST_ASSERT_EQUAL(0, xfer_count);
+  TEST_ASSERT_EQUAL(1, xfer_count);
+  TEST_ASSERT_EQUAL_UINT16(3, xfer_len[0]);
+  TEST_ASSERT_EQUAL_MEMORY("abc", xfer_data[0], 3);
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
 }
 
 void test_stream_zlp_refused_releases(void) {

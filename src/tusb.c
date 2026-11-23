@@ -408,29 +408,11 @@ static bool stream_xfer_keep_claim(tu_edpt_stream_t *s, uint16_t count) {
 // tx_pending (#4449), so submissions take no mutex: they also run from transfer-complete callbacks in
 // tud_task()/tuh_task(), which may preempt a writer holding the FIFO's write mutex (#4595).
 
-bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
-  // ZLP condition: last transferred bytes is a non-zero multiple of packet size (a power of 2)
-  TU_VERIFY(s->mps > 0 && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (s->mps - 1u))));
-  TU_VERIFY(stream_claim(s));
-
-  // checked under the claim: pending data ends the transfer instead of a ZLP
-  if (!tu_fifo_empty(&s->ff) || s->tx_pending > 0) {
-    stream_release(s);
-    return false;
-  }
-
-  TU_ASSERT(stream_xfer(s, 0));
-  return true;
-}
-
 // A submission the DCD/HCD refuses must not lose data (#4449). Without ep_buf the transfer reads the FIFO itself, so
 // a refused one leaves the bytes queued. With ep_buf the bytes are moved out of the FIFO and tx_pending is cleared
 // before the submission, so a completion handled before it returns cannot send them again. A refused submission keeps
 // the endpoint claimed until they are restored as tx_pending, and the next call sends them ahead of the FIFO's.
-uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
-  TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
-  TU_VERIFY(stream_claim(s), 0);
-
+static uint32_t stream_write_claimed(tu_edpt_stream_t *s) {
   // Pull data from FIFO -> EP buf, behind any bytes a refused submission left there
   uint16_t count;
   if (s->ep_buf == NULL) {
@@ -461,6 +443,28 @@ uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
   }
 
   return count;
+}
+
+uint32_t tu_edpt_stream_write_xfer(tu_edpt_stream_t *s) {
+  TU_VERIFY(s->tx_pending > 0 || tu_fifo_count(&s->ff) > 0, 0); // skip if no data
+  TU_VERIFY(stream_claim(s), 0);
+  return stream_write_claimed(s);
+}
+
+bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferred_bytes) {
+  // ZLP condition: last transferred bytes is a non-zero multiple of packet size (a power of 2)
+  TU_VERIFY(s->mps > 0 && last_xferred_bytes > 0 && (0 == (last_xferred_bytes & (s->mps - 1u))));
+  TU_VERIFY(stream_claim(s));
+
+  // Checked under the claim: data a writer queued meanwhile ends the transfer instead of a ZLP. Send it now, since
+  // the writer's own flush found the endpoint claimed and nothing else would.
+  if (!tu_fifo_empty(&s->ff) || s->tx_pending > 0) {
+    (void) stream_write_claimed(s);
+    return false;
+  }
+
+  TU_ASSERT(stream_xfer(s, 0));
+  return true;
 }
 
 // Return the bytes queued in the FIFO. Queued bytes are not lost if a transfer submission is refused, they are sent

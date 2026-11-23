@@ -914,11 +914,6 @@ void test_usbd_stream_write_zlp_after_full_packet(void)
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 0));
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 63));
 
-  // data still pending: the next data transfer terminates it, not a ZLP
-  TEST_ASSERT_EQUAL(1, tu_edpt_stream_write(&stream, "x", 1));
-  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
-  tu_fifo_clear(&stream.ff);
-
   // one full packet and nothing left to send
   dcd_edpt_xfer_ExpectAndReturn(rhport, 0x82, NULL, 0, false, true);
   TEST_ASSERT_TRUE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
@@ -960,15 +955,15 @@ void test_usbd_stream_write_refused_xfer_keeps_data(void) {
   TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, 0x83)); // released once tx_pending is restored
   TEST_ASSERT_TRUE(usbd_edpt_release(rhport, 0x83));
 
-  // nothing new to send yet beyond the kept packet: no ZLP in its place
-  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
-
-  // the next write resends the kept packet first; the new byte waits in the FIFO
+  // a ZLP is not sent while the kept packet waits: the kept packet is resent in its place
   dcd_edpt_xfer_ExpectWithArrayAndReturn(rhport, 0x83, src, sizeof(src), sizeof(src), false, true);
-  TEST_ASSERT_EQUAL_UINT32(1, tu_edpt_stream_write(&stream, "y", 1));
+  TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
   TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
-  TEST_ASSERT_EQUAL_UINT16(1, tu_fifo_count(&stream.ff));
   TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, 0x83));
+
+  // a new byte waits in the FIFO behind it
+  TEST_ASSERT_EQUAL_UINT32(1, tu_edpt_stream_write(&stream, "y", 1));
+  TEST_ASSERT_EQUAL_UINT16(1, tu_fifo_count(&stream.ff));
 }
 
 // A short refused packet is topped up from the FIFO when it is resent, keeping the byte order
@@ -1155,23 +1150,33 @@ void test_usbd_stream_competitor_during_refused_submission(void) {
   TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
 }
 
-// The ZLP's data check is made under the claim: with data pending it releases without submitting, and a refused ZLP
-// releases the endpoint
-void test_usbd_stream_zlp_pending_data_releases(void) {
+// The ZLP's data check is made under the claim: data a writer queued meanwhile (its own flush found the endpoint
+// claimed) is sent instead of the ZLP, so it is not left queued with no transfer to flush it
+void test_usbd_stream_zlp_sends_data_queued_meanwhile(void) {
   tu_edpt_stream_t stream;
   stream_tx_setup(&stream, stream_ep_buf);
 
   TEST_ASSERT_EQUAL_UINT32(1, tu_edpt_stream_write(&stream, "x", 1));
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, stream_ep_buf, 1, false, true);
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
-  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
-  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
-  tu_fifo_clear(&stream.ff);
+  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_TRUE(tu_fifo_empty(&stream.ff));
+}
+
+void test_usbd_stream_zlp_sends_pending_bytes(void) {
+  tu_edpt_stream_t stream;
+  stream_tx_setup(&stream, stream_ep_buf);
 
   stream.tx_pending = 3;
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, stream_ep_buf, 3, false, true);
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
-  TEST_ASSERT_TRUE(usbd_edpt_claim(rhport, EDPT_STREAM_IN));
-  TEST_ASSERT_TRUE(usbd_edpt_release(rhport, EDPT_STREAM_IN));
-  stream.tx_pending = 0;
+  TEST_ASSERT_TRUE(usbd_edpt_busy(rhport, EDPT_STREAM_IN));
+  TEST_ASSERT_EQUAL_UINT16(0, stream.tx_pending);
+}
+
+void test_usbd_stream_zlp_refused_releases(void) {
+  tu_edpt_stream_t stream;
+  stream_tx_setup(&stream, stream_ep_buf);
 
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_STREAM_IN, NULL, 0, false, false);
   TEST_ASSERT_FALSE(tu_edpt_stream_write_zlp_if_needed(&stream, 64));
