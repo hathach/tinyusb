@@ -1833,7 +1833,7 @@ bool usbd_edpt_xfer_keep_claim(uint8_t rhport, uint8_t ep_addr, uint8_t* buffer,
 // success message. If total_bytes is too big, the FIFO will copy only what is available
 // into the USB buffer!
 bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_t total_bytes, bool is_isr) {
-  #if CFG_TUD_EDPT_DEDICATED_HWFIFO
+  #if CFG_TUD_EDPT_XFER_FIFO
   rhport = _usbd_rhport;
 
   uint8_t const epnum = tu_edpt_number(ep_addr);

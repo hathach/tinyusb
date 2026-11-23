@@ -240,17 +240,23 @@ void test_hidh_report_failed(void) {
   }
 }
 
-// Complete the control request the driver queued last with the given result
-static void complete_ctrl_xfer(xfer_result_t result) {
+// Complete the control request the driver queued last with the given result and data stage length
+static void complete_ctrl_xfer_len(xfer_result_t result, uint32_t actual_len) {
   TEST_ASSERT_NOT_NULL(ctrl_complete_cb);
   tuh_xfer_t xfer = {
-    .daddr     = HID_DEV_ADDR,
-    .ep_addr   = 0,
-    .result    = result,
-    .setup     = &ctrl_setup,
-    .user_data = ctrl_user_data,
+    .daddr      = HID_DEV_ADDR,
+    .ep_addr    = 0,
+    .result     = result,
+    .setup      = &ctrl_setup,
+    .actual_len = actual_len,
+    .user_data  = ctrl_user_data,
   };
   ctrl_complete_cb(&xfer);
+}
+
+// Complete the control request the driver queued last: a success transfers the whole data stage
+static void complete_ctrl_xfer(xfer_result_t result) {
+  complete_ctrl_xfer_len(result, (result == XFER_RESULT_SUCCESS) ? tu_le16toh(ctrl_setup.wLength) : 0);
 }
 
 // Run set_config through SET_IDLE and SET_PROTOCOL up to the queued report descriptor request
@@ -274,6 +280,19 @@ void test_hidh_set_config_report_desc(void) {
   TEST_ASSERT_EQUAL(63, mount_cb_len);
   TEST_ASSERT_EQUAL(1, config_complete_count);
   TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+}
+
+// A device returning less than wReportLength: only the bytes it sent reach the application, not the stale rest of
+// the enumeration buffer
+void test_hidh_set_config_report_desc_short(void) {
+  set_config_to_report_desc();
+  TEST_ASSERT_EQUAL(63, tu_le16toh(ctrl_setup.wLength));
+  complete_ctrl_xfer_len(XFER_RESULT_SUCCESS, 20);
+
+  TEST_ASSERT_EQUAL(1, mount_cb_count);
+  TEST_ASSERT_EQUAL_PTR(usbh_get_enum_buf(), mount_cb_desc);
+  TEST_ASSERT_EQUAL(20, mount_cb_len);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
 }
 
 // A failed report descriptor request mounts the interface without a descriptor, so enumeration still completes
@@ -331,4 +350,80 @@ void test_hidh_set_config_set_idle_rejected(void) {
   TEST_ASSERT_NULL(mount_cb_desc);
   TEST_ASSERT_EQUAL(1, config_complete_count);
   TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+}
+
+// An END_COLLECTION without a matching COLLECTION must be ignored, not wrap the depth counter
+void test_hid_parse_report_descriptor_unbalanced_end_collection(void) {
+  static const uint8_t desc[] = {
+    0xC0,       // END_COLLECTION, stray: depth is already 0
+    0x05, 0x01, // USAGE_PAGE (Generic Desktop)
+    0x09, 0x02, // USAGE (Mouse)
+    0xA1, 0x01, // COLLECTION (Application)
+    0x85, 0x01, //   REPORT_ID (1)
+    0xC0,       // END_COLLECTION
+  };
+  tuh_hid_report_info_t info[2];
+
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_hid_parse_report_descriptor(info, TU_ARRAY_SIZE(info), desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL_UINT8(1, info[0].report_id);
+  TEST_ASSERT_EQUAL_UINT16(HID_USAGE_PAGE_DESKTOP, info[0].usage_page);
+  TEST_ASSERT_EQUAL_UINT8(HID_USAGE_DESKTOP_MOUSE, info[0].usage);
+}
+
+// A long item is skipped whole: its data must not be parsed as items
+void test_hid_parse_report_descriptor_long_item(void) {
+  static const uint8_t desc[] = {
+    0xFE, 0x02, 0xF0, // long item, bDataSize 2, bLongItemTag 0xF0
+    0xA1, 0x01,       //   its data, reads as COLLECTION (Application) if parsed as an item
+    0x05, 0x01,       // USAGE_PAGE (Generic Desktop)
+    0x09, 0x02,       // USAGE (Mouse)
+    0xA1, 0x01,       // COLLECTION (Application)
+    0x85, 0x01,       //   REPORT_ID (1)
+    0xC0,             // END_COLLECTION
+  };
+  tuh_hid_report_info_t info[2];
+
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_hid_parse_report_descriptor(info, TU_ARRAY_SIZE(info), desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL_UINT8(1, info[0].report_id);
+  TEST_ASSERT_EQUAL_UINT16(HID_USAGE_PAGE_DESKTOP, info[0].usage_page);
+  TEST_ASSERT_EQUAL_UINT8(HID_USAGE_DESKTOP_MOUSE, info[0].usage);
+}
+
+// A long item whose data runs past the descriptor ends parsing without reading beyond it
+void test_hid_parse_report_descriptor_long_item_truncated(void) {
+  static const uint8_t desc[] = {
+    0xFE, 0x10, 0xF0, // long item claiming 16 data bytes, only 2 follow
+    0xA1, 0x01,
+  };
+  tuh_hid_report_info_t info[2];
+
+  TEST_ASSERT_EQUAL_UINT8(0, tuh_hid_parse_report_descriptor(info, TU_ARRAY_SIZE(info), desc, sizeof(desc)));
+}
+
+// 256 nested collections keep their full depth: the counter neither wraps to 0 nor closes the report one level early
+void test_hid_parse_report_descriptor_collection_depth_overflow(void) {
+  enum { NEST = 256 };
+  static uint8_t desc[4 + 2 * NEST + 2 + 3 + (NEST - 1) + 2 + 1 + 1];
+  uint16_t       n = 0;
+
+  desc[n++] = 0x05; desc[n++] = 0x01; // USAGE_PAGE (Generic Desktop)
+  desc[n++] = 0x09; desc[n++] = 0x02; // USAGE (Mouse)
+  for (uint16_t i = 0; i < NEST; i++) {
+    desc[n++] = 0xA1; desc[n++] = 0x00; // COLLECTION (Physical)
+  }
+  desc[n++] = 0x85; desc[n++] = 0x01;                   // REPORT_ID (1)
+  desc[n++] = 0x06; desc[n++] = 0x00; desc[n++] = 0xFF; // USAGE_PAGE (Vendor 0xFF00), nested: must be ignored
+  for (uint16_t i = 0; i < NEST - 1; i++) {
+    desc[n++] = 0xC0; // END_COLLECTION, the outermost collection stays open
+  }
+  desc[n++] = 0xA1; desc[n++] = 0x00; // COLLECTION (Physical), a child of the still-open outermost collection
+  desc[n++] = 0xC0;                   // END_COLLECTION, the child
+  desc[n++] = 0xC0;                   // END_COLLECTION, the outermost
+  TEST_ASSERT_EQUAL(sizeof(desc), n);
+
+  tuh_hid_report_info_t info[2];
+  TEST_ASSERT_EQUAL_UINT8(1, tuh_hid_parse_report_descriptor(info, TU_ARRAY_SIZE(info), desc, n));
+  TEST_ASSERT_EQUAL_UINT8(1, info[0].report_id);
+  TEST_ASSERT_EQUAL_UINT16(HID_USAGE_PAGE_DESKTOP, info[0].usage_page);
+  TEST_ASSERT_EQUAL_UINT8(HID_USAGE_DESKTOP_MOUSE, info[0].usage);
 }

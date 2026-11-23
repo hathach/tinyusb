@@ -664,8 +664,9 @@ static void process_set_config(tuh_xfer_t* xfer) {
         config_driver_mount_complete(daddr, idx, NULL, 0);
         break;
       }
+      // a device may return less than wReportLength: pass only what it sent, not the rest of the enum buffer
       const uint8_t *desc_report = usbh_get_enum_buf();
-      const uint16_t desc_len    = tu_le16toh(xfer->setup->wLength);
+      const uint16_t desc_len    = (uint16_t) xfer->actual_len;
 
       config_driver_mount_complete(daddr, idx, desc_report, desc_len);
       break;
@@ -719,10 +720,22 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
 //  uint8_t ri_report_count = 0;
 //  uint8_t ri_report_size = 0;
 
-  uint8_t ri_collection_depth = 0;
+  // every item takes at least one byte of the uint16_t desc_len, so the depth cannot wrap
+  uint16_t ri_collection_depth = 0;
   while (desc_len && report_num < arr_count) {
     header.byte = *desc_report++;
     desc_len--;
+
+    // long item (HID 1.11 6.2.2.3): bDataSize, bLongItemTag, then bDataSize bytes of data. No long item tag is
+    // defined, so skip it whole; decoding it as a short item would parse its data as items
+    if (header.byte == 0xFE) {
+      if (desc_len == 0) break;
+      uint16_t const long_size = (uint16_t) (2u + desc_report[0]);
+      if (long_size > desc_len) break;
+      desc_report += long_size;
+      desc_len -= long_size;
+      continue;
+    }
 
     uint8_t const tag = header.tag;
     uint8_t const type = header.type;
@@ -754,6 +767,9 @@ uint8_t tuh_hid_parse_report_descriptor(tuh_hid_report_info_t* report_info_arr, 
             break;
 
           case RI_MAIN_COLLECTION_END:
+            // ignore an unbalanced END_COLLECTION: decrementing would wrap the counter to 255
+            // and the rest of the descriptor would no longer be parsed
+            if (ri_collection_depth == 0) break;
             ri_collection_depth--;
             if (ri_collection_depth == 0) {
               info++;

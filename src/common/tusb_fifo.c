@@ -241,6 +241,7 @@ void tu_hwfifo_read(const volatile void *hwfifo, uint8_t *dest, uint16_t len, co
 }
   #endif
 
+  #if CFG_TUSB_FIFO_HWFIFO_XFER
 // push to sw fifo from hwfifo
 static void hwff_push_n(const tu_fifo_t *f, const void *app_buf, uint16_t n, uint16_t wr_ptr,
                         const tu_hwfifo_access_t *access_mode) {
@@ -353,6 +354,7 @@ static void hwff_pull_n(const tu_fifo_t *f, void *app_buf, uint16_t n, uint16_t 
   #endif
   }
 }
+  #endif
 #endif
 
 //--------------------------------------------------------------------+
@@ -470,7 +472,7 @@ uint16_t tu_fifo_peek_n_access_mode(tu_fifo_t *f, void *p_buffer, uint16_t n, ui
 
   const uint16_t rd_ptr = idx2ptr(f->depth, rd_idx);
 
-#if CFG_TUSB_FIFO_HWFIFO_API
+#if CFG_TUSB_FIFO_HWFIFO_XFER
   if (access_mode != NULL) {
     hwff_pull_n(f, p_buffer, n, rd_ptr, access_mode);
   } else
@@ -547,7 +549,7 @@ static uint16_t ff_write_n(tu_fifo_t *f, const void *data, uint16_t n, uint16_t 
     const uint16_t wr_ptr = idx2ptr(f->depth, wr_idx);
     TU_LOG(TU_FIFO_DBG, "actual_n = %u, wr_ptr = %u", n, wr_ptr);
 
-#if CFG_TUSB_FIFO_HWFIFO_API
+#if CFG_TUSB_FIFO_HWFIFO_XFER
     if (access_mode != NULL) {
       hwff_push_n(f, buf8, n, wr_ptr, access_mode);
     } else

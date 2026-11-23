@@ -26,6 +26,12 @@ extern "C" {
   #define CFG_TUSB_FIFO_HWFIFO_API (CFG_TUD_EDPT_DEDICATED_HWFIFO || CFG_TUH_EDPT_DEDICATED_HWFIFO)
 #endif
 
+// tu_fifo <-> hardware FIFO copies (tu_hwfifo_write_from_fifo/tu_hwfifo_read_to_fifo): only device FIFO
+// transfers make them, the host stack moves linear buffers (tu_hwfifo_read/tu_hwfifo_write)
+#ifndef CFG_TUSB_FIFO_HWFIFO_XFER
+  #define CFG_TUSB_FIFO_HWFIFO_XFER (CFG_TUSB_FIFO_HWFIFO_API && CFG_TUD_EDPT_XFER_FIFO)
+#endif
+
 #ifndef CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE
   #define CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE 0
 #endif

@@ -133,6 +133,8 @@
   :test:
     :*:
       - _UNITY_TEST_
+      # CFG_TUD_EDPT_XFER_FIFO is left to the tusb_option.h default: on with a FIFO-transferring class
+      # (test_cdc_device checks it is 1), off for HID/MSC only (test_hid_device checks it is 0)
       - CFG_TUD_EDPT_DEDICATED_HWFIFO=1
       - CFG_TUSB_FIFO_HWFIFO_DATA_STRIDE=6
       - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
@@ -276,9 +278,13 @@
     :test_msc_nopad_device:
       - CFG_TUD_MSC_PAD_SHORT_REPLY=0
       - CFG_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+    # FIFO transfers (usbd_edpt_xfer_fifo, the tu_fifo hwfifo copies) without a class that turns them on
+    :test_fifo:
+      - CFG_TUD_EDPT_XFER_FIFO=1
     :test_usbd:
       - TUP_DCD_MEM_ALIGN=4 # a device controller that needs aligned buffers, for the alignment check tests
       - CFG_TUSB_DEBUG_BREAKPOINT=usbd_breakpoint_hook # runs a test's competitor inside a refused submission
+      - CFG_TUD_EDPT_XFER_FIFO=1
     :test_usbh:
       - CFG_TUH_ENABLED=1
       - CFG_TUD_ENABLED=0
