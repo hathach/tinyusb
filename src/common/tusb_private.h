@@ -37,7 +37,8 @@ typedef struct {
   uint8_t  hwid;    // device: rhport, host: daddr
   bool     is_host; // 1: host, 0: device
   uint8_t ep_addr;
-  volatile bool tx_active; // tx: a submission is using the FIFO's read side and tx_pending (tusb.c Stream Write)
+  volatile bool tx_active; // tx: a submission or its FIFO-reading transfer uses the FIFO's read side and tx_pending
+                           // (tusb.c Stream Write)
 
   uint16_t mps;
   uint16_t xfer_len;
