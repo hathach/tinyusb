@@ -17,6 +17,13 @@ static bool queue_receive_recorded(osal_queue_t qhdl, void *data, uint32_t msec)
 }
 #define osal_queue_receive queue_receive_recorded
 
+// the shared stub's clock stands still: let a test move it
+static uint32_t now_ms;
+static uint32_t time_millis_now(void) {
+  return now_ms;
+}
+#define tusb_time_millis_api time_millis_now
+
 // Include the production implementation to drive process_enumeration() directly.
 #include "host/usbh.c"
 #include "host/hub.c"
@@ -30,6 +37,7 @@ enum {
   HUB_ADDR  = CFG_TUH_DEVICE_MAX + 1,
   HUB_PORT  = 1,
   HUB_EP_IN = 0x81,
+  HUB2_ADDR = HUB_ADDR + 1, // a second hub, on another root port
 };
 
 static uint8_t                setup_count;
@@ -198,6 +206,24 @@ static void run_deferred_attach(void) {
   TEST_ASSERT_EQUAL(HUB_PORT + 1, _usbh_data.dev0_bus.hub_port);
 }
 
+// the second hub, on RHPORT + 1, reports a child connected on HUB_PORT
+static void second_hub_child_attached(void) {
+  usbh_device_t *hub2   = get_device(HUB2_ADDR);
+  hub2->bus_info.rhport = RHPORT + 1;
+  hub2->bus_info.speed  = TUSB_SPEED_FULL;
+  hub2->connected       = 1;
+  hub2->addressed       = 1;
+  hub2->configured      = 1;
+  hub2->mounted         = 1;
+  get_hub_itf(HUB2_ADDR)->ep_in     = HUB_EP_IN;
+  get_hub_itf(HUB2_ADDR)->ep_in_mps = 1;
+
+  hcd_event_t attach = {
+    .rhport = RHPORT + 1, .event_id = HCD_EVENT_DEVICE_ATTACH, .connection = {.hub_addr = HUB2_ADDR, .hub_port = HUB_PORT}
+  };
+  TEST_ASSERT_TRUE(usbh_process_event(&attach, false));
+}
+
 // a request to the failed child still in flight when its enumeration ends: its completion, run by the teardown,
 // drives the usbh task, which starts the next child's enumeration
 static void in_flight_cb_attaches_next_child(tuh_xfer_t *xfer) {
@@ -259,6 +285,7 @@ void setUp(void) {
   setup_send_fails = false;
   breakpoint_count = 0;
   queue_wait_ms    = 0;
+  now_ms           = 0;
 }
 
 void tearDown(void) {
@@ -376,19 +403,38 @@ void test_hub_port_not_disabled_resends_disable(void) {
   }
 }
 
-// the port disable is refused at every submit: once its attempts are spent the hub is polled again
-void test_hub_port_disable_never_sent_polls_hub(void) {
+// refusals at submit never reached the hub, so they spend no attempt: the hold stays until the hub disabled the port
+void test_hub_port_disable_refused_keeps_hold_until_disabled(void) {
   fail_child_at_dev0_unsent();
-  for (uint8_t attempt = 2; attempt <= USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX; attempt++) {
+  for (uint8_t attempt = 2; attempt <= USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX + 1; attempt++) {
     TEST_ASSERT_TRUE(tuh_task_event_ready());
     (void) tuh_task_ext(0, false);
     assert_port_disable_sent(attempt);
-    TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+    TEST_ASSERT_EQUAL(HUB_ADDR, _usbh_data.failed_dev0_bus.hub_addr);
   }
 
+  setup_send_fails = false;
+  (void) tuh_task_ext(0, false);
+  assert_port_disable_sent(USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX + 2);
+  assert_next_child_held();
+
+  control_xfer_complete(HUB_ADDR, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(hub_status_polled());
+  run_deferred_attach();
+}
+
+// the port disable is refused at every submit: once refused for a control transfer timeout the hub is polled again
+void test_hub_port_disable_never_sent_polls_hub(void) {
+  fail_child_at_dev0_unsent();
+  now_ms = CFG_TUH_CONTROL_TIMEOUT_MS - 1;
+  (void) tuh_task_ext(0, false);
+  assert_port_disable_sent(2);
+
+  now_ms = CFG_TUH_CONTROL_TIMEOUT_MS;
   TEST_ASSERT_TRUE(tuh_task_event_ready());
   (void) tuh_task_ext(0, false);
-  TEST_ASSERT_EQUAL(USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX, setup_count);
+  TEST_ASSERT_EQUAL(2, setup_count);
+  TEST_ASSERT_EQUAL(0, _usbh_data.failed_dev0_bus.hub_addr);
   TEST_ASSERT_TRUE(hub_status_polled());
   TEST_ASSERT_FALSE(tuh_task_event_ready());
 }
@@ -526,6 +572,30 @@ void test_hub_child_port_disable_holds_only_its_rhport(void) {
   TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
   TEST_ASSERT_EQUAL(RHPORT + 1, _usbh_data.dev0_bus.rhport);
   TEST_ASSERT_TRUE(osal_queue_empty(_usbh_daq));
+}
+
+// a hub child on another root port could fail at address 0 too, and there is one hold: it waits for the hold to end
+void test_hub_child_port_disable_holds_hub_child_on_other_rhport(void) {
+  fail_child_at_dev0_unsent();
+  setup_send_fails = false;
+  second_hub_child_attached();
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_FALSE(osal_queue_empty(_usbh_daq));
+  TEST_ASSERT_EQUAL(HUB_ADDR, _usbh_data.failed_dev0_bus.hub_addr);
+
+  (void) tuh_task_ext(0, false);
+  assert_port_disable_sent(2);
+  TEST_ASSERT_FALSE(tuh_task_event_ready());
+
+  control_xfer_complete(HUB_ADDR, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(hub_status_polled());
+  TEST_ASSERT_TRUE(tuh_task_event_ready());
+  hcd_event_t event;
+  TEST_ASSERT_TRUE(osal_queue_receive(_usbh_daq, &event, 0));
+  TEST_ASSERT_TRUE(usbh_process_event(&event, false));
+  TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(RHPORT + 1, _usbh_data.dev0_bus.rhport);
+  TEST_ASSERT_EQUAL(HUB2_ADDR, _usbh_data.dev0_bus.hub_addr);
 }
 
 // the port disable cannot be sent: the next child stays held while the usbh task sends it again

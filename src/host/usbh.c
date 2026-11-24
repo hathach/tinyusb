@@ -36,7 +36,7 @@
 enum {
   USBH_CONTROL_RETRY_MAX = 3,
   USBH_ENUM_ROOT_RETRY_MAX = 3, // re-reset and re-enumerate the root port after a failed attach
-  USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX = 3, // disable the port of a child failed at address 0, see enum_dev0_disable()
+  USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX = 3, // hub answers that failed the port disable of a child failed at address 0
   USBH_ENUM_PORT_DISABLE_RESEND_MS = 10, // usbh task wait before resending a port disable refused at submit
 };
 
@@ -238,8 +238,9 @@ typedef struct {
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
 #if CFG_TUH_HUB
   tuh_bus_info_t failed_dev0_bus; // port of a child failed at address 0 until the hub disabled it; hub_addr 0: none
-  uint8_t failed_dev0_attempt;    // port disables sent for failed_dev0_bus
+  uint8_t failed_dev0_attempt;    // port disables for failed_dev0_bus the hub answered with an error
   uint8_t failed_dev0_unsent;     // its port disable was refused at submit, resent from the usbh task
+  uint32_t failed_dev0_refused_until_ms; // resends of a port disable refused at submit stop here
 #endif
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
   usbh_call_after_t call_after;
@@ -733,18 +734,20 @@ bool tuh_deinit(uint8_t rhport) {
 }
 
 // A new device may be reset into address 0 on rhport only while nothing else answers there: no enumeration runs, and no
-// child that failed at address 0 on rhport waits for its port disable, see enum_full_complete()
-static bool enum_dev0_free(uint8_t rhport) {
+// child that failed at address 0 on rhport waits for its port disable, see enum_full_complete(). A hub child (hub_addr
+// not 0) waits on every rhport: failing at address 0 itself, it would overwrite the one failed_dev0_bus
+static bool enum_dev0_free(uint8_t rhport, uint8_t hub_addr) {
   if (_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8) {
     return false;
   }
 #if CFG_TUH_HUB
   const tuh_bus_info_t *failed_bus = &_usbh_data.failed_dev0_bus;
-  if (failed_bus->hub_addr != 0 && failed_bus->rhport == rhport) {
+  if (failed_bus->hub_addr != 0 && (failed_bus->rhport == rhport || hub_addr != 0)) {
     return false;
   }
 #else
   (void) rhport;
+  (void) hub_addr;
 #endif
   return true;
 }
@@ -752,7 +755,7 @@ static bool enum_dev0_free(uint8_t rhport) {
 #if CFG_TUH_HUB
 // a deferred attach's rhport is known only once dequeued: it waits out any port disable
 static bool enum_deferred_attach_free(void) {
-  return enum_dev0_free(_usbh_data.failed_dev0_bus.rhport);
+  return enum_dev0_free(_usbh_data.failed_dev0_bus.rhport, 0);
 }
 
 // a port disable refused at submit is resent once the control slot is free, see enum_dev0_disable()
@@ -812,7 +815,7 @@ static bool usbh_process_event(hcd_event_t* event, bool in_isr) {
       _usbh_data.attach_teardown = 0;
 
       // due to the shared control buffer, we must fully complete enumerating one device first.
-      if (enum_dev0_free(event->rhport)) {
+      if (enum_dev0_free(event->rhport, event->connection.hub_addr)) {
         // New device attached and we are ready
         TU_LOG_USBH("[%u:] USBH Device Attach\r\n", event->rhport);
         _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
@@ -2733,6 +2736,7 @@ static void enum_hub_port_disabled(tuh_xfer_t *xfer) {
   if (child_addr == 0) {
     const tuh_bus_info_t *failed_bus = &_usbh_data.failed_dev0_bus;
     if (!disabled && failed_bus->hub_addr == xfer->daddr && failed_bus->hub_port == hub_port) {
+      _usbh_data.failed_dev0_attempt++;
       enum_dev0_disable();
       return;
     }
@@ -2746,23 +2750,29 @@ static void enum_hub_port_disabled(tuh_xfer_t *xfer) {
 // Disable the port of the child failed at address 0 (failed_dev0_bus). Until the hub disabled it, attaches on its rhport
 // stay held and the hub unpolled: polling it would report the next child, whose reset puts it at address 0 beside the
 // failed one. A compliant hub does not refuse the request, even for a port already disabled (USB 2.0 11.24.2.2, as
-// corrected by the 2000-12 errata), so one refusing every attempt is polled again rather than left unserviced
+// corrected by the 2000-12 errata), so one refusing every attempt is polled again rather than left unserviced. A
+// request refused at submit never reached the hub and spends no attempt; one refused for as long as a sent request
+// may take to time out is given up on as well
 static void enum_dev0_disable(void) {
   tuh_bus_info_t *failed_bus = &_usbh_data.failed_dev0_bus;
   const uint8_t hub_addr = failed_bus->hub_addr;
+  const bool resend = _usbh_data.failed_dev0_unsent;
   _usbh_data.failed_dev0_unsent = 0;
   if (!tuh_connected(hub_addr)) {
     failed_bus->hub_addr = 0; // a removed hub took the child with it
     return;
   }
-  if (_usbh_data.failed_dev0_attempt >= USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX) {
+  if (_usbh_data.failed_dev0_attempt >= USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX ||
+      (resend && deadline_passed(_usbh_data.failed_dev0_refused_until_ms))) {
     TU_LOG_USBH("Hub %u port %u not disabled, giving up\r\n", hub_addr, failed_bus->hub_port);
     failed_bus->hub_addr = 0;
     (void) hub_edpt_status_xfer(hub_addr);
     return;
   }
-  _usbh_data.failed_dev0_attempt++;
   if (!hub_port_clear_feature(hub_addr, failed_bus->hub_port, HUB_FEATURE_PORT_ENABLE, enum_hub_port_disabled, 0)) {
+    if (!resend) {
+      _usbh_data.failed_dev0_refused_until_ms = tusb_time_millis_api() + CFG_TUH_CONTROL_TIMEOUT_MS;
+    }
     _usbh_data.failed_dev0_unsent = 1; // e.g. the pending control queue is full
   }
 }
