@@ -25,6 +25,45 @@ static void deferred_callback(uintptr_t param) {
   callback_count++;
 }
 
+// application class driver counting the stack's setup and teardown of class drivers
+static unsigned driver_init_count;
+static unsigned driver_deinit_count;
+
+static bool counting_init(void) {
+  driver_init_count++;
+  return true;
+}
+
+static bool counting_deinit(void) {
+  driver_deinit_count++;
+  return true;
+}
+
+static uint16_t counting_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
+  (void) rhport;
+  (void) dev_addr;
+  (void) itf_desc;
+  (void) max_len;
+  return 0;
+}
+
+static void counting_close(uint8_t dev_addr) {
+  (void) dev_addr;
+}
+
+static const usbh_class_driver_t counting_driver = {
+  .name   = "COUNT",
+  .init   = counting_init,
+  .deinit = counting_deinit,
+  .open   = counting_open,
+  .close  = counting_close,
+};
+
+usbh_class_driver_t const* usbh_app_driver_get_cb(uint8_t* driver_count) {
+  *driver_count = 1;
+  return &counting_driver;
+}
+
 static bool setup_send_stalls(uint8_t rhport, uint8_t daddr, uint8_t const setup_packet[8], int num_calls) {
   (void) rhport;
   (void) setup_packet;
@@ -33,6 +72,11 @@ static bool setup_send_stalls(uint8_t rhport, uint8_t daddr, uint8_t const setup
   return true;
 }
 
+static const tusb_rhport_init_t host_init = {
+  .role = TUSB_ROLE_HOST,
+  .speed = TUSB_SPEED_AUTO
+};
+
 void setUp(void) {
   now_ms = 0;
   callback_count = 0;
@@ -40,10 +84,6 @@ void setUp(void) {
   hcd_int_enable_Ignore();
 
   if (!tuh_inited()) {
-    tusb_rhport_init_t host_init = {
-      .role = TUSB_ROLE_HOST,
-      .speed = TUSB_SPEED_AUTO
-    };
     hcd_init_ExpectAndReturn(0, &host_init, true);
     TEST_ASSERT_TRUE(tusb_init(0, &host_init));
   }
@@ -101,6 +141,38 @@ void test_usbh_task_returns_stop_left_by_sync_control_xfer(void) {
   TEST_ASSERT_FALSE(tuh_task_event_ready());
   TEST_ASSERT_TRUE(tuh_task());
   TEST_ASSERT_FALSE(tuh_task());
+
+  hcd_deinit_ExpectAndReturn(0, true);
+  TEST_ASSERT_TRUE(tuh_deinit(0)); // drop the debouncing dev0; setUp() reinits the stack
+}
+
+// a failed hcd_init() releases the stack it set up, and a retry sets it up again
+void test_usbh_init_retries_after_hcd_init_failure(void) {
+  hcd_deinit_ExpectAndReturn(0, true);
+  TEST_ASSERT_TRUE(tuh_deinit(0));
+  driver_init_count   = 0;
+  driver_deinit_count = 0;
+
+  hcd_init_ExpectAndReturn(0, &host_init, false);
+  TEST_ASSERT_FALSE(tuh_rhport_init(0, &host_init));
+  TEST_ASSERT_FALSE(tuh_inited());
+  TEST_ASSERT_FALSE(tuh_rhport_is_active(0));
+  TEST_ASSERT_FALSE(tuh_task_event_ready());
+  TEST_ASSERT_EQUAL(1, driver_init_count);
+  TEST_ASSERT_EQUAL(1, driver_deinit_count);
+
+  hcd_init_ExpectAndReturn(0, &host_init, true);
+  TEST_ASSERT_TRUE(tuh_rhport_init(0, &host_init));
+  TEST_ASSERT_TRUE(tuh_inited());
+  TEST_ASSERT_TRUE(tuh_rhport_is_active(0));
+  TEST_ASSERT_EQUAL(2, driver_init_count);
+  TEST_ASSERT_EQUAL(1, driver_deinit_count);
+
+  // the recreated event queue carries an attach
+  hcd_event_device_attach(0, false);
+  TEST_ASSERT_TRUE(tuh_task_event_ready());
+  tuh_task();
+  TEST_ASSERT_TRUE(tuh_connected(0));
 
   hcd_deinit_ExpectAndReturn(0, true);
   TEST_ASSERT_TRUE(tuh_deinit(0)); // drop the debouncing dev0; setUp() reinits the stack
