@@ -524,6 +524,77 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 else:
                     self.assertIn('stale: PR #5 head moved', r.stdout)
 
+    def test_the_code_size_post_updates_marocchinos_comment_only_while_current(self):
+        # agentrc's gh_pr_comment.py post: 0 posted, 1 superseded (the step passes, nothing written), 2 unknown (fails)
+        if _no_bash() or sys.platform == 'win32':   # which('gh') there finds a .bat, not this stub
+            raise unittest.SkipTest(_no_bash() or 'a POSIX gh stub')
+        text = _read(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'))
+        job = text[text.index('\n  code-size-comment:\n'):]
+        self.assertIn('concurrency:\n      group: code-size-comment-${{ needs.pr_number.outputs.number }}\n', job)
+        self.assertNotIn('uses: marocchino', job)
+        i = job.index('run: |\n', job.index('- name: Post code size as sticky PR comment\n')) + len('run: |\n')
+        j = re.search(r'^\s*$', job[i:], re.M).start() + i
+        script = re.sub(r'^ {10}', '', job[i:j], flags=re.M)
+        fetch = '$(python3 test/hil/helper/agentrc.py fetch)'
+        self.assertIn(fetch, script)
+        check = subprocess.run([sys.executable, 'test/hil/helper/agentrc.py', 'check'], cwd=REPO,
+                               capture_output=True, text=True)
+        self.assertEqual(check.returncode, 0, check.stderr)
+        script = script.replace(fetch, shlex.quote(json.loads(check.stdout)['root']))
+        marker = '<!-- Sticky Pull Request Commentcode-size -->'
+        stub = '''#!/usr/bin/env python3
+import json, os, sys
+args, path = sys.argv[1:], sys.argv[-1]
+with open(os.environ['GH_LOG'], 'a', encoding='utf-8') as f:
+    f.write(' '.join(args) + '\\n')
+if os.environ['GH_FAIL']:
+    sys.exit(1)
+if path == 'graphql' and 'viewer' in ' '.join(args):
+    reply = {'data': {'viewer': {'login': 'github-actions'}}}
+elif path == 'graphql':   # --jq prints the nodes, one per line
+    reply = {'databaseId': 9, 'author': {'login': 'github-actions'}, 'isMinimized': False,
+             'body': 'old table\\n' + os.environ['MARKER']}
+elif path == 'repos/x/y/pulls/5':
+    reply = {'head': {'sha': os.environ['PR_HEAD'], 'ref': 'f', 'repo': {'full_name': 'x/y'}}}
+elif path.startswith('repos/x/y/actions/workflows/build.yml/runs?'):
+    reply = {'id': 7, 'run_number': 3, 'pull_requests': [{'number': 5}]}
+elif path == 'repos/x/y/actions/runs/7':
+    reply = {'run_attempt': 1}
+elif path == 'repos/x/y/issues/comments/9' and '--method PATCH' in ' '.join(args):
+    with open(os.environ['GH_BODY'], 'w', encoding='utf-8') as f:
+        f.write(json.load(sys.stdin)['body'])
+    reply = {'html_url': 'https://example/c/9'}
+else:
+    sys.exit(f'unexpected gh api {path}')
+print(json.dumps(reply))
+'''
+        for case, pr_head, fail, rc in (('current', 'a' * 40, '', 0), ('superseded', 'b' * 40, '', 0),
+                                        ('unknown', 'a' * 40, '1', 1)):
+            with self.subTest(case), tempfile.TemporaryDirectory() as d:
+                with open(os.path.join(d, 'gh'), 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(stub)
+                os.chmod(os.path.join(d, 'gh'), 0o755)
+                os.makedirs(os.path.join(d, 'code-size', 'out'))
+                with open(os.path.join(d, 'code-size', 'out', 'comment.md'), 'w', encoding='utf-8') as f:
+                    f.write('## Code size\n\nnew table\n')
+                body = os.path.join(d, 'body')
+                env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '1', 'HEAD_SHA': 'a' * 40,
+                       'RUNNER_TEMP': d, 'PR_HEAD': pr_head, 'GH_FAIL': fail, 'MARKER': marker,
+                       'GH_LOG': os.path.join(d, 'log'), 'GH_BODY': body,
+                       'PATH': d + os.pathsep + os.environ['PATH']}
+                r = run_bash(['-e', '-o', 'pipefail', '-c', script], cwd=REPO, capture_output=True, text=True,
+                             env=env)
+                self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
+                if case == 'current':
+                    self.assertIn('updated https://example/c/9', r.stdout)
+                    self.assertEqual(_read(body), f'## Code size\n\nnew table\n\n{marker}')
+                    continue
+                self.assertFalse(os.path.exists(body))
+                if case == 'superseded':
+                    self.assertIn('stale: PR #5 head moved', r.stdout)
+                else:
+                    self.assertIn('::error::code size comment not posted (exit 2)', r.stdout)
+
     def _run_block(self, block, sel, setup=None):
         """Run a dedented build.yml step block with `sel` as selection.json in a temp
         dir; `setup(dir)` may prepare the dir and return extra env. Returns the block's
