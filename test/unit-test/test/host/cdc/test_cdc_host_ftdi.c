@@ -315,6 +315,32 @@ void test_failed_alt_open_keeps_open_interface(void) {
   TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
 }
 
+// An alternate setting may list the endpoints setting 0 already opened: with a second slot free, a failed open of it
+// must neither open them again nor close them under setting 0
+void test_failed_second_alt_keeps_first_alt_endpoints(void) {
+#if CFG_TUH_CDC < 2
+  TEST_IGNORE_MESSAGE("needs CFG_TUH_CDC >= 2");
+#else
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  TEST_ASSERT_EQUAL(sizeof(desc), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(2, opened_count);
+
+  desc[3] = 1; // bAlternateSetting
+  edpt_open_fail_addr = EP_IN;
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, closed_count);
+  TEST_ASSERT_EQUAL(2, opened_count);
+  TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+#endif
+}
+
 // USB 2.0 9.5: a descriptor longer than defined is valid, its extra bytes skipped. ACM with a 9-byte notification
 // endpoint, a 10-byte data interface and 9-byte (audio-style) bulk endpoints, then the next function's interface.
 static const uint8_t acm_extended[] = {

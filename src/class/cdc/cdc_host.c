@@ -747,6 +747,9 @@ static const uint8_t *open_ep_stream_pair(cdch_interface_t *p_cdc, const uint8_t
     desc_eps[i] = (const tusb_desc_endpoint_t *)p_desc;
     TU_ASSERT(TUSB_DESC_ENDPOINT == desc_eps[i]->bDescriptorType && TUSB_XFER_BULK == desc_eps[i]->bmAttributes.xfer,
               NULL);
+    // another alternate setting or interface may list an endpoint a slot already opened: not opened again, so
+    // cdch_open()'s failure path, which closes by address, cannot close it under that slot
+    TU_VERIFY(TUSB_INDEX_INVALID_8 == get_idx_by_ep_addr(p_cdc->daddr, desc_eps[i]->bEndpointAddress), NULL);
     p_desc = next;
   }
   // one per stream: cdch_open() closes an opened endpoint through the stream that records it
@@ -772,6 +775,7 @@ static const uint8_t *open_ep_notif(cdch_interface_t *p_cdc, const uint8_t *p_de
   const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
   TU_ASSERT(next && TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep), NULL);
   TU_ASSERT(TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer || TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, NULL);
+  TU_VERIFY(TUSB_INDEX_INVALID_8 == get_idx_by_ep_addr(p_cdc->daddr, desc_ep->bEndpointAddress), NULL); // see above
   TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep), NULL);
   p_cdc->ep_notif = desc_ep->bEndpointAddress;
   return next;
