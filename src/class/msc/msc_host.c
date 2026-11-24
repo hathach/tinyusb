@@ -549,6 +549,13 @@ bool msch_xfer_cb(uint8_t dev_addr, uint8_t ep_addr, xfer_result_t event, uint32
         submitted = false;
         break;
       }
+      // BOT 1.0 6.3: neither an invalid CSW (6.5: needs Reset Recovery) nor one that is not meaningful is reported
+      if (csw->signature != MSC_CSW_SIGNATURE || csw->tag != cbw->tag || csw->status > MSC_CSW_STATUS_PHASE_ERROR ||
+          (csw->status != MSC_CSW_STATUS_PHASE_ERROR && csw->data_residue > cbw->total_bytes)) {
+        TU_LOG_DRV("  MSCh invalid CSW\r\n");
+        submitted = false;
+        break;
+      }
       // BOT 1.0 §5.3.3.1: a Phase Error needs Reset Recovery, which an unmounted interface cannot run.
       // Once mounted, a device Phase Error is #3985.
       if (csw->status == MSC_CSW_STATUS_PHASE_ERROR && !p_msc->mounted) {
@@ -634,8 +641,8 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   TU_ASSERT(TUH_VALIDATE_BASIC(ep_in_mps <= TUH_EPSIZE_BULK_MAX && (!MSCH_BOUNCE || (ep_in_mps & (ep_in_mps - 1u)) == 0)),
             0);
 
-  // open in descriptor order: OUT-first devices opened IN first stalled their first READ10 on the
-  // espressif_s3_devkitm DWC2 DMA host (#4511)
+  // open in descriptor order: #4511 saw an OUT-first device stall its first READ10 with IN opened first, not
+  // reproduced since and closed without a confirmed cause
   const tusb_desc_endpoint_t *ep_first = (const tusb_desc_endpoint_t *) tu_desc_next(desc_itf);
   TU_ASSERT(tuh_edpt_open(dev_addr, ep_first), 0);
   TU_ASSERT(tuh_edpt_open(dev_addr, (ep_first == ep_in) ? ep_out : ep_in), 0);

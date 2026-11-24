@@ -8,6 +8,10 @@
 
 TEST_SOURCE_FILE("hid_host.c")
 
+// the misspelled usage name stays an alias of the correct one
+TU_VERIFY_STATIC(HID_USAGE_TELEHONY_PSTN_RING_TONE == HID_USAGE_TELEPHONY_PSTN_RING_TONE &&
+                   HID_USAGE_TELEPHONY_PSTN_RING_TONE == 0xF9, "PSTN ring tone usage");
+
 enum {
   HID_DEV_ADDR = 1,
   HID_ITF_NUM  = 2, // nonzero, so it differs from the interface index (0)
@@ -270,6 +274,15 @@ static void set_config_to_report_desc(void) {
   TEST_ASSERT_EQUAL(0, config_complete_count);
 }
 
+// Interface mounted without a report descriptor and its enumeration step completed
+static void assert_mounted_without_report_desc(void) {
+  TEST_ASSERT_EQUAL(1, mount_cb_count);
+  TEST_ASSERT_NULL(mount_cb_desc);
+  TEST_ASSERT_EQUAL(0, mount_cb_len);
+  TEST_ASSERT_EQUAL(1, config_complete_count);
+  TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+}
+
 void test_hidh_set_config_report_desc(void) {
   set_config_to_report_desc();
   complete_ctrl_xfer(XFER_RESULT_SUCCESS);
@@ -303,11 +316,7 @@ void test_hidh_set_config_report_desc_failed(void) {
     set_config_to_report_desc();
     complete_ctrl_xfer(results[i]);
 
-    TEST_ASSERT_EQUAL(1, mount_cb_count);
-    TEST_ASSERT_NULL(mount_cb_desc);
-    TEST_ASSERT_EQUAL(0, mount_cb_len);
-    TEST_ASSERT_EQUAL(1, config_complete_count);
-    TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+    assert_mounted_without_report_desc();
 
     mount_cb_count        = 0;
     config_complete_count = 0;
@@ -322,11 +331,7 @@ void test_hidh_set_config_report_desc_rejected(void) {
   ctrl_xfer_reject = true;
   complete_ctrl_xfer(XFER_RESULT_SUCCESS);
 
-  TEST_ASSERT_EQUAL(1, mount_cb_count);
-  TEST_ASSERT_NULL(mount_cb_desc);
-  TEST_ASSERT_EQUAL(0, mount_cb_len);
-  TEST_ASSERT_EQUAL(1, config_complete_count);
-  TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+  assert_mounted_without_report_desc();
 }
 
 void test_hidh_set_config_set_protocol_rejected(void) {
@@ -335,21 +340,14 @@ void test_hidh_set_config_set_protocol_rejected(void) {
   ctrl_xfer_reject = true;
   complete_ctrl_xfer(XFER_RESULT_STALLED); // SET_IDLE completes, SET_PROTOCOL fails to queue
 
-  TEST_ASSERT_EQUAL(1, mount_cb_count);
-  TEST_ASSERT_NULL(mount_cb_desc);
-  TEST_ASSERT_EQUAL(0, mount_cb_len);
-  TEST_ASSERT_EQUAL(1, config_complete_count);
-  TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+  assert_mounted_without_report_desc();
 }
 
 void test_hidh_set_config_set_idle_rejected(void) {
   ctrl_xfer_reject = true;
   hidh_set_config(HID_DEV_ADDR, HID_ITF_NUM);
 
-  TEST_ASSERT_EQUAL(1, mount_cb_count);
-  TEST_ASSERT_NULL(mount_cb_desc);
-  TEST_ASSERT_EQUAL(1, config_complete_count);
-  TEST_ASSERT_EQUAL(HID_ITF_NUM, config_complete_itf);
+  assert_mounted_without_report_desc();
 }
 
 // An END_COLLECTION without a matching COLLECTION must be ignored, not wrap the depth counter

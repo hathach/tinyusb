@@ -13,12 +13,12 @@
 TEST_SOURCE_FILE("dfu_device.c")
 
 #include "mock_dcd.h"
+#include "usbd_ep0_test.h"
 
 //--------------------------------------------------------------------+
 // Fixture: one DFU mode interface with two alternate settings, as in examples/device/dfu
 //--------------------------------------------------------------------+
 enum {
-  RHPORT      = 0,
   ITF_NUM_DFU = 0,
 };
 
@@ -87,91 +87,47 @@ uint16_t tud_dfu_upload_cb(uint8_t alt, uint16_t block_num, uint8_t *data, uint1
   return 1;
 }
 
-//--------------------------------------------------------------------+
-// EP0: the last transfer queued by the stack, and whether it stalled
-//--------------------------------------------------------------------+
-static bool     ep0_pending;
-static bool     ep0_stalled;
-static uint8_t  ep0_addr;
-static uint16_t ep0_len;
-
-static bool stub_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr, int n) {
-  (void)rhport;
-  (void)buffer;
-  (void)is_isr;
-  (void)n;
-  ep0_pending = true;
-  ep0_addr    = ep_addr;
-  ep0_len     = total_bytes;
-  return true;
-}
-
-static void stub_edpt_stall(uint8_t rhport, uint8_t ep_addr, int n) {
-  (void)rhport;
-  (void)n;
-  if (tu_edpt_number(ep_addr) == 0) {
-    ep0_stalled = true;
-  }
-}
-
-// Drive a control request through its data and status stages; false if the device stalled it
-static bool host_control(const tusb_control_request_t *req) {
-  ep0_pending = false;
-  ep0_stalled = false;
-  dcd_event_setup_received(RHPORT, (const uint8_t *)req, false);
-  tud_task();
-  while (ep0_pending && !ep0_stalled) {
-    ep0_pending = false;
-    dcd_event_xfer_complete(RHPORT, ep0_addr, ep0_len, XFER_RESULT_SUCCESS, false);
-    tud_task();
-  }
-  return !ep0_stalled;
-}
-
-static bool set_interface(uint16_t alt) {
+static tusb_control_request_t set_interface_req(uint16_t alt) {
   const tusb_control_request_t req = {.bmRequestType = 0x01,
                                       .bRequest      = TUSB_REQ_SET_INTERFACE,
                                       .wValue        = alt,
                                       .wIndex        = ITF_NUM_DFU};
-  return host_control(&req);
+  return req;
 }
 
-static bool dfu_upload(void) {
+static void set_interface(uint16_t alt) {
+  const tusb_control_request_t req = set_interface_req(alt);
+  host_no_data(&req);
+}
+
+static void set_interface_stalled(uint16_t alt) {
+  const tusb_control_request_t req = set_interface_req(alt);
+  host_setup_stalled(&req);
+}
+
+// UPLOAD of one block: tud_dfu_upload_cb() returns its alt as the single data byte
+static void dfu_upload(uint8_t expected_alt) {
   const tusb_control_request_t req = {.bmRequestType = 0xA1,
                                       .bRequest      = DFU_REQUEST_UPLOAD,
                                       .wIndex        = ITF_NUM_DFU,
                                       .wLength       = CFG_TUD_DFU_XFER_BUFSIZE};
-  return host_control(&req);
+  host_setup_ok(&req);
+  const ep0_xfer_t *x = host_complete_ep0(EP_CTRL_IN, 1);
+  TEST_ASSERT_EQUAL_HEX8(expected_alt, x->data[0]);
+  host_complete_ep0(EP_CTRL_OUT, 0);
+  TEST_ASSERT_EQUAL(expected_alt, upload_alt);
 }
 
 // Bus reset then SET_CONFIGURATION(1) with the given configuration descriptor
 static void configure(const uint8_t *desc) {
   desc_config = desc;
-  dcd_event_bus_reset(RHPORT, TUSB_SPEED_HIGH, false);
-  tud_task();
-
-  const tusb_control_request_t set_config = {.bmRequestType = 0x00,
-                                             .bRequest      = TUSB_REQ_SET_CONFIGURATION,
-                                             .wValue        = 1};
-  TEST_ASSERT_TRUE(host_control(&set_config));
+  host_bus_reset();
+  host_set_config(1);
   upload_alt = -1;
 }
 
 void setUp(void) {
-  dcd_int_disable_Ignore();
-  dcd_int_enable_Ignore();
-  dcd_edpt_close_all_Ignore();
-  dcd_edpt0_status_complete_Ignore();
-  dcd_edpt0_setup_begin_IgnoreAndReturn(true);
-  dcd_edpt_xfer_Stub(stub_edpt_xfer);
-  dcd_edpt_stall_Stub(stub_edpt_stall);
-
-  if (!tud_inited()) {
-    tusb_rhport_init_t dev_init = {.role = TUSB_ROLE_DEVICE, .speed = TUSB_SPEED_AUTO};
-    dcd_init_ExpectAndReturn(RHPORT, &dev_init, true);
-    tusb_init(RHPORT, &dev_init);
-  }
-
+  ep0_test_init();
   configure(desc_configuration);
 }
 
@@ -182,21 +138,19 @@ void tearDown(void) {
 // Tests
 //--------------------------------------------------------------------+
 void test_set_interface_selects_alt(void) {
-  TEST_ASSERT_TRUE(set_interface(1));
-  TEST_ASSERT_TRUE(dfu_upload());
-  TEST_ASSERT_EQUAL(1, upload_alt);
+  set_interface(1);
+  dfu_upload(1);
 }
 
 // alt is the application's partition index: one past the descriptor's alternate settings must
 // stall (USB 2.0 9.4.10) and leave the selected alt unchanged
 void test_set_interface_nonexistent_alt_stalls(void) {
-  TEST_ASSERT_TRUE(set_interface(1));
-  TEST_ASSERT_FALSE(set_interface(ALT_COUNT));
-  TEST_ASSERT_FALSE(set_interface(0xFF));
-  TEST_ASSERT_FALSE(set_interface(0x0101)); // high byte must not be dropped
+  set_interface(1);
+  set_interface_stalled(ALT_COUNT);
+  set_interface_stalled(0xFF);
+  set_interface_stalled(0x0101); // high byte must not be dropped
 
-  TEST_ASSERT_TRUE(dfu_upload());
-  TEST_ASSERT_EQUAL(1, upload_alt);
+  dfu_upload(1);
 }
 
 // 256 alternate settings: the last one (255) is selectable, one past it (low byte 1) stalls
@@ -219,11 +173,61 @@ void test_set_interface_max_alt_count(void) {
 
   configure(desc_configuration_max);
 
-  TEST_ASSERT_TRUE(set_interface(255));
-  TEST_ASSERT_FALSE(set_interface(257));
+  set_interface(255);
+  set_interface_stalled(257);
 
-  TEST_ASSERT_TRUE(dfu_upload());
-  TEST_ASSERT_EQUAL(255, upload_alt);
+  dfu_upload(255);
+}
+
+//--------------------------------------------------------------------+
+// Malformed descriptors: dfu_moded_open() reads nothing past max_len and rejects the interface
+//--------------------------------------------------------------------+
+#define DFU_ITF_LEN (TUD_DFU_DESC_LEN(ALT_COUNT))
+
+static uint8_t desc_dfu[DFU_ITF_LEN];
+
+static uint16_t open_dfu(uint16_t max_len) {
+  return dfu_moded_open(RHPORT, (const tusb_desc_interface_t *) desc_dfu, max_len);
+}
+
+static void copy_dfu_itf(void) {
+  memcpy(desc_dfu, desc_configuration + TUD_CONFIG_DESC_LEN, DFU_ITF_LEN);
+}
+
+void test_open_accepts_whole_interface(void) {
+  copy_dfu_itf();
+  TEST_ASSERT_EQUAL(DFU_ITF_LEN, open_dfu(DFU_ITF_LEN));
+}
+
+void test_open_rejects_truncated_descriptors(void) {
+  copy_dfu_itf();
+  TEST_ASSERT_EQUAL(0, open_dfu(DFU_ITF_LEN - 1));              // functional descriptor cut short
+  TEST_ASSERT_EQUAL(0, open_dfu(2 * sizeof(tusb_desc_interface_t))); // functional descriptor missing
+  TEST_ASSERT_EQUAL(0, open_dfu(sizeof(tusb_desc_interface_t) - 1)); // interface cut short
+}
+
+// The second alternate is not an interface descriptor, though its bytes would match a DFU alternate
+void test_open_rejects_wrong_type_alternate(void) {
+  copy_dfu_itf();
+  desc_dfu[sizeof(tusb_desc_interface_t) + 1] = TUSB_DESC_CS_INTERFACE;
+  TEST_ASSERT_EQUAL(0, open_dfu(DFU_ITF_LEN));
+}
+
+void test_open_rejects_short_functional_descriptor(void) {
+  copy_dfu_itf();
+  desc_dfu[2 * sizeof(tusb_desc_interface_t)] = sizeof(tusb_desc_dfu_functional_t) - 1;
+  TEST_ASSERT_EQUAL(0, open_dfu(DFU_ITF_LEN));
+}
+
+// A zero bLength would never move the walk forward
+void test_open_rejects_zero_length_descriptors(void) {
+  copy_dfu_itf();
+  desc_dfu[sizeof(tusb_desc_interface_t)] = 0; // second alternate
+  TEST_ASSERT_EQUAL(0, open_dfu(DFU_ITF_LEN));
+
+  copy_dfu_itf();
+  desc_dfu[0] = 0; // first interface
+  TEST_ASSERT_EQUAL(0, open_dfu(DFU_ITF_LEN));
 }
 
 // GETSTATUS is device-to-host (DFU 1.1 Table 3.1) and its reply is a stack local: an OUT one must stall rather than
@@ -233,8 +237,21 @@ void test_getstatus_out_stalls(void) {
                                 .bRequest      = DFU_REQUEST_GETSTATUS,
                                 .wIndex        = ITF_NUM_DFU,
                                 .wLength       = sizeof(dfu_status_response_t)};
-  TEST_ASSERT_FALSE(host_control(&req));
+  host_setup_stalled(&req);
 
   req.bmRequestType = 0xA1;
-  TEST_ASSERT_TRUE(host_control(&req));
+  host_setup_ok(&req);
+  host_complete_ep0(EP_CTRL_IN, sizeof(dfu_status_response_t));
+  host_complete_ep0(EP_CTRL_OUT, 0);
+}
+
+// A tail too short to hold bDescriptorType after an interface: nothing past max_len is read
+static uint8_t desc_dfu_tail[sizeof(tusb_desc_interface_t) + 1];
+
+void test_open_rejects_one_byte_tail(void) {
+  for (uint8_t tail_len = 0; tail_len < 2; tail_len++) {
+    memcpy(desc_dfu_tail, desc_configuration + TUD_CONFIG_DESC_LEN, sizeof(tusb_desc_interface_t));
+    desc_dfu_tail[sizeof(tusb_desc_interface_t)] = tail_len;
+    TEST_ASSERT_EQUAL(0, dfu_moded_open(RHPORT, (const tusb_desc_interface_t *) desc_dfu_tail, sizeof(desc_dfu_tail)));
+  }
 }
