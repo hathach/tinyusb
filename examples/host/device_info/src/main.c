@@ -70,6 +70,8 @@ CFG_TUH_MEM_SECTION struct {
   TUH_EPBUF_DEF(buf, 128*sizeof(uint16_t));
 } desc;
 
+static tusb_desc_device_t descriptor_device[CFG_TUH_DEVICE_MAX + 1];
+
 void led_blinking_task(void* param);
 void print_devinfo_task(void* param);
 static void print_utf16(uint16_t* temp_buf, size_t buf_len);
@@ -122,7 +124,8 @@ int main(void) {
 // on OS_NONE / dedicated task on RTOS) where the sync helpers are safe.
 void tuh_mount_cb(uint8_t daddr) {
   blink_interval_ms = BLINK_MOUNTED;
-  if (daddr < TU_ARRAY_SIZE(need_devinfo)) {
+  // Copy here: the stack clears the device record on unplug, which the print task could otherwise read
+  if (daddr < TU_ARRAY_SIZE(need_devinfo) && tuh_descriptor_get_device_local(daddr, &descriptor_device[daddr])) {
     need_devinfo[daddr] = true;
   }
 }
@@ -202,10 +205,8 @@ void print_devinfo_task(void* param) {
     for (uint8_t daddr = 1; daddr < TU_ARRAY_SIZE(need_devinfo); daddr++) {
       if (need_devinfo[daddr]) {
         need_devinfo[daddr] = false;
-        tusb_desc_device_t desc_device;
-        if (tuh_descriptor_get_device_local(daddr, &desc_device)) {
-          print_one_device(daddr, &desc_device);
-        }
+        tusb_desc_device_t const desc_device = descriptor_device[daddr];
+        print_one_device(daddr, &desc_device);
       }
     }
 #if CFG_TUSB_OS == OPT_OS_FREERTOS
