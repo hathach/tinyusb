@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # dual/host_info_to_device_cdc's 'ID vid:pid SN serial' parsing when tuh_mount_cb's notice lands
-# mid-line (#4374). The console is a fake: no port opens.
+# mid-line (#4374), and the host examples' device-info and MSC capacity records. The console is a fake:
+# no port opens.
 # Run directly:
 #   python3 test/hil/test/test_hil_dual_parse.py
 import os
@@ -79,12 +80,26 @@ class ParseDevInfoRecords(unittest.TestCase):
         text = record(1, '1a86_55d4', '52D2999999') + record(2, '21c4_0cc7', '0') + 'Device 3: ID 0951:1603 SN \r\n'
         self.assertEqual(devs(text), ['1a86_55d4_52D2999999', '21c4_0cc7_0'])
 
+    def test_punctuated_serial_is_kept_whole(self):
+        text = record(1, '1a86_55d4', 'ABC-DEF.1:2_3') + 'mounted device 2\r\n' + record(2, '1a86_55d4', 'AB')
+        self.assertEqual(devs(text), ['1a86_55d4_ABC-DEF.1:2_3', '1a86_55d4_AB'])
+        self.assertEqual(devs('Device 1: ID 1a86:55d4 SN ABC-DEF\r'), [])
+
+
+def fake_clock(test) -> list:
+    """time.sleep advances time.monotonic: the waits' deadlines run on simulated time, and a read may spend some."""
+    now = [0.0]
+    usbtest_harness.patch(test, hil_test.time, 'monotonic', lambda: now[0])
+    usbtest_harness.patch(test, hil_test.time, 'sleep', lambda s: now.__setitem__(0, now[0] + s))
+    return now
+
 
 class FakeSerial:
     """Hands out one chunk per read, then nothing."""
     def __init__(self, chunks):
         self.chunks = list(chunks)
         self.timeout = None
+        self.closed = False
 
     @property
     def in_waiting(self):
@@ -94,7 +109,67 @@ class FakeSerial:
         return self.chunks.pop(0) if self.chunks else b''
 
     def close(self):
-        pass
+        self.closed = True
+
+
+class SlowSerial(FakeSerial):
+    """Every read blocks a full second (SERIAL_READ_TIMEOUT on a silent port) and returns nothing."""
+    def __init__(self, test, fail=None):
+        super().__init__([])
+        self.now, self.fail, self.reads = fake_clock(test), fail, 0
+
+    def read(self, n):
+        self.reads += 1
+        if self.fail:
+            raise self.fail
+        self.now[0] += 1
+        return b''
+
+
+class SerialWaits(unittest.TestCase):
+    """The enumeration waits are deadlines on the monotonic clock: a slow read spends the budget, it does not
+    stretch it, and an exceptional read still closes the port."""
+    BOARD = {'uid': 'U', 'dev_attached': [{'vid_pid': '1a86:55d4', 'serial': 'S'}]}
+
+    def setUp(self):
+        usbtest_harness.patch(self, hil_test, 'enum_timeout', lambda: 3)
+        usbtest_harness.patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
+        usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
+
+    def run_dual(self, ser):
+        usbtest_harness.patch(self, hil_test, 'open_serial_dev', lambda port: ser)
+        return hil_test.test_dual_host_info_to_device_cdc(self.BOARD)
+
+    def test_a_slow_read_spends_the_budget(self):
+        for name, run in (('dual', self.run_dual), ('host', lambda ser: (
+                usbtest_harness.patch(self, hil_test, 'open_console_reset', lambda b: ser),
+                hil_test.test_host_device_info(self.BOARD)))):
+            with self.subTest(name):
+                ser = SlowSerial(self)
+                with self.assertRaisesRegex(AssertionError, 'No data from device'):
+                    run(ser)
+                # 3 s at 1 s a read plus 0.1 s a sleep: a countdown of 0.1 s a pass made 30 reads, 33 s
+                self.assertEqual(ser.reads, 3)
+                self.assertTrue(ser.closed)
+
+    def test_an_exceptional_read_closes_the_port(self):
+        ser = SlowSerial(self, fail=OSError('device disconnected'))
+        with self.assertRaisesRegex(OSError, 'device disconnected'):
+            self.run_dual(ser)
+        self.assertTrue(ser.closed)
+
+    def test_opening_a_port_that_never_opens_is_bounded_by_the_deadline(self):
+        now = fake_clock(self)
+        tries = []
+
+        def busy(*a, **k):
+            tries.append(now[0])
+            now[0] += 1
+            raise hil_test.serial.SerialException('busy')
+        usbtest_harness.patch(self, hil_test.serial, 'Serial', busy)
+        with self.assertRaisesRegex(AssertionError, 'Cannot open port /dev/null'):
+            hil_test.open_serial_dev('/dev/null')
+        self.assertEqual(len(tries), 3)
 
 
 class CellVerdict(unittest.TestCase):
@@ -107,7 +182,7 @@ class CellVerdict(unittest.TestCase):
         usbtest_harness.patch(self, hil_util, 'get_serial_dev', lambda *a: '/dev/null')
         usbtest_harness.patch(self, hil_test, 'open_serial_dev', lambda port: FakeSerial(chunks))
         usbtest_harness.patch(self, hil_test, 'enum_timeout', lambda: len(chunks) + 1)   # 10 reads a unit
-        usbtest_harness.patch(self, hil_test.time, 'sleep', lambda s: None)
+        fake_clock(self)
         out = usbtest_harness.Out()
         usbtest_harness.patch(self, sys, 'stdout', out)
         return hil_test.test_dual_host_info_to_device_cdc(self.BOARD)
@@ -125,6 +200,101 @@ class CellVerdict(unittest.TestCase):
     def test_wrong_serial_fails(self):
         with self.assertRaisesRegex(AssertionError, r"Enumerated \['1a86_55d4_52D2999999'"):
             self.run_cell(record(1, '1a86_55d4', '52D2999999') + record(2, *MSC), 16)
+
+
+class HostDeviceInfo(unittest.TestCase):
+    """host/device_info completes on, and compares, terminated records only."""
+
+    def run_cell(self, board, text, size):
+        data = text.encode()
+        chunks = [data[i:i + size] for i in range(0, len(data), size)]
+        usbtest_harness.patch(self, hil_test, 'open_console_reset', lambda b: FakeSerial(chunks))
+        usbtest_harness.patch(self, hil_test, 'enum_timeout', lambda: len(chunks) + 1)
+        fake_clock(self)
+        usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
+        return hil_test.test_host_device_info(board)
+
+    def test_issue_transcript_passes_in_any_chunking(self):
+        for size in (1, 7, 43, len(ISSUE)):
+            self.assertEqual(self.run_cell(CellVerdict.BOARD, ISSUE, size), 0, size)
+
+    def test_a_declared_prefix_of_the_serial_fails(self):
+        # the read that ends at '52D20' must not complete a board that declares 52D20
+        board = {'dev_attached': [{'vid_pid': '1a86:55d4', 'serial': '52D20'}]}
+        text = 'Device 1: ID 1a86:55d4 SN 52D20' + '03414\r\nDevice Descriptor:\r\n'
+        with self.assertRaisesRegex(AssertionError, r"Enumerated \['1a86_55d4_52D2003414'\]"):
+            self.run_cell(board, text, len('Device 1: ID 1a86:55d4 SN 52D20'))
+
+    def test_a_declared_serial_that_prefixes_the_punctuated_one_fails(self):
+        board = {'dev_attached': [{'vid_pid': '1a86:55d4', 'serial': 'AB'}]}
+        with self.assertRaisesRegex(AssertionError, r"Enumerated \['1a86_55d4_AB-1'\]"):
+            self.run_cell(board, record(1, '1a86_55d4', 'AB-1'), 7)
+
+    def test_a_declared_punctuated_serial_passes(self):
+        board = {'dev_attached': [{'vid_pid': '1a86:55d4', 'serial': 'AB-1'}]}
+        self.assertEqual(self.run_cell(board, record(1, '1a86_55d4', 'AB-1'), 7), 0)
+
+
+class MscCapacity(unittest.TestCase):
+    """check_msc_info: a complete 'Disk Size' record, matching a declared count/size pair."""
+    LEXAR = {'vid_pid': '21c4:0cc7', 'is_msc': True, 'block_size': 512, 'block_count': 60620800}
+
+    @staticmethod
+    def disk(count, size=512):
+        return f'Disk Size: {count} {size}-byte blocks: {count * size // (1024 * 1024)} MB\r\n'
+
+    def check(self, text, devs):
+        usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
+        hil_test.check_msc_info(text, devs)
+
+    def test_the_declared_capacity_passes(self):
+        self.check('Lexar    USB Flash Drive  PMAP\r\n' + self.disk(60620800), [self.LEXAR])
+
+    def test_an_esp_idf_line_ending_passes(self):
+        self.check(self.disk(60620800).replace('\r\n', '\r\r\n'), [self.LEXAR])
+
+    def test_a_wrong_count_fails(self):
+        with self.assertRaisesRegex(AssertionError, 'reported 30310400 512-byte blocks'):
+            self.check(self.disk(30310400), [self.LEXAR])
+
+    def test_a_wrong_size_fails(self):
+        with self.assertRaisesRegex(AssertionError, 'reported 60620800 4096-byte blocks'):
+            self.check(self.disk(60620800, 4096), [self.LEXAR])
+
+    def test_a_truncated_or_malformed_record_fails(self):
+        for text in ('Disk Size: 606', 'Disk Size: 60620800 512-byte blocks', 'Disk Size: garbage\r\n'):
+            with self.subTest(text), self.assertRaisesRegex(AssertionError, 'not reported as a complete'):
+                self.check(text, [self.LEXAR])
+
+    def test_any_declared_device_may_match_and_every_record_must(self):
+        other = {'vid_pid': '048d:04d2', 'is_msc': True, 'block_size': 512, 'block_count': 30720000}
+        self.check(self.disk(30720000), [self.LEXAR, other])
+        with self.assertRaisesRegex(AssertionError, 'reported 1 512-byte blocks'):
+            self.check(self.disk(30720000) + self.disk(1), [self.LEXAR, other])
+
+    def test_an_undeclared_field_matches_any_value(self):
+        self.check(self.disk(123), [{'vid_pid': '21c4:0cc7', 'is_msc': True, 'block_size': 512}])
+        self.check(self.disk(123, 4096), [{'vid_pid': '21c4:0cc7', 'is_msc': True}])
+
+    def test_the_explorer_waits_for_the_record_to_end(self):
+        # a read that stops inside the count must not end the wait with a truncated record
+        head = 'MassStorage device is mounted\r\nDisk Size: 606'
+        text = head + '20800 512-byte blocks: 29600 MB\r\n'
+        chunks = [head.encode(), text[len(head):].encode()]
+        seen = []
+
+        class Console(FakeSerial):
+            def reset_input_buffer(self):
+                raise StopIteration   # the capacity check is done: stop before the shell commands
+
+        usbtest_harness.patch(self, hil_test, 'open_console_reset', lambda b: Console(chunks))
+        usbtest_harness.patch(self, hil_test, 'enum_timeout', lambda: 1)
+        fake_clock(self)
+        usbtest_harness.patch(self, hil_test, 'check_msc_info', lambda text, devs: seen.append(text))
+        usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
+        with self.assertRaises(StopIteration):
+            hil_test.test_host_msc_file_explorer({'dev_attached': [self.LEXAR]})
+        self.assertEqual(seen, [text])
 
 
 if __name__ == '__main__':
