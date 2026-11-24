@@ -402,15 +402,16 @@ void test_enum_config_larger_than_buffer_ends_enumeration(void) {
   TEST_ASSERT_FALSE(get_device(DADDR)->connected);
 }
 
+// a vendor interface whose endpoint is beyond ep_status: the driver opens it but the binding is refused
+static const uint8_t desc_cfg_refused_binding[] = {
+  9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
+  9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
+  7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+};
+
 // the driver opened, but its endpoint cannot be bound: the driver is closed and the device fails
 void test_enum_refused_binding_closes_driver_and_ends_enumeration(void) {
-  static const uint8_t desc_cfg[] = {
-    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
-    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
-    7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
-  };
-
-  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg, sizeof(desc_cfg));
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
 
   assert_enumeration_ended();
   TEST_ASSERT_EQUAL(1, close_count);
@@ -421,14 +422,9 @@ void test_enum_refused_binding_closes_driver_and_ends_enumeration(void) {
 // a close callback that drives the usbh task (a sync transfer on OS_NONE) handles the unplug and the next attach: the
 // failed attempt must not then tear down the new one
 void test_enum_refused_binding_keeps_enumeration_started_by_close_callback(void) {
-  static const uint8_t desc_cfg[] = {
-    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
-    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
-    7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
-  };
   close_hook = remove_device_and_attach_another;
 
-  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg, sizeof(desc_cfg));
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
 
   TEST_ASSERT_EQUAL(2, close_count); // the failed binding, then the unplug
   TEST_ASSERT_FALSE(get_device(DADDR)->connected);
@@ -439,15 +435,10 @@ void test_enum_refused_binding_keeps_enumeration_started_by_close_callback(void)
 
 // the close callback only handles the unplug: the attempt has ended already, with no root port retry
 void test_enum_refused_binding_ended_by_close_callback_unplug(void) {
-  static const uint8_t desc_cfg[] = {
-    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
-    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
-    7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
-  };
   const uint8_t enum_gen = _usbh_data.enum_gen;
   close_hook = remove_device;
 
-  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg, sizeof(desc_cfg));
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
 
   TEST_ASSERT_EQUAL(2, close_count);
   TEST_ASSERT_FALSE(get_device(DADDR)->connected);
@@ -458,14 +449,9 @@ void test_enum_refused_binding_ended_by_close_callback_unplug(void) {
 
 // the new attempt already holds the failed device's address: only enum_gen tells it apart
 void test_enum_refused_binding_keeps_new_attempt_at_same_address(void) {
-  static const uint8_t desc_cfg[] = {
-    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
-    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
-    7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
-  };
   close_hook = remove_device_and_readdress_another;
 
-  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg, sizeof(desc_cfg));
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
 
   TEST_ASSERT_EQUAL(2, close_count);
   TEST_ASSERT_TRUE(get_device(DADDR)->connected);
