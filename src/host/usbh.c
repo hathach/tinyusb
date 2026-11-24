@@ -37,6 +37,7 @@ enum {
   USBH_CONTROL_RETRY_MAX = 3,
   USBH_ENUM_ROOT_RETRY_MAX = 3, // re-reset and re-enumerate the root port after a failed attach
   USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX = 3, // disable the port of a child failed at address 0, see enum_dev0_disable()
+  USBH_ENUM_PORT_DISABLE_RESEND_MS = 10, // usbh task wait before resending a port disable refused at submit
 };
 
 //--------------------------------------------------------------------+
@@ -992,6 +993,10 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
   #if CFG_TUH_HUB
     if (enum_dev0_disable_due()) {
       enum_dev0_disable();
+      // no event follows a refused resend when its cause clears (e.g. an aborted EP0 still halting): wake to retry
+      if (enum_dev0_disable_due() && timeout_ms > USBH_ENUM_PORT_DISABLE_RESEND_MS) {
+        timeout_ms = USBH_ENUM_PORT_DISABLE_RESEND_MS;
+      }
     }
   #endif
 

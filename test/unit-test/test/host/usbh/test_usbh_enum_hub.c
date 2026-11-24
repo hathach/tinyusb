@@ -8,6 +8,15 @@
 // count TU_ASSERT() hits in usbh.c and hub.c, both built into this unit
 #define CFG_TUSB_DEBUG_BREAKPOINT enum_hub_breakpoint_hook
 
+// osal_none ignores the wait, so record what an RTOS build would block for
+#include "tusb.h"
+static uint32_t queue_wait_ms;
+static bool queue_receive_recorded(osal_queue_t qhdl, void *data, uint32_t msec) {
+  queue_wait_ms = msec;
+  return osal_queue_receive(qhdl, data, msec);
+}
+#define osal_queue_receive queue_receive_recorded
+
 // Include the production implementation to drive process_enumeration() directly.
 #include "host/usbh.c"
 #include "host/hub.c"
@@ -249,6 +258,7 @@ void setUp(void) {
   tu_memclr(&last_setup, sizeof(last_setup));
   setup_send_fails = false;
   breakpoint_count = 0;
+  queue_wait_ms    = 0;
 }
 
 void tearDown(void) {
@@ -381,6 +391,17 @@ void test_hub_port_disable_never_sent_polls_hub(void) {
   TEST_ASSERT_EQUAL(USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX, setup_count);
   TEST_ASSERT_TRUE(hub_status_polled());
   TEST_ASSERT_FALSE(tuh_task_event_ready());
+}
+
+// a refused resend has no event to wake an RTOS task blocked in tuh_task(): it waits only until the next resend is due
+void test_hub_port_disable_refused_resend_bounds_task_wait(void) {
+  fail_child_at_dev0_unsent();
+  (void) tuh_task_ext(UINT32_MAX, false);
+  assert_port_disable_sent(2);
+  TEST_ASSERT_EQUAL(1, _usbh_data.failed_dev0_unsent);
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  TEST_ASSERT_NULL(_usbh_data.call_after.func);
+  TEST_ASSERT_EQUAL(USBH_ENUM_PORT_DISABLE_RESEND_MS, queue_wait_ms);
 }
 
 // the hub was unplugged (and closed) while its child debounced: the child fails with no request to the gone hub and no
