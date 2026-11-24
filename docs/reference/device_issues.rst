@@ -54,7 +54,7 @@ NXP LPC55S2x/LPC552x
 
 Reference: `LPC55S2x Errata Sheet`_ USB.3, USB.5
 
-.. _LPC55S2x Errata Sheet: https://www.nxp.com/docs/en/errata/ES_LPC55S2x.pdf
+.. _LPC55S2x Errata Sheet: https://www.nxp.com/docs/en/nxp/errata/LPC55S2x_LPC552x_ES.pdf
 
 USB.3: As a high-speed device behind certain full-speed hubs, the device does not correctly detect
 the host's KJ chirp sequence and can behave erratically due to wrong speed detection. In outline,
