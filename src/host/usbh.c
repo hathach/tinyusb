@@ -2692,6 +2692,7 @@ static void enum_teardown(bool success) {
 // connected out of enum_get_new_address() until the port is disabled or remove_device_tree() sees it unplugged
 static void enum_hold_address(uint8_t daddr, const tuh_bus_info_t *bus_info) {
   usbh_device_t *dev = get_device(daddr);
+  TU_VERIFY(dev != NULL,);
   dev->bus_info      = *bus_info;
   dev->connected     = 1;
   dev->removing      = 1;
