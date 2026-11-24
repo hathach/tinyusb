@@ -353,7 +353,8 @@ static void config_power_next_port(uint8_t daddr, uint8_t prev_port) {
 
 static void config_set_port_power (tuh_xfer_t* xfer) {
   uint8_t const daddr = xfer->daddr;
-  if (XFER_RESULT_SUCCESS != xfer->result) {
+  // a short reply leaves stale ctrl_buf bytes where bNbrPorts and bPwrOn2PwrGood are read
+  if (XFER_RESULT_SUCCESS != xfer->result || xfer->actual_len <= offsetof(hub_desc_cs_t, bPwrOn2PwrGood)) {
     TU_LOG_DRV("HUB Get Hub Descriptor failed, addr = %u: no port is served\r\n", daddr);
     config_complete(daddr, false);
     return;
