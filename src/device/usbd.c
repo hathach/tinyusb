@@ -701,8 +701,7 @@ static bool run_after_queue_call(void) {
 //--------------------------------------------------------------------+
 // USBD Task
 //--------------------------------------------------------------------+
-// One dequeued event; false ends this tud_task_ext() run (a failed assertion)
-static bool usbd_process_event(dcd_event_t* event) {
+static void usbd_process_event(dcd_event_t* event) {
   switch (event->event_id) {
     case DCD_EVENT_BUS_RESET_START:
       TU_LOG_USBD("\r\n");
@@ -777,7 +776,7 @@ static bool usbd_process_event(dcd_event_t* event) {
       _usbd_dev.ep_status[epnum][ep_dir] = (uint8_t) (
         (_usbd_dev.ep_status[epnum][ep_dir] & ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED)) | rx_pending);
 
-      if (driver == NULL) {
+      if (epnum == 0) {
         // Not stalled on failure: a DCD refuses an EP0 prime when a newer setup is already
         // latched, and EP0 stalls are cleared by hardware when that setup arrives - so a stall
         // issued here lands after the auto-clear and would stall the transfer that superseded
@@ -832,7 +831,6 @@ static bool usbd_process_event(dcd_event_t* event) {
       TU_BREAKPOINT();
       break;
   }
-  return true;
 }
 
 /* USB Device Driver task
@@ -899,11 +897,8 @@ bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
 #endif
 
     TU_SYSVIEW_CALL(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
-    bool const cont = usbd_process_event(&event);
+    usbd_process_event(&event);
     TU_SYSVIEW_RET(CFG_TUSB_SYSVIEW_LEVEL_USB, TU_SV_ID_TUD_TASK);
-    if (!cont) {
-      return false;
-    }
 
     tu_sysview_stack_report(TUSB_ROLE_DEVICE);
 
@@ -1193,11 +1188,24 @@ static bool process_std_device_request(uint8_t rhport, tusb_control_request_t co
 
 
 // Reply to a standard GET_STATUS (device/interface/endpoint) with its 2-byte status word.
-// GET_STATUS is Device-to-host only; reject a mis-directed (OUT) request rather than handing
-// usbd the address of a stack local to write host data into after this frame has returned.
 static bool process_get_status(uint8_t rhport, tusb_control_request_t const * request, uint16_t status) {
-  TU_VERIFY(request->bmRequestType_bit.direction == TUSB_DIR_IN);
   return tud_control_xfer(rhport, request, &status, 2);
+}
+
+// USB 2.0 Table 9-3, HID 1.11 7.1.1: device-to-host only for every recipient. An OUT data stage
+// would write host data into a descriptor, driver state or a stack local that is gone by then.
+static bool is_std_request_in_only(uint8_t bRequest) {
+  switch (bRequest) { //-V2520
+    case TUSB_REQ_GET_STATUS:
+    case TUSB_REQ_GET_DESCRIPTOR:
+    case TUSB_REQ_GET_CONFIGURATION:
+    case TUSB_REQ_GET_INTERFACE:
+    case TUSB_REQ_SYNCH_FRAME:
+      return true;
+
+    default:
+      return false;
+  }
 }
 
 // This handles the actual request and its response.
@@ -1215,6 +1223,9 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
   p_request = &ctrl_xfer->request; // re-direct request pointer to internal copy (modifiable for hacking)
   TU_ASSERT(p_request->bmRequestType_bit.type < TUSB_REQ_TYPE_INVALID);
+  TU_VERIFY(!(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
+              TUSB_DIR_OUT == p_request->bmRequestType_bit.direction &&
+              is_std_request_in_only(p_request->bRequest)));
 
   // Vendor request
   if ( p_request->bmRequestType_bit.type == TUSB_REQ_TYPE_VENDOR ) {
@@ -1279,12 +1290,6 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
       usbd_class_driver_t const * driver = get_driver(_usbd_dev.itf2drv[itf]);
       TU_VERIFY(driver);
 
-      // USB 2.0 9.4.4: GET_INTERFACE is device-to-host. Stall an OUT one before any class driver sees it: a driver
-      // answering from its alternate setting would otherwise arm an OUT data stage that writes host data into it.
-      TU_VERIFY(!(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
-                  TUSB_REQ_GET_INTERFACE == p_request->bRequest &&
-                  TUSB_DIR_IN != p_request->bmRequestType_bit.direction));
-
       // all requests to Interface (STD or Class) is forwarded to class driver.
       // notable requests are: GET HID REPORT DESCRIPTOR, SET_INTERFACE, GET_INTERFACE
       if (!invoke_class_control(rhport, driver, p_request)) {
@@ -1339,7 +1344,8 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
         // Handle STD request to endpoint
         switch (p_request->bRequest) { //-V2520
           case TUSB_REQ_GET_STATUS:
-            // USB 2.0 9.4.5: endpoint GET_STATUS bit 0 = Halt
+            // USB 2.0 9.4.5: endpoint GET_STATUS bit 0 = Halt; an endpoint no interface owns is a Request Error
+            TU_VERIFY(ep_num == 0 || driver != NULL);
             TU_VERIFY(process_get_status(rhport, p_request, usbd_edpt_stalled(rhport, ep_addr) ? 0x0001u : 0x0000u));
             break;
 
@@ -1758,9 +1764,7 @@ void usbd_edpt_rx_consume(uint8_t rhport, uint8_t ep_addr) {
 
   TU_VERIFY((*ep_state & TU_EDPT_STATE_RX_PENDING) != 0,);
   (void) osal_mutex_lock(_usbd_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
-  if ((*ep_state & TU_EDPT_STATE_RX_PENDING) != 0) {
-    *ep_state &= (uint8_t) ~TU_EDPT_STATE_RX_PENDING;
-  }
+  *ep_state &= (uint8_t) ~TU_EDPT_STATE_RX_PENDING;
   (void) osal_mutex_unlock(_usbd_mutex);
 }
 
@@ -1846,7 +1850,6 @@ bool usbd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t* ff, uint16_
     // DCD error, mark endpoint as ready to allow next transfer
     _usbd_dev.ep_status[epnum][dir] &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
     TU_LOG_USBD("failed\r\n");
-    TU_BREAKPOINT();
     return false;
   }
   #else
