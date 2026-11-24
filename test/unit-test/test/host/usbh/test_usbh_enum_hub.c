@@ -128,12 +128,36 @@ static void child_attached(uint8_t hub_port) {
   TEST_ASSERT_TRUE(usbh_process_event(&attach, false));
 }
 
-// the child on HUB_PORT failed at address 0: its port disable is in flight
-static void fail_child_at_dev0(void) {
+// the child on HUB_PORT, highspeed on a fullspeed hub, fails at address 0, with its port disable refused at submit or not
+static void child_fails_at_dev0(bool disable_send_fails) {
   get_device(HUB_ADDR)->bus_info.speed = TUSB_SPEED_FULL;
   stage_port_status_speed(true, false, true);
+  setup_send_fails = disable_send_fails;
   complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
+}
+
+// the child on HUB_PORT failed at address 0: its port disable is in flight
+static void fail_child_at_dev0(void) {
+  child_fails_at_dev0(false);
   assert_port_disabled();
+}
+
+// the port disable was sent count times in all, the last still awaited or waiting to be resent: the hub is not polled
+static void assert_port_disable_sent(uint8_t count) {
+  TEST_ASSERT_EQUAL(count, setup_count);
+  TEST_ASSERT_EQUAL(HUB_ADDR, last_setup_daddr);
+  TEST_ASSERT_EQUAL(HUB_REQUEST_CLEAR_FEATURE, last_setup.bRequest);
+  TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
+  TEST_ASSERT_EQUAL(HUB_PORT, tu_le16toh(last_setup.wIndex));
+  TEST_ASSERT_FALSE(hub_status_polled());
+}
+
+// the child on HUB_PORT failed at address 0 and its port disable was refused at submit
+static void fail_child_at_dev0_unsent(void) {
+  child_fails_at_dev0(true);
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  assert_port_disable_sent(1);
 }
 
 // the child on HUB_PORT failed at address 0 and the hub answered the port disable with result
@@ -324,29 +348,44 @@ void test_hub_child_no_free_address_disables_port(void) {
   assert_port_disabled();
 }
 
-// the hub status poll resumes once the port is disabled, whatever the hub answered
+// the hub status poll resumes once the port is disabled
 void test_hub_port_disabled_rearms_status_poll(void) {
-  const xfer_result_t results[] = {XFER_RESULT_SUCCESS, XFER_RESULT_STALLED, XFER_RESULT_FAILED};
+  fail_child_port_disable(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(hub_status_polled());
+}
+
+// the hub did not disable the port, so the failed child still answers address 0: the disable is sent again, the hub
+// left unpolled and the next child held, until the hub disables the port
+void test_hub_port_not_disabled_resends_disable(void) {
+  const xfer_result_t results[] = {XFER_RESULT_STALLED, XFER_RESULT_FAILED, XFER_RESULT_TIMEOUT};
   for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
     setUp();
-    fail_child_at_dev0();
-    control_xfer_complete(HUB_ADDR, results[i]);
+    fail_child_port_disable(results[i]);
+    assert_port_disable_sent(2);
+    assert_next_child_held();
+
+    control_xfer_complete(HUB_ADDR, XFER_RESULT_SUCCESS);
     TEST_ASSERT_TRUE(hub_status_polled());
+    run_deferred_attach();
+    TEST_ASSERT_EQUAL(0, breakpoint_count);
   }
 }
 
-// the port disable cannot be sent: poll the hub right away instead
-void test_hub_port_disable_not_sent_polls_hub(void) {
-  get_device(HUB_ADDR)->bus_info.speed = TUSB_SPEED_FULL;
-  stage_port_status_speed(true, false, true);
-  setup_send_fails = true;
-  complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
+// the port disable is refused at every submit: once its attempts are spent the hub is polled again
+void test_hub_port_disable_never_sent_polls_hub(void) {
+  fail_child_at_dev0_unsent();
+  for (uint8_t attempt = 2; attempt <= USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX; attempt++) {
+    TEST_ASSERT_TRUE(tuh_task_event_ready());
+    (void) tuh_task_ext(0, false);
+    assert_port_disable_sent(attempt);
+    TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  }
 
-  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
-  TEST_ASSERT_EQUAL(1, setup_count);
-  TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
-  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  TEST_ASSERT_TRUE(tuh_task_event_ready());
+  (void) tuh_task_ext(0, false);
+  TEST_ASSERT_EQUAL(USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX, setup_count);
   TEST_ASSERT_TRUE(hub_status_polled());
+  TEST_ASSERT_FALSE(tuh_task_event_ready());
 }
 
 // the hub was unplugged (and closed) while its child debounced: the child fails with no request to the gone hub and no
@@ -428,31 +467,34 @@ void test_hub_removed_addressed_child_frees_address(void) {
 }
 
 // a child that failed at address 0 answers there until its port is disabled: the next child is not reset into address 0
-// until the hub answered the port disable, whatever the answer
+// until the hub disabled the port
 void test_hub_child_port_disable_holds_next_attach(void) {
-  const xfer_result_t results[] = {XFER_RESULT_SUCCESS, XFER_RESULT_STALLED, XFER_RESULT_FAILED, XFER_RESULT_TIMEOUT};
-  for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
-    setUp();
-    fail_child_at_dev0();
-    assert_next_child_held();
+  fail_child_at_dev0();
+  assert_next_child_held();
 
-    control_xfer_complete(HUB_ADDR, results[i]);
-    TEST_ASSERT_TRUE(hub_status_polled());
-    run_deferred_attach();
-    TEST_ASSERT_EQUAL(0, breakpoint_count);
-  }
+  control_xfer_complete(HUB_ADDR, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(hub_status_polled());
+  run_deferred_attach();
+  TEST_ASSERT_EQUAL(0, breakpoint_count);
 }
 
-// the hub did not disable the port: the failed child is not waited for until it is unplugged, which would hold every
-// later attach for as long, and need the hub polled meanwhile
+// the hub never disables the port: after USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX attempts it is polled again and the next
+// child released, rather than every later attach held and the hub left unserviced until the failed child is unplugged
 void test_hub_child_port_not_disabled_releases_next_attach(void) {
   const xfer_result_t results[] = {XFER_RESULT_STALLED, XFER_RESULT_FAILED, XFER_RESULT_TIMEOUT};
   for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
     setUp();
-    fail_child_port_disable(results[i]);
-    TEST_ASSERT_TRUE(hub_status_polled());
+    fail_child_at_dev0();
+    for (uint8_t attempt = 2; attempt <= USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX; attempt++) {
+      control_xfer_complete(HUB_ADDR, results[i]);
+      assert_port_disable_sent(attempt);
+    }
+    assert_next_child_held();
 
-    assert_next_child_enumerates();
+    control_xfer_complete(HUB_ADDR, results[i]);
+    TEST_ASSERT_EQUAL(USBH_ENUM_PORT_DISABLE_ATTEMPT_MAX, setup_count);
+    TEST_ASSERT_TRUE(hub_status_polled());
+    run_deferred_attach();
     TEST_ASSERT_EQUAL(0, breakpoint_count);
   }
 }
@@ -470,16 +512,35 @@ void test_hub_child_port_disable_holds_only_its_rhport(void) {
   TEST_ASSERT_TRUE(osal_queue_empty(_usbh_daq));
 }
 
-// the port disable cannot be sent: no request will complete to end the hold, so the next child is not held
-void test_hub_child_port_disable_not_sent_releases_next_attach(void) {
-  get_device(HUB_ADDR)->bus_info.speed = TUSB_SPEED_FULL;
-  stage_port_status_speed(true, false, true);
-  setup_send_fails = true;
-  complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
+// the port disable cannot be sent: the next child stays held while the usbh task sends it again
+void test_hub_child_port_disable_not_sent_holds_next_attach(void) {
+  fail_child_at_dev0_unsent();
   setup_send_fails = false;
-  TEST_ASSERT_TRUE(hub_status_polled());
+  child_attached(HUB_PORT + 1);
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_FALSE(osal_queue_empty(_usbh_daq));
 
-  assert_next_child_enumerates();
+  TEST_ASSERT_TRUE(tuh_task_event_ready());
+  (void) tuh_task_ext(0, false);
+  assert_port_disable_sent(2);
+  TEST_ASSERT_FALSE(tuh_task_event_ready());
+
+  control_xfer_complete(HUB_ADDR, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(hub_status_polled());
+  run_deferred_attach();
+}
+
+// the hub is removed while the port disable waits to be resent: nothing is sent to it, and the hold ends
+void test_hub_removed_with_port_disable_unsent_releases_hold(void) {
+  fail_child_at_dev0_unsent();
+  setup_send_fails = false;
+
+  remove_device_tree(RHPORT, 0, 0);
+  TEST_ASSERT_TRUE(tuh_task_event_ready());
+  (void) tuh_task_ext(0, false);
+  TEST_ASSERT_EQUAL(1, setup_count);
+  TEST_ASSERT_EQUAL(0, _usbh_data.failed_dev0_bus.hub_addr);
+  TEST_ASSERT_FALSE(tuh_task_event_ready());
 }
 
 // the hub is removed while the port disable is in flight: the request fails with it, which releases the next child
