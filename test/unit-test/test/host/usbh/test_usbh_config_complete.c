@@ -115,9 +115,20 @@ static void remove_device(void) {
 // a second device attached meanwhile: it waits at address 0 for its debounce delay
 static void remove_device_and_attach_another(void) {
   remove_device();
+  _usbh_data.enum_gen++; // as enum_new_device() does
   _usbh_data.enumerating_daddr = 0;
   _usbh_data.root_retry_count  = 2;
   usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
+}
+
+// the second device has since been given the address the first one freed
+static void remove_device_and_readdress_another(void) {
+  remove_device_and_attach_another();
+  usbh_device_t *dev = get_device(DADDR);
+  dev->bus_info.rhport = RHPORT;
+  dev->connected       = 1;
+  dev->addressed       = 1;
+  _usbh_data.enumerating_daddr = DADDR;
 }
 
 //--------------------------------------------------------------------+
@@ -424,4 +435,40 @@ void test_enum_refused_binding_keeps_enumeration_started_by_close_callback(void)
   TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
   TEST_ASSERT_EQUAL_PTR(enum_delay_async, _usbh_data.call_after.func);
   TEST_ASSERT_EQUAL(2, _usbh_data.root_retry_count);
+}
+
+// the close callback only handles the unplug: the attempt has ended already, with no root port retry
+void test_enum_refused_binding_ended_by_close_callback_unplug(void) {
+  static const uint8_t desc_cfg[] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+  };
+  const uint8_t enum_gen = _usbh_data.enum_gen;
+  close_hook = remove_device;
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg, sizeof(desc_cfg));
+
+  TEST_ASSERT_EQUAL(2, close_count);
+  TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+  TEST_ASSERT_EQUAL(enum_gen, _usbh_data.enum_gen);
+  TEST_ASSERT_EQUAL(0, _usbh_data.root_retry_count);
+  assert_enumeration_ended();
+}
+
+// the new attempt already holds the failed device's address: only enum_gen tells it apart
+void test_enum_refused_binding_keeps_new_attempt_at_same_address(void) {
+  static const uint8_t desc_cfg[] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+  };
+  close_hook = remove_device_and_readdress_another;
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg, sizeof(desc_cfg));
+
+  TEST_ASSERT_EQUAL(2, close_count);
+  TEST_ASSERT_TRUE(get_device(DADDR)->connected);
+  TEST_ASSERT_EQUAL(DADDR, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL_PTR(enum_delay_async, _usbh_data.call_after.func);
 }
