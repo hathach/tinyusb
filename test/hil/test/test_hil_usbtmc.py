@@ -12,6 +12,9 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+if sys.platform == 'win32':
+    raise unittest.SkipTest("the fake sysfs tree needs os.mkfifo and ':' in node names: POSIX only")
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import session_child     # noqa: E402
