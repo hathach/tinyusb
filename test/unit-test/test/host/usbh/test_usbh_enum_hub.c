@@ -120,6 +120,50 @@ static bool child_addr_free(void) {
   return enum_get_new_address(false) == CHILD_ADDR;
 }
 
+// the hub reports a child connected on hub_port, as hub.c posts it
+static void child_attached(uint8_t hub_port) {
+  hcd_event_t attach = {
+    .rhport = RHPORT, .event_id = HCD_EVENT_DEVICE_ATTACH, .connection = {.hub_addr = HUB_ADDR, .hub_port = hub_port}
+  };
+  TEST_ASSERT_TRUE(usbh_process_event(&attach, false));
+}
+
+// the child on HUB_PORT failed at address 0 and the hub answered the port disable with result
+static void fail_child_port_disable(xfer_result_t result) {
+  get_device(HUB_ADDR)->bus_info.speed = TUSB_SPEED_FULL;
+  stage_port_status_speed(true, false, true);
+  complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
+  assert_port_disabled();
+  control_xfer_complete(HUB_ADDR, result);
+}
+
+// the next child attached on HUB_PORT + 1 is held while the failed child may still answer address 0, the hub polled
+static void assert_next_child_deferred(void) {
+  TEST_ASSERT_TRUE(hub_status_polled());
+  child_attached(HUB_PORT + 1);
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_FALSE(osal_queue_empty(_usbh_daq));
+  TEST_ASSERT_FALSE(tuh_task_event_ready());
+  TEST_ASSERT_TRUE(hub_status_polled());
+}
+
+// the held attach runs as tuh_task() would run it
+static void run_deferred_attach(void) {
+  TEST_ASSERT_TRUE(tuh_task_event_ready());
+  hcd_event_t event;
+  TEST_ASSERT_TRUE(osal_queue_receive(_usbh_daq, &event, 0));
+  TEST_ASSERT_TRUE(usbh_process_event(&event, false));
+  TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(HUB_PORT + 1, _usbh_data.dev0_bus.hub_port);
+}
+
+// a request to the failed child still in flight when its enumeration ends: its completion, run by the teardown,
+// drives the usbh task, which starts the next child's enumeration
+static void in_flight_cb_attaches_next_child(tuh_xfer_t *xfer) {
+  (void) xfer;
+  child_attached(HUB_PORT + 1);
+}
+
 // a second child on another port of the hub reaches SET_ADDRESS
 static void second_child_set_address(uint8_t hub_port) {
   static const uint8_t desc_dev8[8] = {18, TUSB_DESC_DEVICE, U16_TO_U8S_LE(0x0200), 0, 0, 0, 64};
@@ -144,6 +188,10 @@ void setUp(void) {
   }
   _app_driver       = NULL;
   _app_driver_count = 0;
+
+  _usbh_q   = osal_queue_create(&_usbh_qdef);
+  _usbh_daq = osal_queue_create(&_usbh_daqdef);
+  _usbh_controller_id = RHPORT; // tuh_inited(), for tuh_task_event_ready()
 
   usbh_device_t *hub   = get_device(HUB_ADDR);
   hub->bus_info.rhport = RHPORT;
@@ -172,6 +220,7 @@ void setUp(void) {
 }
 
 void tearDown(void) {
+  _usbh_controller_id = TUSB_INDEX_INVALID_8;
 }
 
 //--------------------------------------------------------------------+
@@ -367,4 +416,75 @@ void test_hub_removed_addressed_child_frees_address(void) {
   TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
   TEST_ASSERT_EQUAL(0, setup_count);
   TEST_ASSERT_TRUE(child_addr_free());
+}
+
+// the hub did not disable the port of a child that failed at address 0: the next child is not reset into address 0
+// alongside it until the hub reports the failed child unplugged
+void test_hub_child_port_not_disabled_defers_next_attach(void) {
+  const xfer_result_t results[] = {XFER_RESULT_STALLED, XFER_RESULT_FAILED, XFER_RESULT_TIMEOUT};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
+    setUp();
+    fail_child_port_disable(results[i]);
+    assert_next_child_deferred();
+
+    hcd_event_t remove = {
+      .rhport = RHPORT, .event_id = HCD_EVENT_DEVICE_REMOVE, .connection = {.hub_addr = HUB_ADDR, .hub_port = HUB_PORT}
+    };
+    TEST_ASSERT_TRUE(usbh_process_event(&remove, false));
+    run_deferred_attach();
+    TEST_ASSERT_EQUAL(0, breakpoint_count);
+  }
+}
+
+// the port disable cannot be sent for a child at address 0: the next child is held as if the hub had refused it
+void test_hub_child_port_disable_not_sent_defers_next_attach(void) {
+  get_device(HUB_ADDR)->bus_info.speed = TUSB_SPEED_FULL;
+  stage_port_status_speed(true, false, true);
+  setup_send_fails = true;
+  complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
+  setup_send_fails = false;
+  assert_next_child_deferred();
+
+  // a new device on the failed child's port is reset there, which takes the failed child off address 0 too
+  child_attached(HUB_PORT);
+  TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(HUB_PORT, _usbh_data.dev0_bus.hub_port);
+}
+
+// the hub is removed with the failed child still enabled at address 0: the next child elsewhere enumerates
+void test_hub_removed_with_child_not_disabled_releases_next_attach(void) {
+  fail_child_port_disable(XFER_RESULT_STALLED);
+  assert_next_child_deferred();
+
+  remove_device_tree(RHPORT, 0, 0);
+  TEST_ASSERT_FALSE(tuh_connected(HUB_ADDR));
+  TEST_ASSERT_TRUE(tuh_task_event_ready());
+}
+
+// the port is disabled: the next child enumerates right away
+void test_hub_child_port_disabled_next_attach_enumerates(void) {
+  fail_child_port_disable(XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(hub_status_polled());
+
+  child_attached(HUB_PORT + 1);
+  TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_TRUE(osal_queue_empty(_usbh_daq));
+}
+
+// the failed child's teardown starts the next child's enumeration on another port: the port disabled and the address
+// held are still the failed child's
+void test_hub_addressed_child_teardown_attach_keeps_its_port(void) {
+  usbh_ctrl_xfer_info_t *ctrl_info = &_usbh_data.ctrl_xfer_info;
+  ctrl_info->daddr       = CHILD_ADDR;
+  ctrl_info->stage       = CONTROL_STAGE_DATA;
+  ctrl_info->complete_cb = in_flight_cb_attaches_next_child;
+  fail_addressed_child();
+
+  TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(HUB_PORT + 1, _usbh_data.dev0_bus.hub_port);
+  TEST_ASSERT_EQUAL(HUB_ADDR, last_setup_daddr);
+  TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
+  TEST_ASSERT_EQUAL(HUB_PORT, tu_le16toh(last_setup.wIndex));
+  TEST_ASSERT_EQUAL(HUB_PORT, get_device(CHILD_ADDR)->bus_info.hub_port);
+  TEST_ASSERT_FALSE(child_addr_free());
 }

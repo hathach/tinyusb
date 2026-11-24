@@ -234,6 +234,9 @@ typedef struct {
   uint8_t root_retry_count;   // root port re-enumerations used for the current attachment
   uint8_t root_retry_rhport;  // the port root_retry_count belongs to
   tuh_bus_info_t dev0_bus;    // bus info for dev0 in enumeration
+#if CFG_TUH_HUB
+  tuh_bus_info_t failed_dev0_bus; // hub port of a child failed at address 0, maybe still enabled; hub_addr 0: none
+#endif
   usbh_ctrl_xfer_info_t ctrl_xfer_info; // control transfer
   usbh_call_after_t call_after;
   usbh_pending_ctrl_t enum_xfer; // the failed enumeration request enum_xfer_retry() sends again
@@ -722,6 +725,24 @@ bool tuh_deinit(uint8_t rhport) {
   return true;
 }
 
+// A new device may be reset into address 0 only while nothing else answers there: no enumeration runs, and a child that
+// failed at address 0 behind a still connected hub has had its port disabled or been unplugged
+static bool enum_dev0_free(void) {
+  if (_usbh_data.enumerating_daddr != TUSB_INDEX_INVALID_8) {
+    return false;
+  }
+#if CFG_TUH_HUB
+  tuh_bus_info_t *failed_bus = &_usbh_data.failed_dev0_bus;
+  if (failed_bus->hub_addr != 0) {
+    if (tuh_connected(failed_bus->hub_addr)) {
+      return false;
+    }
+    failed_bus->hub_addr = 0; // gone with its hub, whose address may be given out again
+  }
+#endif
+  return true;
+}
+
 bool tuh_task_event_ready(void) {
   if (!tuh_inited()) {
     return false; // Skip if tusb stack is not initialized
@@ -731,8 +752,7 @@ bool tuh_task_event_ready(void) {
   }
 
   #if CFG_TUH_HUB
-  if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 &&
-      !osal_queue_empty(_usbh_daq)) {
+  if (enum_dev0_free() && !osal_queue_empty(_usbh_daq)) {
     return true;
   }
   #endif
@@ -771,7 +791,7 @@ static bool usbh_process_event(hcd_event_t* event, bool in_isr) {
       _usbh_data.attach_teardown = 0;
 
       // due to the shared control buffer, we must fully complete enumerating one device first.
-      if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
+      if (enum_dev0_free()) {
         // New device attached and we are ready
         TU_LOG_USBH("[%u:] USBH Device Attach\r\n", event->rhport);
         _usbh_data.enumerating_daddr = 0; // enumerate new device with address 0
@@ -781,6 +801,11 @@ static bool usbh_process_event(hcd_event_t* event, bool in_isr) {
       else {
         TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event->rhport);
         TU_ASSERT(osal_queue_send(_usbh_daq, event, in_isr), false);
+        // Held by a failed child, not an enumeration whose completion polls its hub again: that can last until the
+        // child is unplugged, which the reporting hub, possibly the failed child's own, must stay polled to see
+        if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8 && event->connection.hub_addr != 0) {
+          (void) hub_edpt_status_xfer(event->connection.hub_addr);
+        }
       }
 #endif
       break;
@@ -966,7 +991,7 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
   #if CFG_TUH_HUB
     // Get deferred device attachments if none is enumerating
     bool has_deferred_attach = false;
-    if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
+    if (enum_dev0_free()) {
       // zero wait to avoid blocking the main event queue
       has_deferred_attach = osal_queue_receive(_usbh_daq, &event, 0);
     }
@@ -1814,6 +1839,15 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
 
 // process detach event from rhport:hub_addr:hub_port
 static void process_remove_event(hcd_event_t *event) {
+#if CFG_TUH_HUB
+  // the child that failed at address 0 is unplugged, or its port is about to be reset for a new device
+  tuh_bus_info_t *failed_bus = &_usbh_data.failed_dev0_bus;
+  if (failed_bus->hub_addr != 0 && event->rhport == failed_bus->rhport &&
+      event->connection.hub_addr == failed_bus->hub_addr && event->connection.hub_port == failed_bus->hub_port) {
+    failed_bus->hub_addr = 0;
+  }
+#endif
+
   const tuh_bus_info_t *dev0_bus = &_usbh_data.dev0_bus;
   const bool dev0_enumerating = (_usbh_data.enumerating_daddr == 0) && (event->rhport == dev0_bus->rhport);
 
@@ -2656,9 +2690,9 @@ static void enum_teardown(bool success) {
 #if CFG_TUH_HUB
 // Hold a failed child's address while its port may still be enabled: removing keeps it out of tuh_connected(), and
 // connected out of enum_get_new_address() until the port is disabled or remove_device_tree() sees it unplugged
-static void enum_hold_address(uint8_t daddr) {
+static void enum_hold_address(uint8_t daddr, const tuh_bus_info_t *bus_info) {
   usbh_device_t *dev = get_device(daddr);
-  dev->bus_info      = _usbh_data.dev0_bus;
+  dev->bus_info      = *bus_info;
   dev->connected     = 1;
   dev->removing      = 1;
 }
@@ -2666,8 +2700,13 @@ static void enum_hold_address(uint8_t daddr) {
 // user_data is the failed child's address, 0 when it never left address 0
 static void enum_hub_port_disabled(tuh_xfer_t *xfer) {
   const uint8_t child_addr = (uint8_t) xfer->user_data;
-  if (child_addr != 0 && xfer->result == XFER_RESULT_SUCCESS) {
-    clear_device(get_device(child_addr));
+  if (xfer->result == XFER_RESULT_SUCCESS) {
+    tuh_bus_info_t *failed_bus = &_usbh_data.failed_dev0_bus;
+    if (child_addr != 0) {
+      clear_device(get_device(child_addr));
+    } else if (failed_bus->hub_addr == xfer->daddr && failed_bus->hub_port == tu_le16toh(xfer->setup->wIndex)) {
+      failed_bus->hub_addr = 0;
+    }
   }
   (void) hub_edpt_status_xfer(xfer->daddr);
 }
@@ -2675,37 +2714,41 @@ static void enum_hub_port_disabled(tuh_xfer_t *xfer) {
 
 static void enum_full_complete(bool success) {
   TU_LOG_USBH("Enumeration complete: success = %u\r\n", success);
+  // a callback run by the teardown may start the next enumeration, which rewrites dev0_bus
+  const tuh_bus_info_t dev0_bus = _usbh_data.dev0_bus;
   #if CFG_TUH_HUB
   const uint8_t daddr = _usbh_data.enumerating_daddr;
+  if (!success && daddr == 0 && dev0_bus.hub_addr != 0) {
+    _usbh_data.failed_dev0_bus = dev0_bus; // it answers address 0 until its port is disabled, see enum_dev0_free()
+  }
   #endif
   enum_teardown(success);
 
   #if CFG_TUH_HUB
   // Hub status is already requested in case of successful enumeration
-  const tuh_bus_info_t *dev0_bus = &_usbh_data.dev0_bus;
-  if (!success && dev0_bus->hub_addr != 0) {
+  if (!success && dev0_bus.hub_addr != 0) {
     // A failed child left enabled answers alongside the next child: at address 0 once the hub resets that one, or at
     // its own address once enum_get_new_address() hands it out again. Disable its port (USB 2.0 11.5, 11.24.2.2; no
     // C_PORT_ENABLE follows, 11.24.2.7.2.2) before polling the hub again, holding its address until that succeeds.
     // A removed hub refuses the request, which hub_port_clear_feature() asserts on, and took the child with it
-    const bool disable_port = daddr <= TOTAL_DEVICES && tuh_connected(dev0_bus->hub_addr);
+    const bool disable_port = daddr <= TOTAL_DEVICES && tuh_connected(dev0_bus.hub_addr);
     if (disable_port && daddr != 0) {
-      enum_hold_address(daddr);
+      enum_hold_address(daddr, &dev0_bus);
     }
-    if (!disable_port || !hub_port_clear_feature(dev0_bus->hub_addr, dev0_bus->hub_port, HUB_FEATURE_PORT_ENABLE,
+    if (!disable_port || !hub_port_clear_feature(dev0_bus.hub_addr, dev0_bus.hub_port, HUB_FEATURE_PORT_ENABLE,
                                                  enum_hub_port_disabled, daddr)) {
-      hub_edpt_status_xfer(dev0_bus->hub_addr);
+      hub_edpt_status_xfer(dev0_bus.hub_addr);
     }
   }
   #endif
 
-  const uint8_t rhport = _usbh_data.dev0_bus.rhport;
+  const uint8_t rhport = dev0_bus.rhport;
   if (rhport != _usbh_data.root_retry_rhport) {
     _usbh_data.root_retry_rhport = rhport; // the budget is per port, and only one port enumerates at a time
     _usbh_data.root_retry_count = 0;
   }
 
-  if (success || _usbh_data.attach_teardown || _usbh_data.dev0_bus.hub_addr != 0 ||
+  if (success || _usbh_data.attach_teardown || dev0_bus.hub_addr != 0 ||
       !hcd_port_connect_status(rhport)) {
     // The budget covers one attachment, so it has to be given back when that attachment ends,
     // whether it succeeded or the device was unplugged part-way through. Carrying a spent count
