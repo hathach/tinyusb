@@ -369,8 +369,11 @@ static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t cons
   for(uint8_t i=0; i<CFG_TUH_CDC; i++) {
     if (cdch_data[i].daddr == 0) {
       cdch_interface_t * p_cdc = &cdch_data[i];
-      // a freed slot keeps its previous device's state: clear all but the stream storage cdch_init() set up
+      // a freed slot keeps its previous device's state: clear all but the stream storage cdch_init() set up, and
+      // close its streams so a failed open closes only the endpoints it opened
       tu_memclr(p_cdc, offsetof(cdch_interface_t, stream));
+      tu_edpt_stream_close(&p_cdc->stream.tx);
+      tu_edpt_stream_close(&p_cdc->stream.rx);
       open_new_itf              = p_cdc;
       p_cdc->daddr              = daddr;
       p_cdc->bInterfaceNumber   = itf_desc->bInterfaceNumber;
@@ -735,7 +738,7 @@ static const uint8_t *desc_next_bounded(const uint8_t *p_desc, const uint8_t *de
 }
 
 // Open the two bulk endpoints at p_desc; returns the descriptor after them, or NULL.
-// Both are validated before either opens: usbh closes no endpoint of an interface it did not bind.
+// Both descriptors are checked before either opens; a controller refusal of the second leaves the first to cdch_open().
 static const uint8_t *open_ep_stream_pair(cdch_interface_t *p_cdc, const uint8_t *p_desc, const uint8_t *desc_end) {
   const tusb_desc_endpoint_t *desc_eps[2];
   for (size_t i = 0; i < 2; i++) {
@@ -746,6 +749,8 @@ static const uint8_t *open_ep_stream_pair(cdch_interface_t *p_cdc, const uint8_t
               NULL);
     p_desc = next;
   }
+  // one per stream: cdch_open() closes an opened endpoint through the stream that records it
+  TU_ASSERT(tu_edpt_dir(desc_eps[0]->bEndpointAddress) != tu_edpt_dir(desc_eps[1]->bEndpointAddress), NULL);
 
   for (size_t i = 0; i < 2; i++) {
     const tusb_desc_endpoint_t *desc_ep = desc_eps[i];
@@ -806,8 +811,17 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
   open_new_itf = NULL;
   const uint16_t drv_len = open_itf(daddr, itf_desc, max_len);
   if (drv_len == 0 && open_new_itf != NULL) {
-    // usbh calls no close for an interface it did not bind: release the slot this open reserved, not one an earlier
-    // open of the same interface number (another alternate setting) holds
+    // usbh calls no close for an interface it did not bind: close the endpoints this open opened and release the slot
+    // it reserved, not one an earlier open of the same interface number (another alternate setting) holds
+    if (open_new_itf->ep_notif != 0) {
+      (void)tuh_edpt_close(daddr, open_new_itf->ep_notif);
+    }
+    if (tu_edpt_stream_is_opened(&open_new_itf->stream.tx)) {
+      (void)tuh_edpt_close(daddr, open_new_itf->stream.tx.ep_addr);
+    }
+    if (tu_edpt_stream_is_opened(&open_new_itf->stream.rx)) {
+      (void)tuh_edpt_close(daddr, open_new_itf->stream.rx.ep_addr);
+    }
     tu_edpt_stream_close(&open_new_itf->stream.tx);
     tu_edpt_stream_close(&open_new_itf->stream.rx);
     open_new_itf->daddr            = 0;

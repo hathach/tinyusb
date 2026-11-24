@@ -23,6 +23,8 @@ static unsigned configured_count;
 static unsigned opened_count;
 static unsigned umount_count;
 static uint8_t  edpt_open_fail_addr; // tuh_edpt_open() fails for this endpoint, 0 for none
+static uint8_t  closed_eps[3];
+static unsigned closed_count;
 
 //--------------------------------------------------------------------+
 // Host stack and bulk stream stubs. Control requests use the real CDC driver.
@@ -48,6 +50,13 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
     return false;
   }
   opened_count++;
+  return true;
+}
+
+bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
+  TEST_ASSERT_EQUAL(DEV_ADDR, daddr);
+  TEST_ASSERT_LESS_THAN(TU_ARRAY_SIZE(closed_eps), closed_count);
+  closed_eps[closed_count++] = ep_addr;
   return true;
 }
 
@@ -124,16 +133,20 @@ uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
 //--------------------------------------------------------------------+
 // Helpers
 //--------------------------------------------------------------------+
-static void complete_request(void) {
+static void complete_request_with(xfer_result_t result) {
   TEST_ASSERT_TRUE(pending);
   // A completion may queue another request, so keep this request on the stack.
   tusb_control_request_t setup = pending_setup;
   tuh_xfer_t xfer = pending_xfer;
   xfer.setup = &setup;
-  xfer.result = XFER_RESULT_SUCCESS;
+  xfer.result = result;
   xfer.actual_len = 0;
   pending = false;
   xfer.complete_cb(&xfer);
+}
+
+static void complete_request(void) {
+  complete_request_with(XFER_RESULT_SUCCESS);
 }
 
 static uint8_t open_ftdi(uint16_t version, uint8_t itf_num) {
@@ -184,7 +197,7 @@ void setUp(void) {
   memset(&device_desc, 0, sizeof(device_desc));
   pending = false;
   request_count = callback_count = configured_count = 0;
-  opened_count = umount_count = 0;
+  opened_count = umount_count = closed_count = 0;
   edpt_open_fail_addr = 0;
   TEST_ASSERT_TRUE(cdch_init());
 }
@@ -212,6 +225,76 @@ void test_failed_open_releases_slot(void) {
   edpt_open_fail_addr = 0;
   TEST_ASSERT_EQUAL(sizeof(desc), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
   TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+}
+
+// usbh closes no endpoint of an interface it did not bind: a failed open closes the endpoints it already opened
+void test_failed_open_closes_opened_endpoints(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  edpt_open_fail_addr = EP_IN;
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(1, opened_count);
+  TEST_ASSERT_EQUAL(1, closed_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, closed_eps[0]);
+}
+
+// Same for ACM, whose notification endpoint opens before the data pair
+void test_failed_acm_open_closes_notification_endpoint(void) {
+  const uint8_t acm[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EP_NOTIF, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(8), 16,
+    9, TUSB_DESC_INTERFACE, 1, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  edpt_open_fail_addr = EP_IN;
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) acm, sizeof(acm)));
+  TEST_ASSERT_EQUAL(2, opened_count);
+  TEST_ASSERT_EQUAL(2, closed_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_NOTIF, closed_eps[0]);
+  TEST_ASSERT_EQUAL_HEX8(EP_OUT, closed_eps[1]);
+}
+
+// A slot freed by a failed configuration keeps its stream endpoints: a failed open on it closes none of them
+void test_failed_open_on_reused_slot_closes_only_its_endpoints(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  TEST_ASSERT_EQUAL(sizeof(desc), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_TRUE(cdch_set_config(DEV_ADDR, 0));
+  complete_request_with(XFER_RESULT_FAILED);
+  TEST_ASSERT_EQUAL(1, configured_count);
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+
+  edpt_open_fail_addr = EP_OUT;
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, closed_count);
+}
+
+// Two bulk endpoints of one direction are not opened: the stream pair records one endpoint per direction
+void test_open_rejects_same_direction_pair(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_EQUAL(0, opened_count);
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
 }
 
 // usbh offers alternate setting 1 after setting 0 is open: rejecting it before reserving a slot must not release the
