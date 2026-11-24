@@ -329,11 +329,7 @@ void test_hub_port_disabled_rearms_status_poll(void) {
   const xfer_result_t results[] = {XFER_RESULT_SUCCESS, XFER_RESULT_STALLED, XFER_RESULT_FAILED};
   for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
     setUp();
-    get_device(HUB_ADDR)->bus_info.speed = TUSB_SPEED_FULL;
-    stage_port_status_speed(true, false, true);
-    complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
-    assert_port_disabled();
-
+    fail_child_at_dev0();
     control_xfer_complete(HUB_ADDR, results[i]);
     TEST_ASSERT_TRUE(hub_status_polled());
   }
