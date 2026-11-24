@@ -137,6 +137,9 @@ static struct {
   uint8_t count[RECV_NTB_N];
 } ncm_recv_hold;
 
+// Bumped by netd_init(): a nested reset can hand recv_glue_ntb the same NTB address with a new layout.
+static uint8_t ncm_init_tagid;
+
 // Link state requested by tud_network_link_state(), applied by ncm_link_state_task() in the usbd task.
 // Kept outside ncm_interface so that netd_reset() does not drop a request whose deferred call is still queued.
 static struct {
@@ -734,11 +737,13 @@ static void recv_transfer_datagram_to_glue_logic(void) {
 
       TU_LOG_DRV("  recv[%d] - %d %d\n", ncm_interface.recv_glue_ntb_datagram_ndx, datagramIndex, datagramLength);
       recv_ntb_t *ntb = ncm_interface.recv_glue_ntb;
+      const uint8_t tagid = ncm_init_tagid;
       if (tud_network_recv_cb(ntb->data + datagramIndex, datagramLength)) {
         // send datagram successfully to glue logic
         TU_LOG_DRV("    OK\n");
-        if (ncm_interface.recv_glue_ntb != ntb) {
-          // a bus reset in a nested tud_task() re-ran netd_init(): it freed this NTB, or its last release will
+        if (ncm_init_tagid != tagid || ncm_interface.recv_glue_ntb != ntb) {
+          // a bus reset in a nested tud_task() re-ran netd_init(): it freed this NTB, or its last release will,
+          // and ndp16_datagram may point into the stale layout of an NTB reused at the same address
           return;
         }
         datagramIndex = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramIndex;
@@ -980,6 +985,7 @@ void netd_init(void) {
   TU_LOG_DRV("netd_init()\n");
 
   memset(&ncm_interface, 0, sizeof(ncm_interface));
+  ncm_init_tagid++;
 
   ncm_interface.xmit_max_ntb_size = CFG_TUD_NCM_IN_NTB_MAX_SIZE;
   ncm_interface.xmit_max_datagrams = CFG_TUD_NCM_IN_MAX_DATAGRAMS_PER_NTB;
