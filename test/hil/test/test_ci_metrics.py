@@ -51,6 +51,14 @@ def _read(path):
         return f.read()
 
 
+def step_script(name, workflow='pr_comment.yml'):
+    """The dedented `run: |` block of the step `name` (unique in `workflow`), up to its first blank line."""
+    text = _read(os.path.join(REPO, '.github', 'workflows', workflow))
+    i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
+    j = re.search(r'^\s*$', text[i:], re.M).start() + i
+    return re.sub(r'^ {10}', '', text[i:j], flags=re.M)
+
+
 class TestCircleCiSentinelContract(unittest.TestCase):
     """config.yml's set-matrix rewrites config2.yml's parameter defaults by matching
     a sentinel comment line — the only way past /pipeline/continue's 512-char
@@ -454,14 +462,6 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
     def test_the_code_size_comment_is_written_even_without_usable_snapshots(self):
         # a run without usable snapshots, and a baseline lookup that fails, must still
         # leave a comment.md, so the post replaces an earlier push's table
-        import subprocess, tempfile
-        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'), encoding='utf-8') as f:
-            text = f.read()
-
-        def step_script(name):
-            i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
-            j = re.search(r'^\s*$', text[i:], re.M).start() + i  # the block ends at the first blank line
-            return re.sub(r'^ {10}', '', text[i:j], flags=re.M)
         with tempfile.TemporaryDirectory() as d:
             env = {**os.environ, 'RUNNER_TEMP': d, 'REPO': 'x/y', 'RUN_URL': 'https://example/run',
                    'GITHUB_STEP_SUMMARY': os.path.join(d, 'summary.md'), 'GITHUB_OUTPUT': os.path.join(d, 'out'),
@@ -490,22 +490,18 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertTrue(comment.endswith('_[Full report](https://example/run)_\n'))
 
     def test_a_freshness_check_that_cannot_tell_never_skips_silently(self):
-        # is-current exits 1 for a superseded run (skip the post) and 2 when the API cannot tell (fail the step)
-        import tempfile
+        # hil-comment's early SystemView gate: 1 superseded and 2 unknown both skip the SystemView work, the unknown
+        # one with a warning; the post's own recheck is what fails on unknown
         if _no_bash() or sys.platform == 'win32':   # which('gh') there finds a .bat, not this sh stub
             raise unittest.SkipTest(_no_bash() or 'a POSIX gh stub')
-        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'), encoding='utf-8') as f:
-            text = f.read()
         for wf in ('pr_comment.yml', 'membrowse-comment.yml'):
-            with open(os.path.join(REPO, '.github', 'workflows', wf), encoding='utf-8') as f:
-                calls = f.read().split('code_size_ci.py is-current')[1:]
+            calls = _read(os.path.join(REPO, '.github', 'workflows', wf)).split('code_size_ci.py is-current')[1:]
             self.assertTrue(calls, wf)
             for call in calls:
                 self.assertIn('|| rc=$?', call.split('\n')[1], wf)   # its exit code is read, never just tested
-        i = text.index('run: |\n', text.index('- name: Skip a superseded run\n')) + len('run: |\n')
-        j = re.search(r'^\s*$', text[i:], re.M).start() + i
-        script = re.sub(r'^ {10}', '', text[i:j], flags=re.M)
-        for answer, rc, posted in (('exit 1', 1, ''), ("echo '{\"head\": {\"sha\": \"bbbbbbb\"}}'", 0, '')):
+        script = step_script("Check the run is still the PR's latest")
+        for answer, said in (('exit 1', '::warning::cannot tell'),
+                             ("echo '{\"head\": {\"sha\": \"bbbbbbb\"}}'", 'stale: PR #5 head moved')):
             with self.subTest(gh=answer), tempfile.TemporaryDirectory() as d:
                 with open(os.path.join(d, 'gh'), 'w', encoding='utf-8', newline='\n') as f:
                     f.write(f'#!/bin/sh\n{answer}\n')
@@ -513,102 +509,54 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 out = os.path.join(d, 'out')
                 open(out, 'w').close()
                 env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '1', 'HEAD_SHA': 'a' * 40,
-                       'GITHUB_OUTPUT': out, 'PATH': d + os.pathsep + os.environ['PATH']}
+                       'RUNNER_TEMP': d, 'GITHUB_OUTPUT': out, 'PATH': d + os.pathsep + os.environ['PATH']}
                 r = run_bash(['-e', '-o', 'pipefail', '-c', script], cwd=REPO, capture_output=True, text=True,
                              env=env)
-                self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
-                with open(out, encoding='utf-8') as f:
-                    self.assertEqual(f.read(), posted)
-                if rc:
-                    self.assertIn('::error::cannot tell', r.stdout)
-                else:
-                    self.assertIn('stale: PR #5 head moved', r.stdout)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertEqual(_read(out), '')   # no current=true: the SystemView work is skipped
+                self.assertIn(said, r.stdout)
 
-    def test_the_sticky_posts_update_marocchinos_comment_only_while_current(self):
-        # agentrc's gh_pr_comment.py post: 0 posted, 1 superseded (the step passes, nothing written), 2 unknown (fails)
-        if _no_bash() or sys.platform == 'win32':   # which('gh') there finds a .bat, not this stub
-            raise unittest.SkipTest(_no_bash() or 'a POSIX gh stub')
+    def test_the_sticky_posts_run_agentrcs_post_and_read_its_exit(self):
+        # gh_pr_comment.py post's own rules are agentrc's tests; this pins the wiring: its arguments, and that 0
+        # (posted) and 1 (superseded) pass while 2 (unknown) fails the step
+        if _no_bash():
+            raise unittest.SkipTest(_no_bash())
         text = _read(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'))
-        hil = text.index('\n  hil-comment:\n')
-        size = text.index('\n  code-size-comment:\n')
-        # (job, post step, header, body file under the step's cwd or RUNNER_TEMP, its error)
-        posts = ((text[hil:size], 'Post HIL report as sticky PR comment', 'hil-report', 'hil_combined.md',
-                  'HIL report comment'),
-                 (text[size:], 'Post code size as sticky PR comment', 'code-size', 'code-size/out/comment.md',
-                  'code size comment'))
-        check = subprocess.run([sys.executable, 'test/hil/helper/agentrc.py', 'check'], cwd=REPO,
-                               capture_output=True, text=True)
-        self.assertEqual(check.returncode, 0, check.stderr)
-        for job, step, header, body_file, what in posts:
-            with self.subTest(header):
-                self._check_sticky_post(job, step, header, body_file, what, json.loads(check.stdout)['root'])
-
-    def _check_sticky_post(self, job, step, header, body_file, what, agentrc_root):
-        name = job[3:job.index(':')]
-        self.assertIn(f'concurrency:\n      group: {name}-${{{{ needs.pr_number.outputs.number }}}}\n', job)
-        self.assertNotIn('uses: marocchino', job)
-        if header == 'hil-report':   # its own is-current gate stays ahead of the post
-            self.assertIn('- name: Skip a superseded run\n        id: current\n', job)
-            self.assertIn(f"- name: {step}\n        if: steps.current.outputs.post == 'true'\n", job)
-        i = job.index('run: |\n', job.index(f'- name: {step}\n')) + len('run: |\n')
-        j = re.search(r'^\s*$', job[i:], re.M).start() + i
-        script = re.sub(r'^ {10}', '', job[i:j], flags=re.M)
+        hil, size = text.index('\n  hil-comment:\n'), text.index('\n  code-size-comment:\n')
         fetch = '$(python3 test/hil/helper/agentrc.py fetch)'
-        self.assertIn(fetch, script)
-        script = script.replace(fetch, shlex.quote(agentrc_root))
-        marker = f'<!-- Sticky Pull Request Comment{header} -->'
-        stub = '''#!/usr/bin/env python3
-import json, os, sys
-args, path = sys.argv[1:], sys.argv[-1]
-with open(os.environ['GH_LOG'], 'a', encoding='utf-8') as f:
-    f.write(' '.join(args) + '\\n')
-if os.environ['GH_FAIL']:
-    sys.exit(1)
-if path == 'graphql' and 'viewer' in ' '.join(args):
-    reply = {'data': {'viewer': {'login': 'github-actions'}}}
-elif path == 'graphql':   # --jq prints the nodes, one per line
-    reply = {'databaseId': 9, 'author': {'login': 'github-actions'}, 'isMinimized': False,
-             'body': 'old table\\n' + os.environ['MARKER']}
-elif path == 'repos/x/y/pulls/5':
-    reply = {'head': {'sha': os.environ['PR_HEAD'], 'ref': 'f', 'repo': {'full_name': 'x/y'}}}
-elif path.startswith('repos/x/y/actions/workflows/build.yml/runs?'):
-    reply = {'id': 7, 'run_number': 3, 'pull_requests': [{'number': 5}]}
-elif path == 'repos/x/y/actions/runs/7':
-    reply = {'run_attempt': 1}
-elif path == 'repos/x/y/issues/comments/9' and '--method PATCH' in ' '.join(args):
-    with open(os.environ['GH_BODY'], 'w', encoding='utf-8') as f:
-        f.write(json.load(sys.stdin)['body'])
-    reply = {'html_url': 'https://example/c/9'}
-else:
-    sys.exit(f'unexpected gh api {path}')
-print(json.dumps(reply))
-'''
-        for case, pr_head, fail, rc in (('current', 'a' * 40, '', 0), ('superseded', 'b' * 40, '', 0),
-                                        ('unknown', 'a' * 40, '1', 1)):
-            with self.subTest(case), tempfile.TemporaryDirectory() as d:
-                with open(os.path.join(d, 'gh'), 'w', encoding='utf-8', newline='\n') as f:
-                    f.write(stub)
-                os.chmod(os.path.join(d, 'gh'), 0o755)
-                os.makedirs(os.path.dirname(os.path.join(d, body_file)), exist_ok=True)
-                with open(os.path.join(d, body_file), 'w', encoding='utf-8') as f:
-                    f.write('## Report\n\nnew table\n')
-                body = os.path.join(d, 'body')
-                env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '1', 'HEAD_SHA': 'a' * 40,
-                       'RUNNER_TEMP': d, 'PR_HEAD': pr_head, 'GH_FAIL': fail, 'MARKER': marker,
-                       'GH_LOG': os.path.join(d, 'log'), 'GH_BODY': body,
-                       'PATH': d + os.pathsep + os.environ['PATH']}
-                r = run_bash(['-e', '-o', 'pipefail', '-c', script], cwd=d, capture_output=True, text=True,
-                             env=env)
-                self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
-                if case == 'current':
-                    self.assertIn('updated https://example/c/9', r.stdout)
-                    self.assertEqual(_read(body), f'## Report\n\nnew table\n\n{marker}')
-                    continue
-                self.assertFalse(os.path.exists(body))
-                if case == 'superseded':
-                    self.assertIn('stale: PR #5 head moved', r.stdout)
-                else:
-                    self.assertIn(f'::error::{what} not posted (exit 2)', r.stdout)
+        stub = ('import json, os, sys\n'
+                "json.dump(sys.argv[1:], open(os.environ['ARGV'], 'w'))\n"
+                "sys.exit(int(os.environ['STUB_RC']))\n")
+        for job, step, header, body, what in (
+                (text[hil:size], 'Post HIL report as sticky PR comment', 'hil-report', 'hil_combined.md',
+                 'HIL report comment'),
+                (text[size:], 'Post code size as sticky PR comment', 'code-size', '{t}/code-size/out/comment.md',
+                 'code size comment')):
+            name = job[3:job.index(':')]
+            self.assertIn(f'concurrency:\n      group: {name}-${{{{ needs.pr_number.outputs.number }}}}\n', job)
+            self.assertNotIn('uses: marocchino', job)
+            self.assertNotIn('steps.current.', job)   # no gate of its own: post rechecks right before its write
+            script = step_script(step)
+            self.assertIn(fetch, script)
+            for stub_rc, rc in ((0, 0), (1, 0), (2, 1)):
+                with self.subTest(header, exit=stub_rc), tempfile.TemporaryDirectory() as d:
+                    scripts = os.path.join(d, 'agentrc', 'skills', 'hil', 'scripts')
+                    os.makedirs(scripts)
+                    with open(os.path.join(scripts, 'gh_pr_comment.py'), 'w', encoding='utf-8') as f:
+                        f.write(stub)
+                    argv = os.path.join(d, 'argv.json')
+                    env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '2',
+                           'HEAD_SHA': 'a' * 40, 'RUNNER_TEMP': d, 'ARGV': argv, 'STUB_RC': str(stub_rc)}
+                    r = run_bash(['-e', '-o', 'pipefail', '-c',
+                                  script.replace(fetch, shlex.quote(os.path.join(d, 'agentrc')))],
+                                 cwd=d, capture_output=True, text=True, env=env)
+                    self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
+                    self.assertEqual(json.loads(_read(argv)),
+                                     ['post', '--repo', 'x/y', '--pr', '5', '--header', header,
+                                      '--body-file', body.format(t=d), '--run-id', '7', '--attempt', '2',
+                                      '--head-sha', 'a' * 40, '--workflow', 'build.yml'])
+                    if rc:
+                        self.assertIn(f'::error::{what} not posted (exit 2)', r.stdout)
 
     def _run_block(self, block, sel, setup=None):
         """Run a dedented build.yml step block with `sel` as selection.json in a temp

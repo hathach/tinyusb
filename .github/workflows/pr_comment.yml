@@ -74,8 +74,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # agentrc at the default branch's pin: is-current's gh_pr_comment.py and the SystemView decoder; without it
-      # the post gate cannot tell (exit 2) and fails, so a failed fetch fails here first
+      # agentrc at the default branch's pin: gh_pr_comment.py and the SystemView decoder; without it the post cannot
+      # tell (exit 2) and fails, so a failed fetch fails here first
       - name: Get agentrc
         run: python3 test/hil/helper/agentrc.py fetch
 
@@ -119,8 +119,8 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
 
-      # a run a newer push or attempt supersedes would only discard the SystemView work below; "Skip a superseded
-      # run" checks again before posting
+      # a run a newer push or attempt supersedes would only discard the SystemView work below; the post checks again
+      # right before its write
       - name: Check the run is still the PR's latest
         id: early-current
         env:
@@ -145,7 +145,7 @@ jobs:
             echo '_SystemView report unavailable: checking the HIL reports for captures failed (see the job log)._' \
               > "$SV/notice.md"
           fi
-          # 1: superseded, nothing to render; 2: unknown, left to "Skip a superseded run" to fail on
+          # 1: superseded, nothing to render; 2: unknown, left to the post to fail on
           rc=0
           python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
             --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
@@ -257,32 +257,10 @@ jobs:
           zwsp=$(printf '\342\200\213')
           sed -i -E "s/@([A-Za-z0-9_-])/@${zwsp}\1/g" hil_combined.md
           cat hil_combined.md
-          echo "found=true" >> "$GITHUB_OUTPUT"
 
-      - name: Skip a superseded run
-        id: current
-        if: steps.combine.outputs.found == 'true'
-        env:
-          PR: ${{ needs.pr_number.outputs.number }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          # 1: superseded, a newer run posts; 2: unknown, never a silent skip
-          rc=0
-          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
-            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
-          case $rc in
-            0) echo "post=true" >> "$GITHUB_OUTPUT" ;;
-            1) ;;
-            *) echo "::error::cannot tell whether run $RUN_ID is still the PR's latest (exit $rc): not posting"
-               exit 1 ;;
-          esac
-
-      # agentrc's sticky post under marocchino's marker for the header, rechecking freshness right before the write:
-      # 1: superseded since the gate above, a newer run posts; 2: unknown, never a silent skip
+      # agentrc's sticky post keeps marocchino's marker for the header, so it updates that action's earlier comment.
+      # It rechecks freshness right before the write: 1: superseded, a newer run posts; 2: unknown, never a silent skip
       - name: Post HIL report as sticky PR comment
-        if: steps.current.outputs.post == 'true'
         env:
           PR: ${{ needs.pr_number.outputs.number }}
           RUN_ID: ${{ github.event.workflow_run.id }}

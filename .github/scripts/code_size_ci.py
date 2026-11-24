@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""pr_comment.yml's code-size comment mechanics. Needs `gh` with a token that can read Actions.
+"""pr_comment.yml's code-size baseline lookup, and the freshness check of a Build run for the work no sticky post
+rechecks. Needs `gh` with a token that can read Actions.
 
   code_size_ci.py baseline --repo OWNER/NAME --current CUR_DIR --info INFO.json
 
@@ -14,8 +15,9 @@ downloads run_id's `code-size-*` artifacts.
   code_size_ci.py is-current --repo OWNER/NAME --pr N --run-id ID --attempt A --head-sha SHA
 
 exits 0 when that Build run attempt is still the PR's latest, 1 when a newer push, run
-or attempt supersedes it: its comment would overwrite a newer one; 2 when the API, or
-agentrc's gh_pr_comment.py that answers it, cannot tell.
+or attempt supersedes it; 2 when the API, or agentrc's gh_pr_comment.py that answers it,
+cannot tell. membrowse-comment.yml gates its post on it, and hil-comment its SystemView
+work; agentrc's gh_pr_comment.py post applies the same rule to the sticky comments.
 """
 import argparse
 import json

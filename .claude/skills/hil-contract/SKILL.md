@@ -362,9 +362,9 @@ A dispatched recovery action is its own operation, never part of a run: the prom
 board, its busport, the rung ceiling, the budget and the reservation. Follow `usb-kernel-recover`
 from its triage up to that ceiling and never above it, holding the rig-wide reservation (Reservation) for every rig-wide rung.
 The skill is the installed agentrc's: `"${AGENTRC_DIR:-$HOME/.claude}"/skills/usb-kernel-recover/SKILL.md`, its script
-`"${AGENTRC_DIR:-$HOME/.claude}"/skills/usb-kernel-recover/scripts/usb_recover.sh` run under `sudo` by that path, quoted as shown, except a root-port cycle
-or a controller operation, which runs only through Reservation's `hil_reserve.py run`; a host
-without that install, `tusb` so far, has no shared recovery until it has one.
+`"${AGENTRC_DIR:-$HOME/.claude}"/skills/usb-kernel-recover/scripts/usb_recover.sh` run under `sudo` by that path,
+quoted as shown, except a root-port cycle or a controller operation, which runs only through Reservation's
+`hil_reserve.py run`; a host without that install, `tusb` so far, has no shared recovery until it has one.
 Rung 1 resets through the board's recovery flasher (`flasher_recover`, else `flasher`); one that
 is not `convoy_safe`, JLinkExe included, runs only behind `usb_recover.sh shield` on the board's
 busport, unshielded afterwards;
