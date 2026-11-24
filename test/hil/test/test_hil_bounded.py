@@ -21,6 +21,7 @@ import io
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import signal
@@ -830,17 +831,28 @@ class ThroughputScratchFile(unittest.TestCase):
         usbtest_harness.patch(self, hil_util, 'get_serial_dev', lambda *a: node)
         usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [])
         usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
+        # a space in the scratch dir makes the dd commands carry a shell-quoted path
+        spaced = Path(tmp.name) / 'tmp dir'
+        spaced.mkdir()
+        usbtest_harness.patch(self, hil_test.tempfile, 'tempdir', str(spaced))
         self.cmds, self.fail = [], ''
 
         def run_cmd(cmd, **k):
             self.cmds.append(cmd)
-            rc = 1 if isinstance(cmd, str) and self.fail and re.search(rf'{self.fail}=\S*/cdc_msc_tp_', cmd) else 0
+            rc = 1 if self.fail and self.dd_scratch(cmd, (f'{self.fail}=',)) else 0
             return types.SimpleNamespace(returncode=rc, stdout=b'1048576 bytes copied, 1 s, 1.0 MB/s')
         usbtest_harness.patch(self, hil_util, 'run_cmd', run_cmd)
 
+    @staticmethod
+    def dd_scratch(cmd, ops=('if=', 'of=')):
+        """The scratch path a dd command names in one of `ops`, decoded from its shell quoting."""
+        if not isinstance(cmd, str) or 'cdc_msc_tp_' not in cmd:
+            return None
+        return next((t.split('=', 1)[1] for t in shlex.split(cmd)
+                     if t.startswith(ops) and 'cdc_msc_tp_' in t), None)
+
     def scratch(self):
-        return [re.search(r'(?:of|if)=(\S+/cdc_msc_tp_\S+)', c).group(1) for c in self.cmds
-                if isinstance(c, str) and 'cdc_msc_tp_' in c]
+        return [p for p in map(self.dd_scratch, self.cmds) if p]
 
     def test_each_attempt_gets_its_own_file_and_removes_it(self):
         seen = set()
