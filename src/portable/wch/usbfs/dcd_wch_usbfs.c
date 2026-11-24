@@ -118,12 +118,6 @@
   }
 #endif
 
-// Hardware auto data-toggle flag. Parts whose AUTO_TOG is reliable OR it into the EP setup so the
-// controller flips DATA0/DATA1 itself; CH58x (CH32_USBFS_EP4_MANUAL_TOG) leaves it clear and the
-// ISR flips the toggle bit after each packet instead.
-#define EP_T_AUTO_TOG USBFS_EP_T_AUTO_TOG
-#define EP_R_AUTO_TOG USBFS_EP_R_AUTO_TOG
-
 /* private data */
 struct usb_xfer {
   bool     valid;
@@ -373,8 +367,8 @@ static void reset_ep_ctrls(void) {
   for (uint8_t ep = 1; ep < EP_MAX; ep++) {
     if (!ep_shares_ep0_dma(ep)) { EP_DMA(ep) = ep_dma_addr(ep); }
     EP_TX_LEN(ep)  = 0;
-    ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NYET);
-    ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | USBFS_EP_R_RES_NYET);
+    ep_tx_ctrl_set(ep, USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NYET);
+    ep_rx_ctrl_set(ep, USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NYET);
   }
 }
 
@@ -430,7 +424,7 @@ void dcd_int_handler(uint8_t rhport) {
         if (!data.isochronous[ep][TUSB_DIR_OUT] && !(int_st & USBFS_INT_ST_TOG_OK)) { break; }
         if (ep == 0) { data.ep0_tog = !data.ep0_tog; }
 #ifdef CH32_USBFS_EP4_MANUAL_TOG
-        // Advance the expected EP4 RX toggle after each accepted packet. Iso endpoints are DATA0-only,
+        // Advance the expected EP4 RX toggle after each accepted packet; iso endpoints are DATA0-only.
         if (ep == 4 && !data.isochronous[ep][TUSB_DIR_OUT]) { EP_CTRL(ep) ^= USBFS_EPC_R_TOG; }
 #endif
         update_out(rhport, ep, rx_len);
@@ -561,12 +555,12 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_ep) {
 
   if (ep != 0) {
     // Opening clears the toggle to DATA0 (ep_*_ctrl_set writes the toggle bit clear since v has no
-    // R/T_TOG); with manual toggle EP_*_AUTO_TOG is 0 so the ISR owns subsequent toggling.
+    // R/T_TOG); a CH32_USBFS_EP4_MANUAL_TOG EP4 has no AUTO_TOG, so the ISR owns its toggling.
     if (dir == TUSB_DIR_OUT) {
-      ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
+      ep_rx_ctrl_set(ep, USBFS_EP_R_AUTO_TOG | USBFS_EP_R_RES_NAK);
     } else {
       ep_in_claim_begin(rhport, ep);
-      ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
+      ep_tx_ctrl_set(ep, USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
       ep_in_claim_end(rhport);
     }
   }
@@ -668,10 +662,15 @@ void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
       ep_tx_ctrl_set(0, USBFS_EP_T_RES_STALL);
     }
   } else {
+    // Stalling drops the queued transfer: invalidate it so neither the ISR nor a clear-stall re-arms it
     if (dir == TUSB_DIR_OUT) {
+      dcd_int_disable(rhport);
+      data.xfer[ep][TUSB_DIR_OUT].valid = false;
       ep_rx_set_response(ep, USBFS_EP_R_RES_STALL);
+      dcd_int_enable(rhport);
     } else {
       ep_in_claim_begin(rhport, ep);
+      data.xfer[ep][TUSB_DIR_IN].valid = false;
       ep_tx_set_response(ep, USBFS_EP_T_RES_STALL);
       ep_in_claim_end(rhport);
     }
@@ -691,19 +690,22 @@ void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
     // submitted and won't re-arm), fall back to ACK, not NAK, or the endpoint NAKs forever and the
     // host times out (usbtest toggle test 29 clears the halt between bulk writes on an armed EP).
     if (dir == TUSB_DIR_OUT) {
+      // Masked so a pending completion cannot retire the receive between the check and the re-arm
+      dcd_int_disable(rhport);
       uint8_t res = data.xfer[ep][TUSB_DIR_OUT].valid
                     ? (data.isochronous[ep][TUSB_DIR_OUT] ? USBFS_EP_R_RES_NYET : USBFS_EP_R_RES_ACK)
                     : USBFS_EP_R_RES_NAK;
 #ifdef CH32_USBFS_EP4_MANUAL_TOG
       ep_rx_ctrl_set(ep, res);
 #endif
-      ep_rx_ctrl_set(ep, EP_R_AUTO_TOG | res);
+      ep_rx_ctrl_set(ep, USBFS_EP_R_AUTO_TOG | res);
+      dcd_int_enable(rhport);
     } else {
       ep_in_claim_begin(rhport, ep);
 #ifdef CH32_USBFS_EP4_MANUAL_TOG
       ep_tx_ctrl_set(ep, USBFS_EP_T_RES_NAK);
 #endif
-      ep_tx_ctrl_set(ep, EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
+      ep_tx_ctrl_set(ep, USBFS_EP_T_AUTO_TOG | USBFS_EP_T_RES_NAK);
       ep_in_claim_end(rhport);
     }
   }
