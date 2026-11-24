@@ -360,7 +360,7 @@ static usbh_class_driver_t const * _app_driver = NULL;
 static const uint8_t _builtin_driver_count     = TU_ARRAY_SIZE(usbh_class_drivers);
 static uint8_t _app_driver_count               = 0;
 
-#define TOTAL_DRIVER_COUNT    (_app_driver_count + _builtin_driver_count)
+#define TOTAL_DRIVER_COUNT    ((uint8_t) (_app_driver_count + _builtin_driver_count))
 
 // virtually joins built-in and application drivers together.
 // Application is positioned first to allow overwriting built-in ones.
@@ -571,11 +571,11 @@ static void usbh_stack_deinit(void) {
     }
   }
 
-  osal_queue_delete(_usbh_q);
+  (void) osal_queue_delete(_usbh_q);
   _usbh_q = NULL;
 
   #if CFG_TUH_HUB
-  osal_queue_delete(_usbh_daq);
+  (void) osal_queue_delete(_usbh_daq);
   _usbh_daq = NULL;
   #endif
 
