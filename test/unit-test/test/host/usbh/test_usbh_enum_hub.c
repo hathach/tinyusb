@@ -58,6 +58,16 @@ static void stage_port_status(bool connected, bool reset_changed) {
   stage_port_status_speed(connected, reset_changed, false);
 }
 
+// a failed child left in the Default state would answer address 0 with the next child: its port is disabled, the
+// only request sent (no PORT_RESET on a failure)
+static void assert_port_disabled(void) {
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(1, setup_count);
+  TEST_ASSERT_EQUAL(HUB_REQUEST_CLEAR_FEATURE, last_setup.bRequest);
+  TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
+  TEST_ASSERT_EQUAL(HUB_PORT, tu_le16toh(last_setup.wIndex));
+}
+
 // the hub's GET_STATUS reply for the port being enumerated completes with actual_len bytes
 static void complete_port_status(uintptr_t state, uint32_t actual_len) {
   tuh_xfer_t xfer = {
@@ -112,8 +122,7 @@ void test_hub_reset_short_status_fails(void) {
     stage_port_status(true, false);
     complete_port_status(ENUM_HUB_RERSET, len);
 
-    TEST_ASSERT_EQUAL(0, setup_count);
-    TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+    assert_port_disabled();
   }
 }
 
@@ -136,8 +145,7 @@ void test_hub_clear_reset_short_status_fails(void) {
       stage_port_status(true, true);
       complete_port_status(states[i], len);
 
-      TEST_ASSERT_EQUAL(0, setup_count);
-      TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+      assert_port_disabled();
     }
   }
 }
@@ -164,7 +172,7 @@ void test_hub_highspeed_child_on_fullspeed_hub_fails(void) {
   stage_port_status_speed(true, false, true);
   complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
 
-  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  assert_port_disabled();
 }
 
 void test_hub_highspeed_child_on_highspeed_hub_enumerates(void) {
@@ -174,4 +182,20 @@ void test_hub_highspeed_child_on_highspeed_hub_enumerates(void) {
 
   TEST_ASSERT_EQUAL(TUSB_SPEED_HIGH, _usbh_data.dev0_bus.speed);
   TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
+}
+
+// every address taken: the child stays at address 0, so its port is disabled before the next child is reset
+void test_hub_child_no_free_address_disables_port(void) {
+  static const uint8_t desc_dev8[8] = {18, TUSB_DESC_DEVICE, U16_TO_U8S_LE(0x0200), 0, 0, 0, 64};
+  for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
+    get_device(daddr)->connected = 1;
+  }
+  memcpy(_usbh_epbuf.ctrl, desc_dev8, sizeof(desc_dev8));
+
+  tuh_xfer_t xfer = {
+    .daddr = 0, .result = XFER_RESULT_SUCCESS, .actual_len = sizeof(desc_dev8), .user_data = ENUM_SET_ADDR
+  };
+  process_enumeration(&xfer);
+
+  assert_port_disabled();
 }
