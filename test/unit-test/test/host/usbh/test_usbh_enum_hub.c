@@ -97,6 +97,43 @@ static void complete_port_status(uintptr_t state, uint32_t actual_len) {
   process_enumeration(&xfer);
 }
 
+enum {
+  CHILD_ADDR = 1, // the only device address (CFG_TUH_DEVICE_MAX = 1)
+};
+
+// the child on HUB_PORT took CHILD_ADDR, then failed a request with every retry spent
+static void fail_addressed_child(void) {
+  usbh_device_t *child = get_device(CHILD_ADDR);
+  child->bus_info      = _usbh_data.dev0_bus;
+  child->connected     = 1;
+  child->addressed     = 1;
+
+  _usbh_data.enumerating_daddr = CHILD_ADDR;
+  _usbh_data.enum_attempt      = CFG_TUH_ENUM_ATTEMPT_MAX - 1;
+  _usbh_data.enum_xfer_retry   = ENUM_XFER_ATTEMPT_MAX - 1;
+
+  tuh_xfer_t xfer = {.daddr = CHILD_ADDR, .result = XFER_RESULT_FAILED, .user_data = ENUM_GET_STRING_LANGUAGE_ID_LEN};
+  process_enumeration(&xfer);
+}
+
+static bool child_addr_free(void) {
+  return enum_get_new_address(false) == CHILD_ADDR;
+}
+
+// a second child on another port of the hub reaches SET_ADDRESS
+static void second_child_set_address(uint8_t hub_port) {
+  static const uint8_t desc_dev8[8] = {18, TUSB_DESC_DEVICE, U16_TO_U8S_LE(0x0200), 0, 0, 0, 64};
+  _usbh_data.enumerating_daddr = 0;
+  _usbh_data.dev0_bus.hub_port = hub_port;
+  memcpy(_usbh_epbuf.ctrl, desc_dev8, sizeof(desc_dev8));
+  setup_count = 0;
+
+  tuh_xfer_t xfer = {
+    .daddr = 0, .result = XFER_RESULT_SUCCESS, .actual_len = sizeof(desc_dev8), .user_data = ENUM_SET_ADDR
+  };
+  process_enumeration(&xfer);
+}
+
 //--------------------------------------------------------------------+
 // Setup
 //--------------------------------------------------------------------+
@@ -269,4 +306,65 @@ void test_hub_removed_child_fails_without_request(void) {
   TEST_ASSERT_EQUAL(0, setup_count);
   TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
   TEST_ASSERT_EQUAL(0, breakpoint_count);
+}
+
+// a failed child left enabled at its address answers alongside the next child given that address: its port is disabled,
+// and the address held until it is
+void test_hub_addressed_child_failure_disables_port(void) {
+  fail_addressed_child();
+
+  assert_port_disabled();
+  TEST_ASSERT_FALSE(child_addr_free());
+  TEST_ASSERT_FALSE(tuh_connected(CHILD_ADDR));
+
+  control_xfer_complete(HUB_ADDR, XFER_RESULT_SUCCESS);
+  TEST_ASSERT_TRUE(child_addr_free());
+  TEST_ASSERT_TRUE(hub_status_polled());
+}
+
+// the hub did not disable the failed child's port: the next child on another port is not given its address, which is
+// freed once the hub reports the failed child unplugged
+void test_hub_addressed_child_port_not_disabled_keeps_address(void) {
+  const xfer_result_t results[] = {XFER_RESULT_STALLED, XFER_RESULT_FAILED};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
+    setUp();
+    fail_addressed_child();
+    assert_port_disabled();
+
+    control_xfer_complete(HUB_ADDR, results[i]);
+    TEST_ASSERT_TRUE(hub_status_polled());
+    TEST_ASSERT_FALSE(child_addr_free());
+
+    second_child_set_address(HUB_PORT + 1);
+    TEST_ASSERT_EQUAL(1, setup_count);
+    TEST_ASSERT_EQUAL(HUB_ADDR, last_setup_daddr); // no SET_ADDRESS, the second child's port is disabled
+    TEST_ASSERT_EQUAL(HUB_REQUEST_CLEAR_FEATURE, last_setup.bRequest);
+    TEST_ASSERT_EQUAL(HUB_PORT + 1, tu_le16toh(last_setup.wIndex));
+    tu_memclr(&_usbh_data.ctrl_xfer_info, sizeof(_usbh_data.ctrl_xfer_info));
+
+    remove_device_tree(RHPORT, HUB_ADDR, HUB_PORT);
+    TEST_ASSERT_TRUE(child_addr_free());
+    TEST_ASSERT_EQUAL(0, breakpoint_count);
+  }
+}
+
+// the port disable cannot be sent: the hub is polled right away, and the failed child keeps its address
+void test_hub_addressed_child_port_disable_not_sent_keeps_address(void) {
+  setup_send_fails = true;
+  fail_addressed_child();
+
+  TEST_ASSERT_EQUAL(1, setup_count);
+  TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
+  TEST_ASSERT_TRUE(hub_status_polled());
+  TEST_ASSERT_FALSE(child_addr_free());
+}
+
+// the hub was removed: its failed child is gone with it, so nothing is sent and the address is free
+void test_hub_removed_addressed_child_frees_address(void) {
+  get_device(HUB_ADDR)->connected = 0;
+  fail_addressed_child();
+
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(0, setup_count);
+  TEST_ASSERT_TRUE(child_addr_free());
 }
