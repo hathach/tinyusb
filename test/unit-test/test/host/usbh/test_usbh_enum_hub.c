@@ -73,16 +73,21 @@ static void stage_port_status(bool connected, bool reset_changed) {
   stage_port_status_speed(connected, reset_changed, false);
 }
 
-// a failed child left in the Default state would answer address 0 with the next child: its port is disabled, the
-// only request sent (no PORT_RESET on a failure)
-static void assert_port_disabled(void) {
-  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
-  TEST_ASSERT_EQUAL(1, setup_count);
+// the port disable was sent count times in all, the last still awaited or waiting to be resent: the hub is not polled
+static void assert_port_disable_sent(uint8_t count) {
+  TEST_ASSERT_EQUAL(count, setup_count);
   TEST_ASSERT_EQUAL(HUB_ADDR, last_setup_daddr);
   TEST_ASSERT_EQUAL(HUB_REQUEST_CLEAR_FEATURE, last_setup.bRequest);
   TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
   TEST_ASSERT_EQUAL(HUB_PORT, tu_le16toh(last_setup.wIndex));
-  TEST_ASSERT_FALSE(hub_status_polled()); // re-armed once the port is disabled
+  TEST_ASSERT_FALSE(hub_status_polled());
+}
+
+// a failed child left in the Default state would answer address 0 with the next child: its port is disabled, the
+// only request sent (no PORT_RESET on a failure)
+static void assert_port_disabled(void) {
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  assert_port_disable_sent(1);
 }
 
 // the hub's GET_STATUS reply for the port being enumerated completes with actual_len bytes
@@ -140,16 +145,6 @@ static void child_fails_at_dev0(bool disable_send_fails) {
 static void fail_child_at_dev0(void) {
   child_fails_at_dev0(false);
   assert_port_disabled();
-}
-
-// the port disable was sent count times in all, the last still awaited or waiting to be resent: the hub is not polled
-static void assert_port_disable_sent(uint8_t count) {
-  TEST_ASSERT_EQUAL(count, setup_count);
-  TEST_ASSERT_EQUAL(HUB_ADDR, last_setup_daddr);
-  TEST_ASSERT_EQUAL(HUB_REQUEST_CLEAR_FEATURE, last_setup.bRequest);
-  TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
-  TEST_ASSERT_EQUAL(HUB_PORT, tu_le16toh(last_setup.wIndex));
-  TEST_ASSERT_FALSE(hub_status_polled());
 }
 
 // the child on HUB_PORT failed at address 0 and its port disable was refused at submit
