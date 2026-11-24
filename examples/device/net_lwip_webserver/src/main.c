@@ -175,10 +175,10 @@ static void usbnet_netif_link_callback(struct netif *netif) {
 // Not on MCUs whose USB buffer memory faults on unaligned access (TUP_MCU_STRICT_ALIGN, e.g. the LPC55 high-speed
 // port's USB RAM): the frames' IP header fields are often not word aligned, and lwIP's packed header reads may compile
 // to unaligned word loads.
-#if CFG_TUD_NCM && LWIP_HIGH_THROUGHPUT && !TUP_MCU_STRICT_ALIGN
-// One pbuf per held frame: every receive NTB can hold frames at once, each up to the datagram count the device
-// advertises to the host per NTB.
-#define RX_PBUF_N (CFG_TUD_NCM_OUT_NTB_N * CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB)
+#if CFG_TUD_NCM && LWIP_HIGH_THROUGHPUT && !TUP_MCU_STRICT_ALIGN && CFG_TUD_NCM_OUT_NTB_N > 1
+// One pbuf per held frame: tud_network_recv_hold() holds at most CFG_TUD_NCM_OUT_NTB_N - 1 NTBs at once, each with
+// up to the datagram count the device advertises to the host per NTB.
+#define RX_PBUF_N ((CFG_TUD_NCM_OUT_NTB_N - 1) * CFG_TUD_NCM_OUT_MAX_DATAGRAMS_PER_NTB)
 TU_VERIFY_STATIC(RX_PBUF_N <= UINT8_MAX, "rx_pbuf_free_count is 8-bit");
 
 typedef struct {

@@ -89,15 +89,10 @@ uint32_t board_button_read(void) {
 }
 
 size_t board_get_unique_id(uint8_t id[], size_t max_len) {
-  (void) max_len;
   volatile uint32_t * py32_uuid = (volatile uint32_t *) UID_BASE;
-  uint32_t* id32 = (uint32_t*) (uintptr_t) id;
-  uint8_t const len = 12;
-
-  id32[0] = py32_uuid[0];
-  id32[1] = py32_uuid[1];
-  id32[2] = py32_uuid[2];
-
+  uint32_t uid[3] = { py32_uuid[0], py32_uuid[1], py32_uuid[2] };
+  size_t const len = TU_MIN(max_len, sizeof(uid));
+  memcpy(id, uid, len); // byte copy: id[] need not be 4-byte aligned
   return len;
 }
 
