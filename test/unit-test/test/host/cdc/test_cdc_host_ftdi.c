@@ -23,8 +23,14 @@ static unsigned configured_count;
 static unsigned opened_count;
 static unsigned umount_count;
 static uint8_t  edpt_open_fail_addr; // tuh_edpt_open() fails for this endpoint, 0 for none
+static uint8_t  bound_ep_addr;       // endpoint a driver bound by an earlier interface owns, 0 for none
 static uint8_t  closed_eps[3];
 static unsigned closed_count;
+static unsigned breakpoint_count; // TU_BREAKPOINT() hits, see CFG_TUSB_DEBUG_BREAKPOINT in project.yml
+
+void cdc_breakpoint_hook(void) {
+  breakpoint_count++;
+}
 
 //--------------------------------------------------------------------+
 // Host stack and bulk stream stubs. Control requests use the real CDC driver.
@@ -51,6 +57,11 @@ bool tuh_edpt_open(uint8_t daddr, const tusb_desc_endpoint_t *desc_ep) {
   }
   opened_count++;
   return true;
+}
+
+bool usbh_edpt_is_bound(uint8_t daddr, uint8_t ep_addr) {
+  TEST_ASSERT_EQUAL(DEV_ADDR, daddr);
+  return bound_ep_addr != 0 && ep_addr == bound_ep_addr;
 }
 
 bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
@@ -197,8 +208,8 @@ void setUp(void) {
   memset(&device_desc, 0, sizeof(device_desc));
   pending = false;
   request_count = callback_count = configured_count = 0;
-  opened_count = umount_count = closed_count = 0;
-  edpt_open_fail_addr = 0;
+  opened_count = umount_count = closed_count = breakpoint_count = 0;
+  edpt_open_fail_addr = bound_ep_addr = 0;
   TEST_ASSERT_TRUE(cdch_init());
 }
 
@@ -207,7 +218,7 @@ void tearDown(void) {
   TEST_ASSERT_TRUE(cdch_deinit());
 }
 
-// usbh does not close an interface it did not bind: a failed open releases the slot it reserved (CFG_TUH_CDC = 1)
+// usbh does not close an interface it did not bind: a failed open releases the slot it reserved
 void test_failed_open_releases_slot(void) {
   device_desc.idVendor = 0x0403;
   device_desc.idProduct = 0x6001;
@@ -261,6 +272,30 @@ void test_failed_acm_open_closes_notification_endpoint(void) {
   TEST_ASSERT_EQUAL_HEX8(EP_OUT, closed_eps[1]);
 }
 
+// An endpoint another driver (e.g. HID) bound by an earlier interface is not opened: EHCI accepts the reopen, and a
+// failed open would then close it under that driver
+void test_failed_acm_open_keeps_endpoint_bound_to_another_driver(void) {
+  const uint8_t acm[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EP_NOTIF, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(8), 16,
+    9, TUSB_DESC_INTERFACE, 1, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  const uint8_t bound[] = {EP_NOTIF, EP_IN};
+  edpt_open_fail_addr = EP_OUT;
+  for (uint8_t i = 0; i < TU_ARRAY_SIZE(bound); i++) {
+    bound_ep_addr = bound[i];
+    closed_count  = 0;
+    TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) acm, sizeof(acm)));
+    TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+    for (unsigned j = 0; j < closed_count; j++) {
+      TEST_ASSERT_NOT_EQUAL_HEX8(bound[i], closed_eps[j]);
+    }
+  }
+  TEST_ASSERT_EQUAL(0, breakpoint_count);
+}
+
 // A slot freed by a failed configuration keeps its stream endpoints: a failed open on it closes none of them
 void test_failed_open_on_reused_slot_closes_only_its_endpoints(void) {
   device_desc.idVendor = 0x0403;
@@ -295,6 +330,7 @@ void test_open_rejects_same_direction_pair(void) {
   TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
   TEST_ASSERT_EQUAL(0, opened_count);
   TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+  TEST_ASSERT_EQUAL(1, breakpoint_count); // a malformed descriptor still asserts, once
 }
 
 // usbh offers alternate setting 1 after setting 0 is open: rejecting it before reserving a slot must not release the
@@ -315,8 +351,8 @@ void test_failed_alt_open_keeps_open_interface(void) {
   TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
 }
 
-// An alternate setting may list the endpoints setting 0 already opened: with a second slot free, a failed open of it
-// must neither open them again nor close them under setting 0
+// An alternate setting may list the endpoints setting 0 already opened (USB 2.0 9.6.3): with a second slot free, its
+// open fails without asserting, neither opening them again nor closing them under setting 0
 void test_failed_second_alt_keeps_first_alt_endpoints(void) {
 #if CFG_TUH_CDC < 2
   TEST_IGNORE_MESSAGE("needs CFG_TUH_CDC >= 2");
@@ -338,6 +374,7 @@ void test_failed_second_alt_keeps_first_alt_endpoints(void) {
   TEST_ASSERT_EQUAL(0, closed_count);
   TEST_ASSERT_EQUAL(2, opened_count);
   TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+  TEST_ASSERT_EQUAL(0, breakpoint_count);
 #endif
 }
 

@@ -143,6 +143,7 @@
       - CFG_TUH_CDC=2
       - CFG_TUH_CDC_FTDI=1
       - CFG_TUSB_DEBUG=0
+      - CFG_TUSB_DEBUG_BREAKPOINT=cdc_breakpoint_hook
     :test_audio_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_AUDIO=2
