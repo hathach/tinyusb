@@ -820,6 +820,54 @@ static void test_late_schedule_phase(void) {
   }
 }
 
+// An endpoint idle for half the 32-bit microframe counter or longer: its slot
+// is too old for a signed difference, yet the next request keeps its phase and
+// completes in its own slot.
+static void test_stale_idle_phase(void) {
+  uint32_t const starts[] = {800, 0xfffffff0};
+  uint32_t const ages[] = {0x7fffffff, 0x80000000, 0x80000001, 0xc0000005, 0xfffffff9};
+  for (unsigned fs = 0; fs < 2; fs++) {
+    for (uint8_t interval = 1; interval <= (fs ? 3 : 6); interval++) {
+      for (unsigned s = 0; s < TU_ARRAY_SIZE(starts); s++) {
+        for (unsigned a = 0; a < TU_ARRAY_SIZE(ages); a++) {
+          uint8_t const speed = fs ? TUSB_SPEED_FULL : TUSB_SPEED_HIGH;
+          reset(speed);
+          assert(open_ep(0x81, speed, 64, interval));
+          iso_ep_t* ep = iso_ep_find(1, 0x81);
+          uint32_t const now = starts[s];
+          set_now(now);
+          ep->uframe = now - ages[a];
+          // Reference without wrap: the stale slot lies 2^32 - age behind now.
+          uint64_t const base = (uint64_t) now + 0x100000000u;
+          uint64_t earliest = base + 1;
+          if (fs) {
+            earliest = (earliest + 7) & ~(uint64_t) 7;
+          }
+          uint64_t expected = base - ages[a];
+          expected += (earliest - expected + ep->interval - 1) / ep->interval * ep->interval;
+          if (fs) {
+            expected = (expected + 7) & ~(uint64_t) 7;
+          }
+          assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep));
+          assert(ep->uframe == (uint32_t) expected);
+
+          set_now(ep->uframe);
+          iso_td_t* td = ep->td;
+          if (fs) {
+            td->sitd.active = 0;
+            td->sitd.total_bytes = 0;
+          } else {
+            td->itd.xact[ep->uframe & 7].active = 0;
+          }
+          iso_process(true);
+          assert(events == 1 && !ep->busy);
+          assert(event.xfer_complete.result == XFER_RESULT_SUCCESS && event.xfer_complete.len == 64);
+        }
+      }
+    }
+  }
+}
+
 static void test_pool_hs_interval(uint8_t interval) {
   // Walk the actual DMA chains while four endpoints reuse TDs across both
   // frame-list and extended-clock wrap. This also detects orphaned active TDs.
@@ -1139,14 +1187,19 @@ static void test_abort_idle_margin(void) {
   iso_process(true);
   assert(events == 1 && !ep->busy);
 
-  ep->uframe = 1004; // two microframes ahead once scheduled from 1002
+  // A 1-microframe interval always schedules the next microframe: reopen with
+  // a 4-microframe one for a request two microframes ahead of 1002.
+  assert(iso_stop(0, ep, true));
+  assert(open_ep(0x81, TUSB_SPEED_HIGH, 64, 3));
+  ep = iso_ep_find(1, 0x81);
+  ep->uframe = 1004;
   set_now(1002);
   assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep) && ep->uframe == 1004);
   assert(iso_stop(0, ep, false) && !ep->busy && !td_linked(ep));
   assert(events == 1 && !regs.command_bm.periodic_enable);
 
   // Close while idle frees without touching the schedule.
-  ep->uframe = 1010;
+  ep->uframe = 1006;
   assert(iso_xfer(0, ep, buffer, 64) && td_linked(ep));
   uint32_t const entry = (ep->uframe >> 3) % FRAMELIST_SIZE;
   assert(iso_stop(0, ep, true) && iso_ep_find(1, 0x81) == NULL);
@@ -1260,6 +1313,7 @@ int main(void) {
   test_schedule_sweep();
   test_descriptor_reuse();
   test_late_schedule_phase();
+  test_stale_idle_phase();
   test_pool_stream();
   test_pool_fs_stream();
   test_completion_unlink(true);

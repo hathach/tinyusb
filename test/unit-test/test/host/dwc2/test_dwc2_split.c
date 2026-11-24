@@ -109,6 +109,7 @@ static void endpoint(uint8_t ch, bool in, uint16_t bytes, bool iso) {
   ep->buflen = bytes;
   _hcd_data.xfer[ch].allocated = true;
   _hcd_data.xfer[ch].ep_id = ch;
+  test_regs.haintmsk |= TU_BIT(ch); // as channel_xfer_start() leaves a started channel
   test_regs.channel[ch].hcchar = ep->hcchar;
   test_regs.channel[ch].hcsplt = ep->hcsplt;
   dwc2_channel_tsize_t ts = {.value = 0};
@@ -1378,6 +1379,27 @@ void test_abort_retires_a_native_bulk_channel_at_its_halt_without_a_retry(void) 
   }
 }
 
+void test_slave_abort_retires_at_a_halt_arriving_with_a_nak_and_ignores_the_released_channel(void) {
+  // slave IN, slave OUT: the halt the abort's disable brings, with the NAK of the transaction it cut short, in one pass
+  for (unsigned i = 0; i < 2; i++) {
+    variant_setup(i);
+    const uint8_t ep_addr = abort_bulk_endpoint(false, i == 0, false);
+    on_int_enable         = isr_halts_aborted_dma_channel;
+
+    TEST_ASSERT_TRUE(hcd_edpt_abort_xfer(0, 1, ep_addr));
+    TEST_ASSERT_EQUAL(1, isr_runs);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_BITS_LOW(1u, test_regs.haintmsk);
+
+    // a cause still latched in HAINT for the released channel, seen in another channel's interrupt: not dispatched,
+    // which would retry the aborted transfer
+    channel0_irq(HCINT_HALTED);
+    TEST_ASSERT_BITS_LOW(HCCHAR_CHENA, test_regs.channel[0].hcchar);
+    TEST_ASSERT_FALSE(_hcd_data.xfer[0].allocated);
+    TEST_ASSERT_TRUE(hcd_edpt_xfer(0, 1, ep_addr, payload, 64));
+  }
+}
+
 void test_abort_waits_for_the_halt_of_a_native_bulk_channel_only_while_the_port_sends_sof(void) {
   // the port suspended, disabled, resuming or in reset, so HFNUM stands still: the abort returns at once, the
   // endpoint refusing a replacement until the halt retires the channel; or the halt arrives while the abort runs
@@ -1769,4 +1791,59 @@ void test_iso_split_slot_full_window_fails(void) {
   TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x0f, 1, TUSB_DIR_IN));
   TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x05, 376, TUSB_DIR_IN));
   TEST_ASSERT_EQUAL(NO_SLOT, iso_slot(0x02, 564, TUSB_DIR_IN));
+}
+
+static tusb_speed_t open_speed;
+
+static bool bus_info_stub(uint8_t daddr, tuh_bus_info_t* info, int cmock_num_calls) {
+  (void) daddr;
+  (void) cmock_num_calls;
+  memset(info, 0, sizeof(*info));
+  info->speed = open_speed;
+  return true;
+}
+
+// Open a periodic endpoint of a device attached to the root port at its own speed, so no split is involved
+static bool open_periodic(tusb_speed_t speed, uint8_t xfer_type, uint8_t binterval) {
+  static const uint8_t hprt_speed[] = {[TUSB_SPEED_FULL] = HPRT_SPEED_FULL, [TUSB_SPEED_LOW] = HPRT_SPEED_LOW,
+                                       [TUSB_SPEED_HIGH] = HPRT_SPEED_HIGH};
+  open_speed     = speed;
+  test_regs.hprt = (uint32_t) hprt_speed[speed] << HPRT_SPEED_Pos;
+  tuh_bus_info_get_Stub(bus_info_stub);
+  const tusb_desc_endpoint_t desc = {.bLength          = sizeof(tusb_desc_endpoint_t),
+                                     .bDescriptorType  = TUSB_DESC_ENDPOINT,
+                                     .bEndpointAddress = 0x81,
+                                     .bmAttributes     = {.xfer = xfer_type},
+                                     .wMaxPacketSize   = speed == TUSB_SPEED_LOW ? 8 : 64,
+                                     .bInterval        = binterval};
+  return hcd_edpt_open(0, 1, &desc);
+}
+
+void test_edpt_open_rejects_a_periodic_interval_usb_does_not_allow(void) {
+  // USB 2.0 Table 9-13: an exponent 1..16 for isochronous and high-speed interrupt, 1..255 frames for full-speed
+  // interrupt. A zero full-speed interval would reach a modulo by zero in periodic_xfer_countdown() on a NAK retry.
+  const struct {
+    tusb_speed_t speed;
+    uint8_t      xfer, binterval;
+    bool         ok;
+  } cases[] = {
+      {TUSB_SPEED_FULL, TUSB_XFER_INTERRUPT, 0, false},    {TUSB_SPEED_FULL, TUSB_XFER_INTERRUPT, 1, true},
+      {TUSB_SPEED_FULL, TUSB_XFER_INTERRUPT, 255, true},   {TUSB_SPEED_HIGH, TUSB_XFER_INTERRUPT, 0, false},
+      {TUSB_SPEED_HIGH, TUSB_XFER_INTERRUPT, 1, true},     {TUSB_SPEED_HIGH, TUSB_XFER_INTERRUPT, 16, true},
+      {TUSB_SPEED_HIGH, TUSB_XFER_INTERRUPT, 17, false},   {TUSB_SPEED_FULL, TUSB_XFER_ISOCHRONOUS, 0, false},
+      {TUSB_SPEED_FULL, TUSB_XFER_ISOCHRONOUS, 1, true},   {TUSB_SPEED_FULL, TUSB_XFER_ISOCHRONOUS, 17, false},
+      {TUSB_SPEED_HIGH, TUSB_XFER_ISOCHRONOUS, 0, false},  {TUSB_SPEED_HIGH, TUSB_XFER_ISOCHRONOUS, 16, true},
+      {TUSB_SPEED_HIGH, TUSB_XFER_ISOCHRONOUS, 255, false}, {TUSB_SPEED_LOW, TUSB_XFER_INTERRUPT, 0, true},
+  };
+  for (unsigned i = 0; i < TU_ARRAY_SIZE(cases); i++) {
+    variant_setup(i);
+    TEST_ASSERT_EQUAL(cases[i].ok, open_periodic(cases[i].speed, cases[i].xfer, cases[i].binterval));
+    // a rejected descriptor takes no endpoint; an accepted one has a period
+    TEST_ASSERT_EQUAL(cases[i].ok, _hcd_data.edpt[0].hcchar_bm.enable);
+    if (cases[i].ok) {
+      TEST_ASSERT_NOT_EQUAL(0, _hcd_data.edpt[0].uframe_interval);
+    }
+  }
+  // the short low-speed interval is still raised to the 10-frame minimum
+  TEST_ASSERT_EQUAL(80, _hcd_data.edpt[0].uframe_interval);
 }
