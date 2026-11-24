@@ -282,6 +282,16 @@ typedef struct {
   tuh_audio_stream_t  in_stream;
   audioh_playback_t   playback;
   audioh_ctrl_state_t ctrl;
+
+  // Asynchronous Feature Unit requests carry fu_gen, bumped at close, in their completion's user_data, so a
+  // completion for a closed device is told apart from one for the slot's next device. Such a request is failed to
+  // its application callback, kept in fu_closed, once usbh completes it.
+  uint8_t fu_gen;
+  struct {
+    tuh_xfer_cb_t complete_cb;
+    uintptr_t     user_data;
+    uint8_t       gen;
+  } fu_closed;
 } audioh_interface_t;
 
   #if CFG_TUH_AUDIO_PROTOCOLS & TUH_AUDIO_PROTOCOL_UAC2
@@ -394,6 +404,10 @@ static tuh_audio_stream_t *audioh_get_stream(audioh_interface_t *p_audio, tusb_d
 }
 
 static tuh_audio_stream_t *audioh_get_stream_by_idx(audioh_interface_t *p_audio, uint8_t stream_idx) {
+  // A stream without any usable configuration keeps TUSB_INDEX_INVALID_8
+  if (stream_idx >= p_audio->stream_count) {
+    return NULL;
+  }
   for (uint8_t i = 0; i < 2; i++) {
     tuh_audio_stream_t *s = (i == 0) ? &p_audio->out_stream : &p_audio->in_stream;
     if (s->as_count > 0 && s->stream_idx == stream_idx) {
@@ -810,7 +824,13 @@ void audioh_close(uint8_t daddr) {
     }
     audioh_playback_reset(&p_audio->playback);
 
-    // A disconnected device cannot complete its pending control request.
+    // usbh fails the pending request after this close, or later if it is still queued
+    if (p_audio->ctrl.fu_busy && p_audio->ctrl.complete_cb != NULL) {
+      p_audio->fu_closed.complete_cb = p_audio->ctrl.complete_cb;
+      p_audio->fu_closed.user_data   = p_audio->ctrl.user_data;
+      p_audio->fu_closed.gen         = p_audio->fu_gen;
+    }
+    p_audio->fu_gen++;
     tu_memclr(&p_audio->ctrl, sizeof(p_audio->ctrl));
 
     p_audio->stream_count      = 0;
@@ -1385,6 +1405,7 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
   audioh_ep_info_t fb_info         = {0};
   bool             has_data_ep     = false;
   bool             has_feedback_ep = false;
+  bool             high_bandwidth  = false;
 
   while (p_desc < desc_end) {
     TU_VERIFY(audioh_desc_valid(p_desc, desc_end, 2), NULL);
@@ -1467,6 +1488,8 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
 
           ep_info.ep_addr     = desc_endpoint->bEndpointAddress;
           ep_info.ep_size     = tu_edpt_packet_size(desc_endpoint);
+          // wMaxPacketSize bits 12..11: additional transactions per microframe (USB 2.0 9.6.6), not supported
+          high_bandwidth = (tu_le16toh(desc_endpoint->wMaxPacketSize) & 0x1800u) != 0;
           ep_info.ep_interval = desc_endpoint->bInterval;
           // Isochronous bInterval is an exponent in the inclusive range 1..16.
           if (ep_info.ep_interval == 0 || ep_info.ep_interval > 16) {
@@ -1485,6 +1508,10 @@ static const uint8_t *audioh_parse_as(audioh_interface_t *p_audio, const audioh_
   }
 
   if (!has_data_ep) {
+    return p_desc;
+  }
+  if (high_bandwidth) {
+    TU_LOG_DRV("  AUDIO AS itf %u alt %u: high-bandwidth ep %02x not supported\r\n", itf_num, alt, ep_info.ep_addr);
     return p_desc;
   }
 
@@ -2438,19 +2465,49 @@ tusb_xfer_result_t tuh_audio_control_xfer_sync(uint8_t idx, uint8_t entity_id, t
   return xfer.result;
 }
 
+static uintptr_t audioh_fu_xfer_tag(uint8_t idx) {
+  return (uintptr_t)idx | ((uintptr_t)_audioh_itf[idx].fu_gen << 8);
+}
+
+// An asynchronous request also needs fu_closed free: a closed device's request awaiting its failure holds it
+static bool audioh_fu_can_submit(const audioh_interface_t *p_audio, tuh_xfer_cb_t complete_cb) {
+  return !p_audio->ctrl.fu_busy && (complete_cb == NULL || p_audio->fu_closed.complete_cb == NULL);
+}
+
+// The interface of a completion's request, or NULL for a request of a closed device, which is failed here
+static audioh_interface_t *audioh_fu_complete_itf(tuh_xfer_t *xfer) {
+  audioh_interface_t *p_audio = &_audioh_itf[(uint8_t)xfer->user_data];
+  const uint8_t       gen     = (uint8_t)(xfer->user_data >> 8);
+  if (gen == p_audio->fu_gen) {
+    return p_audio;
+  }
+
+  if (p_audio->fu_closed.complete_cb != NULL && p_audio->fu_closed.gen == gen) {
+    tuh_xfer_cb_t app_cb           = p_audio->fu_closed.complete_cb;
+    xfer->user_data                = p_audio->fu_closed.user_data;
+    xfer->result                   = XFER_RESULT_FAILED;
+    p_audio->fu_closed.complete_cb = NULL;
+    app_cb(xfer);
+  }
+  return NULL;
+}
+
 // Continue a master-volume request across logical channels. Driver-owned
 // request state is released before the final application callback so another
 // Feature Unit request can be submitted from that callback.
 static void audioh_fu_set_complete(tuh_xfer_t *xfer) {
-  const uint8_t        idx     = (uint8_t)xfer->user_data;
-  audioh_interface_t  *p_audio = &_audioh_itf[idx];
-  audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
+  audioh_interface_t *p_audio = audioh_fu_complete_itf(xfer);
+  if (p_audio == NULL) {
+    return;
+  }
+  const uint8_t        idx  = (uint8_t)(p_audio - _audioh_itf);
+  audioh_ctrl_state_t *ctrl = &p_audio->ctrl;
 
   if (xfer->result == XFER_RESULT_SUCCESS && ctrl->fu.control.channel < ctrl->fu.control.last_channel) {
     tuh_audio_stream_t *s = (tuh_audio_stream_t *)ctrl->value;
     ctrl->fu.control.channel++;
     const uint8_t request_code = audioh_control_cur_request(p_audio->protocol, TUSB_DIR_OUT);
-    tuh_xfer_t    next_xfer    = {.complete_cb = audioh_fu_set_complete, .user_data = (uintptr_t)idx};
+    tuh_xfer_t    next_xfer    = {.complete_cb = audioh_fu_set_complete, .user_data = audioh_fu_xfer_tag(idx)};
     if (audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_OUT, request_code, AUDIO10_FU_CTRL_VOLUME,
                               ctrl->fu.control.channel, audioh_fu_ctrl(&_audioh_epbuf[idx]), 2, &next_xfer)) {
       return;
@@ -2482,9 +2539,12 @@ static void audioh_fu_value_store(audioh_ctrl_state_t *ctrl, audioh_epbuf_t *epb
 // Convert the driver-owned response before releasing the request state and
 // invoking the application callback.
 static void audioh_fu_get_complete(tuh_xfer_t *xfer) {
-  const uint8_t        idx       = (uint8_t)xfer->user_data;
-  audioh_ctrl_state_t *ctrl      = &_audioh_itf[idx].ctrl;
-  audioh_epbuf_t      *epbuf     = &_audioh_epbuf[idx];
+  audioh_interface_t *p_audio = audioh_fu_complete_itf(xfer);
+  if (p_audio == NULL) {
+    return;
+  }
+  audioh_ctrl_state_t *ctrl      = &p_audio->ctrl;
+  audioh_epbuf_t      *epbuf     = &_audioh_epbuf[p_audio - _audioh_itf];
   tuh_xfer_cb_t        app_cb    = ctrl->complete_cb;
   uintptr_t            user_data = ctrl->user_data;
   ctrl->complete_cb              = NULL;
@@ -2669,7 +2729,7 @@ static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
   const uint8_t request_code = audioh_control_cur_request(p_audio->protocol, TUSB_DIR_OUT);
   audioh_ctrl_state_t *ctrl  = &p_audio->ctrl;
   audioh_epbuf_t      *epbuf = &_audioh_epbuf[idx];
-  TU_VERIFY(!ctrl->fu_busy, false);
+  TU_VERIFY(audioh_fu_can_submit(p_audio, complete_cb), false);
   // Reserve both bookkeeping and payload storage before populating the request.
   ctrl->fu_busy = true;
 
@@ -2698,7 +2758,7 @@ static bool audioh_fu_set(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
   ctrl->value                   = s;
   ctrl->fu.control.channel      = channel;
   ctrl->fu.control.last_channel = last_channel;
-  tuh_xfer_t xfer               = {.complete_cb = audioh_fu_set_complete, .user_data = (uintptr_t)idx};
+  tuh_xfer_t xfer               = {.complete_cb = audioh_fu_set_complete, .user_data = audioh_fu_xfer_tag(idx)};
 
   if (!audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_OUT, request_code, control_selector, channel, val_buf,
                              width, &xfer)) {
@@ -2731,7 +2791,7 @@ static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
   const uint8_t request_code = audioh_control_cur_request(p_audio->protocol, TUSB_DIR_IN);
   audioh_ctrl_state_t *ctrl  = &p_audio->ctrl;
   audioh_epbuf_t      *epbuf = &_audioh_epbuf[idx];
-  TU_VERIFY(!ctrl->fu_busy, false);
+  TU_VERIFY(audioh_fu_can_submit(p_audio, complete_cb), false);
   ctrl->fu_busy               = true;
   ctrl->value                 = value;
   ctrl->fu.control.width      = width;
@@ -2758,7 +2818,7 @@ static bool audioh_fu_get(uint8_t idx, uint8_t stream_idx, uint8_t control_selec
   // The asynchronous wrapper converts the response before calling the application.
   ctrl->complete_cb = complete_cb;
   ctrl->user_data   = user_data;
-  tuh_xfer_t xfer   = {.complete_cb = audioh_fu_get_complete, .user_data = (uintptr_t)idx};
+  tuh_xfer_t xfer   = {.complete_cb = audioh_fu_get_complete, .user_data = audioh_fu_xfer_tag(idx)};
 
   if (!audioh_control_submit(idx, s->feature_unit_id, TUSB_DIR_IN, request_code, control_selector, channel,
                              audioh_fu_ctrl(epbuf), width, &xfer)) {
