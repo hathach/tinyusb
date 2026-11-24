@@ -733,9 +733,14 @@ static void recv_transfer_datagram_to_glue_logic(void) {
       uint16_t datagramLength = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx].wDatagramLength;
 
       TU_LOG_DRV("  recv[%d] - %d %d\n", ncm_interface.recv_glue_ntb_datagram_ndx, datagramIndex, datagramLength);
-      if (tud_network_recv_cb(ncm_interface.recv_glue_ntb->data + datagramIndex, datagramLength)) {
+      recv_ntb_t *ntb = ncm_interface.recv_glue_ntb;
+      if (tud_network_recv_cb(ntb->data + datagramIndex, datagramLength)) {
         // send datagram successfully to glue logic
         TU_LOG_DRV("    OK\n");
+        if (ncm_interface.recv_glue_ntb != ntb) {
+          // a bus reset in a nested tud_task() re-ran netd_init(): it freed this NTB, or its last release will
+          return;
+        }
         datagramIndex = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramIndex;
         datagramLength = ndp16_datagram[ncm_interface.recv_glue_ntb_datagram_ndx + 1].wDatagramLength;
 
@@ -744,8 +749,9 @@ static void recv_transfer_datagram_to_glue_logic(void) {
           ++ncm_interface.recv_glue_ntb_datagram_ndx;
         } else {
           // end of datagrams reached: free the NTB now, or on the last release of a held datagram
-          if (ncm_recv_hold.count[recv_ntb_index(ncm_interface.recv_glue_ntb)] == 0) {
-            recv_put_ntb_into_free_list(ncm_interface.recv_glue_ntb);
+          const int idx = recv_ntb_index(ntb);
+          if (idx < 0 || ncm_recv_hold.count[idx] == 0) {
+            recv_put_ntb_into_free_list(ntb);
           }
           ncm_interface.recv_glue_ntb = NULL;
         }
