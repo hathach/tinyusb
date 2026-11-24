@@ -2665,9 +2665,11 @@ static void enum_full_complete(bool success) {
   const tuh_bus_info_t *dev0_bus = &_usbh_data.dev0_bus;
   if (!success && dev0_bus->hub_addr != 0) {
     // A child left in the Default state answers address 0 alongside the next child the hub resets: disable its port
-    // (USB 2.0 11.5, 11.24.2.2; no C_PORT_ENABLE follows, 11.24.2.7.2.2) before polling the hub again
-    if (!is_dev0 || !hub_port_clear_feature(dev0_bus->hub_addr, dev0_bus->hub_port, HUB_FEATURE_PORT_ENABLE,
-                                            enum_hub_port_disabled, 0)) {
+    // (USB 2.0 11.5, 11.24.2.2; no C_PORT_ENABLE follows, 11.24.2.7.2.2) before polling the hub again.
+    // A removed hub refuses the request, which hub_port_clear_feature() asserts on
+    const bool disable_port = is_dev0 && tuh_connected(dev0_bus->hub_addr);
+    if (!disable_port || !hub_port_clear_feature(dev0_bus->hub_addr, dev0_bus->hub_port, HUB_FEATURE_PORT_ENABLE,
+                                                 enum_hub_port_disabled, 0)) {
       hub_edpt_status_xfer(dev0_bus->hub_addr);
     }
   }

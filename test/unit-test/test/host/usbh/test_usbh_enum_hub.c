@@ -5,32 +5,43 @@
 
 #include "unity.h"
 
+// count TU_ASSERT() hits in usbh.c and hub.c, both built into this unit
+#define CFG_TUSB_DEBUG_BREAKPOINT enum_hub_breakpoint_hook
+
 // Include the production implementation to drive process_enumeration() directly.
 #include "host/usbh.c"
+#include "host/hub.c"
 
 TEST_SOURCE_FILE("tusb.c")
 TEST_SOURCE_FILE("tusb_fifo.c")
-TEST_SOURCE_FILE("hub.c")
 TEST_SOURCE_FILE("usbh_test_hcd_stubs.c")
 
 enum {
-  RHPORT   = 0,
-  HUB_ADDR = CFG_TUH_DEVICE_MAX + 1,
-  HUB_PORT = 1,
+  RHPORT    = 0,
+  HUB_ADDR  = CFG_TUH_DEVICE_MAX + 1,
+  HUB_PORT  = 1,
+  HUB_EP_IN = 0x81,
 };
 
 static uint8_t                setup_count;
+static uint8_t                last_setup_daddr;
 static tusb_control_request_t last_setup;
+static bool                   setup_send_fails;
+static uint8_t                breakpoint_count;
+
+void enum_hub_breakpoint_hook(void) {
+  breakpoint_count++;
+}
 
 //--------------------------------------------------------------------+
 // HCD stubs
 //--------------------------------------------------------------------+
 bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]) {
   (void) rhport;
-  (void) daddr;
+  last_setup_daddr = daddr;
   memcpy(&last_setup, setup_packet, sizeof(last_setup));
   setup_count++;
-  return true;
+  return !setup_send_fails;
 }
 
 //--------------------------------------------------------------------+
@@ -38,6 +49,10 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]
 //--------------------------------------------------------------------+
 static void noop_cb(tuh_xfer_t *xfer) {
   (void) xfer;
+}
+
+static bool hub_status_polled(void) {
+  return usbh_edpt_busy(HUB_ADDR, HUB_EP_IN);
 }
 
 // Leave a port status in the hub's ctrl_buf as an earlier GET_STATUS would, then free the control slot
@@ -63,9 +78,11 @@ static void stage_port_status(bool connected, bool reset_changed) {
 static void assert_port_disabled(void) {
   TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
   TEST_ASSERT_EQUAL(1, setup_count);
+  TEST_ASSERT_EQUAL(HUB_ADDR, last_setup_daddr);
   TEST_ASSERT_EQUAL(HUB_REQUEST_CLEAR_FEATURE, last_setup.bRequest);
   TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
   TEST_ASSERT_EQUAL(HUB_PORT, tu_le16toh(last_setup.wIndex));
+  TEST_ASSERT_FALSE(hub_status_polled()); // re-armed once the port is disabled
 }
 
 // the hub's GET_STATUS reply for the port being enumerated completes with actual_len bytes
@@ -98,6 +115,11 @@ void setUp(void) {
   hub->configured      = 1;
   hub->mounted         = 1;
 
+  // the hub's status endpoint is open and idle, as while it waits for this child's enumeration
+  tu_memclr(hub_itfs, sizeof(hub_itfs));
+  get_hub_itf(HUB_ADDR)->ep_in     = HUB_EP_IN;
+  get_hub_itf(HUB_ADDR)->ep_in_mps = 1;
+
   // a device on the hub's port is being enumerated at address 0
   _usbh_data.enumerating_daddr = 0;
   _usbh_data.dev0_bus.rhport   = RHPORT;
@@ -105,8 +127,11 @@ void setUp(void) {
   _usbh_data.dev0_bus.hub_port = HUB_PORT;
   _usbh_data.dev0_bus.speed    = TUSB_SPEED_FULL;
 
-  setup_count = 0;
+  setup_count      = 0;
+  last_setup_daddr = 0;
   tu_memclr(&last_setup, sizeof(last_setup));
+  setup_send_fails = false;
+  breakpoint_count = 0;
 }
 
 void tearDown(void) {
@@ -198,4 +223,50 @@ void test_hub_child_no_free_address_disables_port(void) {
   process_enumeration(&xfer);
 
   assert_port_disabled();
+}
+
+// the hub status poll resumes once the port is disabled, whatever the hub answered
+void test_hub_port_disabled_rearms_status_poll(void) {
+  const xfer_result_t results[] = {XFER_RESULT_SUCCESS, XFER_RESULT_STALLED, XFER_RESULT_FAILED};
+  for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
+    setUp();
+    get_device(HUB_ADDR)->bus_info.speed = TUSB_SPEED_FULL;
+    stage_port_status_speed(true, false, true);
+    complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
+    assert_port_disabled();
+
+    control_xfer_complete(HUB_ADDR, results[i]);
+    TEST_ASSERT_TRUE(hub_status_polled());
+  }
+}
+
+// the port disable cannot be sent: poll the hub right away instead
+void test_hub_port_disable_not_sent_polls_hub(void) {
+  get_device(HUB_ADDR)->bus_info.speed = TUSB_SPEED_FULL;
+  stage_port_status_speed(true, false, true);
+  setup_send_fails = true;
+  complete_port_status(ENUM_HUB_CLEAR_RESET_COMPLETE, sizeof(hub_port_status_response_t));
+
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(1, setup_count);
+  TEST_ASSERT_EQUAL(HUB_FEATURE_PORT_ENABLE, tu_le16toh(last_setup.wValue));
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  TEST_ASSERT_TRUE(hub_status_polled());
+}
+
+// the hub was unplugged (and closed) while its child debounced: the child fails with no request to the gone hub and no
+// assert
+void test_hub_removed_child_fails_without_request(void) {
+  usbh_device_t *hub = get_device(HUB_ADDR);
+  hub->connected     = 0;
+  hub->configured    = 0;
+  hub->mounted       = 0;
+  hub_close(HUB_ADDR);
+
+  enum_delay_async(ENUM_AFTER_DEBOUNCING_DELAY);
+
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL(0, setup_count);
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  TEST_ASSERT_EQUAL(0, breakpoint_count);
 }
