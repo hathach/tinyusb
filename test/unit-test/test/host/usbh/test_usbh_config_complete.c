@@ -26,6 +26,7 @@ uint8_t umount_cb_count;
 static uint8_t set_config_count;
 static uint8_t close_count;
 static void (*set_config_hook)(void);
+static void (*close_hook)(void);
 
 //--------------------------------------------------------------------+
 // HCD stubs: the stateless ones are shared, setup submission and clear-stall observation are this suite's
@@ -64,9 +65,15 @@ static bool fake_set_config(uint8_t dev_addr, uint8_t itf_num) {
   return true;
 }
 
+// the hook stands in for the application's umount callback
 static void fake_close(uint8_t dev_addr) {
   (void) dev_addr;
   close_count++;
+  if (close_hook != NULL) {
+    void (*hook)(void) = close_hook;
+    close_hook = NULL;
+    hook();
+  }
 }
 
 // claims the whole rest of the configuration, recording the interfaces it is offered and the endpoint sizes it is
@@ -131,6 +138,7 @@ void setUp(void) {
   open_count       = 0;
   open_itf_num     = 0xff;
   set_config_hook  = NULL;
+  close_hook       = NULL;
   clear_stall_count  = 0;
   clear_stall_rhport = 0xff;
   clear_stall_ep     = 0;
@@ -397,4 +405,23 @@ void test_enum_refused_binding_closes_driver_and_ends_enumeration(void) {
   TEST_ASSERT_EQUAL(1, close_count);
   TEST_ASSERT_EQUAL(0, set_config_count);
   TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+}
+
+// a close callback that drives the usbh task (a sync transfer on OS_NONE) handles the unplug and the next attach: the
+// failed attempt must not then tear down the new one
+void test_enum_refused_binding_keeps_enumeration_started_by_close_callback(void) {
+  static const uint8_t desc_cfg[] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+  };
+  close_hook = remove_device_and_attach_another;
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg, sizeof(desc_cfg));
+
+  TEST_ASSERT_EQUAL(2, close_count); // the failed binding, then the unplug
+  TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+  TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL_PTR(enum_delay_async, _usbh_data.call_after.func);
+  TEST_ASSERT_EQUAL(2, _usbh_data.root_retry_count);
 }
