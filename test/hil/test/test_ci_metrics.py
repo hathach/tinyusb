@@ -524,24 +524,39 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 else:
                     self.assertIn('stale: PR #5 head moved', r.stdout)
 
-    def test_the_code_size_post_updates_marocchinos_comment_only_while_current(self):
+    def test_the_sticky_posts_update_marocchinos_comment_only_while_current(self):
         # agentrc's gh_pr_comment.py post: 0 posted, 1 superseded (the step passes, nothing written), 2 unknown (fails)
         if _no_bash() or sys.platform == 'win32':   # which('gh') there finds a .bat, not this stub
             raise unittest.SkipTest(_no_bash() or 'a POSIX gh stub')
         text = _read(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'))
-        job = text[text.index('\n  code-size-comment:\n'):]
-        self.assertIn('concurrency:\n      group: code-size-comment-${{ needs.pr_number.outputs.number }}\n', job)
+        hil = text.index('\n  hil-comment:\n')
+        size = text.index('\n  code-size-comment:\n')
+        # (job, post step, header, body file under the step's cwd or RUNNER_TEMP, its error)
+        posts = ((text[hil:size], 'Post HIL report as sticky PR comment', 'hil-report', 'hil_combined.md',
+                  'HIL report comment'),
+                 (text[size:], 'Post code size as sticky PR comment', 'code-size', 'code-size/out/comment.md',
+                  'code size comment'))
+        check = subprocess.run([sys.executable, 'test/hil/helper/agentrc.py', 'check'], cwd=REPO,
+                               capture_output=True, text=True)
+        self.assertEqual(check.returncode, 0, check.stderr)
+        for job, step, header, body_file, what in posts:
+            with self.subTest(header):
+                self._check_sticky_post(job, step, header, body_file, what, json.loads(check.stdout)['root'])
+
+    def _check_sticky_post(self, job, step, header, body_file, what, agentrc_root):
+        name = job[3:job.index(':')]
+        self.assertIn(f'concurrency:\n      group: {name}-${{{{ needs.pr_number.outputs.number }}}}\n', job)
         self.assertNotIn('uses: marocchino', job)
-        i = job.index('run: |\n', job.index('- name: Post code size as sticky PR comment\n')) + len('run: |\n')
+        if header == 'hil-report':   # its own is-current gate stays ahead of the post
+            self.assertIn('- name: Skip a superseded run\n        id: current\n', job)
+            self.assertIn(f"- name: {step}\n        if: steps.current.outputs.post == 'true'\n", job)
+        i = job.index('run: |\n', job.index(f'- name: {step}\n')) + len('run: |\n')
         j = re.search(r'^\s*$', job[i:], re.M).start() + i
         script = re.sub(r'^ {10}', '', job[i:j], flags=re.M)
         fetch = '$(python3 test/hil/helper/agentrc.py fetch)'
         self.assertIn(fetch, script)
-        check = subprocess.run([sys.executable, 'test/hil/helper/agentrc.py', 'check'], cwd=REPO,
-                               capture_output=True, text=True)
-        self.assertEqual(check.returncode, 0, check.stderr)
-        script = script.replace(fetch, shlex.quote(json.loads(check.stdout)['root']))
-        marker = '<!-- Sticky Pull Request Commentcode-size -->'
+        script = script.replace(fetch, shlex.quote(agentrc_root))
+        marker = f'<!-- Sticky Pull Request Comment{header} -->'
         stub = '''#!/usr/bin/env python3
 import json, os, sys
 args, path = sys.argv[1:], sys.argv[-1]
@@ -574,26 +589,26 @@ print(json.dumps(reply))
                 with open(os.path.join(d, 'gh'), 'w', encoding='utf-8', newline='\n') as f:
                     f.write(stub)
                 os.chmod(os.path.join(d, 'gh'), 0o755)
-                os.makedirs(os.path.join(d, 'code-size', 'out'))
-                with open(os.path.join(d, 'code-size', 'out', 'comment.md'), 'w', encoding='utf-8') as f:
-                    f.write('## Code size\n\nnew table\n')
+                os.makedirs(os.path.dirname(os.path.join(d, body_file)), exist_ok=True)
+                with open(os.path.join(d, body_file), 'w', encoding='utf-8') as f:
+                    f.write('## Report\n\nnew table\n')
                 body = os.path.join(d, 'body')
                 env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '1', 'HEAD_SHA': 'a' * 40,
                        'RUNNER_TEMP': d, 'PR_HEAD': pr_head, 'GH_FAIL': fail, 'MARKER': marker,
                        'GH_LOG': os.path.join(d, 'log'), 'GH_BODY': body,
                        'PATH': d + os.pathsep + os.environ['PATH']}
-                r = run_bash(['-e', '-o', 'pipefail', '-c', script], cwd=REPO, capture_output=True, text=True,
+                r = run_bash(['-e', '-o', 'pipefail', '-c', script], cwd=d, capture_output=True, text=True,
                              env=env)
                 self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
                 if case == 'current':
                     self.assertIn('updated https://example/c/9', r.stdout)
-                    self.assertEqual(_read(body), f'## Code size\n\nnew table\n\n{marker}')
+                    self.assertEqual(_read(body), f'## Report\n\nnew table\n\n{marker}')
                     continue
                 self.assertFalse(os.path.exists(body))
                 if case == 'superseded':
                     self.assertIn('stale: PR #5 head moved', r.stdout)
                 else:
-                    self.assertIn('::error::code size comment not posted (exit 2)', r.stdout)
+                    self.assertIn(f'::error::{what} not posted (exit 2)', r.stdout)
 
     def _run_block(self, block, sel, setup=None):
         """Run a dedented build.yml step block with `sel` as selection.json in a temp
