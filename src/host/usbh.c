@@ -2446,11 +2446,17 @@ static void process_enumeration(tuh_xfer_t *xfer) {
       // driver_open() must not make any usb transfer
       if (!enum_parse_configuration_desc(daddr, (tusb_desc_configuration_t*) _usbh_epbuf.ctrl)) {
         TU_LOG_USBH("Failed to bind class drivers\r\n");
+        // a driver may have opened before the failure. A close callback may drive the usbh task (sync transfer), which
+        // can end this attempt and start another at this address: stop then, a later driver may be the new attempt's
         const uint8_t enum_gen = _usbh_data.enum_gen;
-        close_class_drivers(daddr); // a driver may have opened before the failure
-        // a close callback may drive the usbh task (sync transfer), which can end this attempt and start another
-        if (enum_gen != _usbh_data.enum_gen || daddr != _usbh_data.enumerating_daddr) {
-          return;
+        for (uint8_t drv_id = 0; drv_id < TOTAL_DRIVER_COUNT; drv_id++) {
+          usbh_class_driver_t const *driver = get_driver(drv_id);
+          if (driver != NULL) {
+            driver->close(daddr);
+            if (enum_gen != _usbh_data.enum_gen || daddr != _usbh_data.enumerating_daddr) {
+              return;
+            }
+          }
         }
         is_enum_failed = true;
         break;

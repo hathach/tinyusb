@@ -105,6 +105,21 @@ static const usbh_class_driver_t fake_driver = {
   .close      = fake_close,
 };
 
+// a later driver, whose interface a replacement device may open while the first driver's close callback runs
+static uint8_t second_close_count;
+static bool    second_itf_open;
+
+static void second_close(uint8_t dev_addr) {
+  (void) dev_addr;
+  second_close_count++;
+  second_itf_open = false;
+}
+
+static const usbh_class_driver_t two_drivers[] = {
+  {.name = "FAKE", .open = fake_open, .set_config = fake_set_config, .close = fake_close},
+  {.name = "FAKE2", .open = fake_open, .set_config = fake_set_config, .close = second_close},
+};
+
 //--------------------------------------------------------------------+
 // Hooks
 //--------------------------------------------------------------------+
@@ -129,6 +144,11 @@ static void remove_device_and_readdress_another(void) {
   dev->connected       = 1;
   dev->addressed       = 1;
   _usbh_data.enumerating_daddr = DADDR;
+}
+
+static void remove_device_and_readdress_another_using_second_driver(void) {
+  remove_device_and_readdress_another();
+  second_itf_open = true;
 }
 
 //--------------------------------------------------------------------+
@@ -156,6 +176,8 @@ void setUp(void) {
   clear_stall_result = true;
   open_ep_count      = 0;
   tu_memclr(open_ep_size, sizeof(open_ep_size));
+  second_close_count = 0;
+  second_itf_open    = false;
 
   // DADDR is being enumerated and has reached the SET_CONFIGURATION stage
   usbh_device_t *dev    = get_device(DADDR);
@@ -457,4 +479,18 @@ void test_enum_refused_binding_keeps_new_attempt_at_same_address(void) {
   TEST_ASSERT_TRUE(get_device(DADDR)->connected);
   TEST_ASSERT_EQUAL(DADDR, _usbh_data.enumerating_daddr);
   TEST_ASSERT_EQUAL_PTR(enum_delay_async, _usbh_data.call_after.func);
+}
+
+// the new attempt at the same address has opened a later driver before the first close callback returned
+void test_enum_refused_binding_keeps_later_driver_of_new_attempt(void) {
+  _app_driver       = two_drivers;
+  _app_driver_count = TU_ARRAY_SIZE(two_drivers);
+  close_hook        = remove_device_and_readdress_another_using_second_driver;
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
+
+  TEST_ASSERT_EQUAL(1, second_close_count); // the unplug's only
+  TEST_ASSERT_TRUE(second_itf_open);
+  TEST_ASSERT_TRUE(get_device(DADDR)->connected);
+  TEST_ASSERT_EQUAL(DADDR, _usbh_data.enumerating_daddr);
 }
