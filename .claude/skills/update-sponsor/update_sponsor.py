@@ -252,7 +252,7 @@ def entitlements(sponsors, config):
 
   # Rules mirror .github/workflows/labeler.yml, which applies these same labels
   # when a ticket is opened. This pass backfills what the workflow cannot reach:
-  # tickets older than it, and private sponsors its GITHUB_TOKEN cannot see.
+  # tickets older than it.
   for s in sponsors:
     # A private sponsor gets NO label. Every candidate set was measured against the
     # live repo and each one identifies them: withholding `Sponsor 💖` leaves a bare
@@ -371,7 +371,8 @@ def print_rules():
   """The applied policy, read out of the constants above so it cannot drift."""
   print("Label rules mirror .github/workflows/labeler.yml (the source of truth for new "
         "tickets).\nThis script backfills what that workflow cannot reach: tickets older "
-        "than it, and\nprivate sponsors, which its GITHUB_TOKEN cannot see at all.\n")
+        "than it.\nPrivate sponsors, whom its GITHUB_TOKEN cannot see, get no label from "
+        "either (below).\n")
   row = "  {:<9} {:>5}  {:<17} {:<22} {}"
   print(row.format("Tier", "$/mo", "README section", "Listed as", "Labels"))
   for key, floor, marker, _placeholder, size in TIERS:

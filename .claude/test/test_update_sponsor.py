@@ -23,6 +23,30 @@ def completed(argv, out, kw, rc=0):
     return subprocess.CompletedProcess(argv, rc, out, out[:0])
 
 
+class PrivateSponsorTest(unittest.TestCase):
+    """A private sponsor gets no label, and the rules never promise one: no live gh call."""
+
+    def test_a_private_sponsor_is_never_labelled(self):
+        sponsors = [{'login': 'pub', 'tier': 'DWORD', 'private': False, 'is_org': False},
+                    {'login': 'priv', 'tier': 'QWORD', 'private': True, 'is_org': False},
+                    {'login': 'privorg', 'tier': 'QWORD', 'private': True, 'is_org': True}]
+        config = {'org_members': {'privorg': ['member']}}
+        with mock.patch.object(update_sponsor, 'gh', return_value=''):
+            ent = update_sponsor.entitlements(sponsors, config)
+        self.assertEqual(ent, {'pub': sorted(update_sponsor.TIER_LABELS['DWORD'])})
+
+    def test_the_rules_say_private_sponsors_get_no_label(self):
+        import contextlib
+        import io
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            update_sponsor.print_rules()
+        intro = out.getvalue().split('\n\n')[0]
+        self.assertIn('tickets older than it.', intro)
+        self.assertIn('get no label', intro)
+        self.assertIn('gets NO label at all', out.getvalue())
+
+
 class GhTest(unittest.TestCase):
     def test_label_names_come_back_as_github_sent_them(self):
         def run(argv, **kw):
