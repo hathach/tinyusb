@@ -222,6 +222,7 @@ typedef struct {
   bool busy_lock; // busy transferring
   bool running;   // between hcd_init() and hcd_deinit()
   volatile uint8_t handler_waiters; // tasks waiting in handler_lock_wait()
+  max3421_ep_t* deferred_ep; // its NAK retry was deferred for a waiter: the next frame resumes round-robin after it
 
 #if OSAL_MUTEX_REQUIRED
   OSAL_MUTEX_DEF(spi_mutexdef);
@@ -1038,15 +1039,19 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
         ep->state++; // > EP_STATE_ATTEMPT_1: the next frame restarts it
       }
 
-      max3421_ep_t * next_ep = find_next_pending_ep(ep);
-      if (ep == next_ep && !defer_retry) {
+      // deferred: switching endpoints would keep it looping too, while two endpoints NAK without limit (max_nak = 0)
+      max3421_ep_t * next_ep = defer_retry ? NULL : find_next_pending_ep(ep);
+      if (ep == next_ep) {
         // this endpoint is only one pending -> retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-      } else if (next_ep != NULL && next_ep != ep) {
+      } else if (next_ep != NULL) {
         // switch to next pending endpoint
         xact_generic(rhport, next_ep, true, in_isr);
       } else {
-        // no more pending in this frame -> clear busy
+        // no more pending in this frame, or deferred -> clear busy
+        if (defer_retry) {
+          _hcd_data.deferred_ep = ep;
+        }
         usbh_spin_lock(in_isr);
         _hcd_data.busy_lock = false;
         usbh_spin_unlock(in_isr);
@@ -1157,6 +1162,12 @@ static void handle_int(uint8_t rhport, bool in_isr) {
           ep_retry = ep;
         }
       }
+    }
+
+    if (_hcd_data.deferred_ep != NULL) {
+      // round-robin, so a waiter held over frames starves no endpoint; also finds ones left at EP_STATE_ATTEMPT_1
+      ep_retry = find_next_pending_ep(_hcd_data.deferred_ep);
+      _hcd_data.deferred_ep = NULL;
     }
 
     // start usb transfer if not busy
