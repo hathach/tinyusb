@@ -221,18 +221,24 @@ typedef struct {
 
   bool busy_lock; // busy transferring
   bool running;   // between hcd_init() and hcd_deinit()
+  volatile uint8_t handler_waiters; // tasks waiting in handler_lock_wait()
 
 #if OSAL_MUTEX_REQUIRED
   OSAL_MUTEX_DEF(spi_mutexdef);
   osal_mutex_t spi_mutex;
-  OSAL_MUTEX_DEF(handler_mutexdef);
-  osal_mutex_t handler_mutex;
 #endif
 
   max3421_ep_t ep[CFG_TUH_MAX3421_ENDPOINT_TOTAL]; // [0] is reserved for addr0
 } max3421_data_t;
 
 static max3421_data_t _hcd_data;
+
+#if OSAL_MUTEX_REQUIRED
+// Outside _hcd_data, which hcd_init() clears, and never deleted: hcd_deinit() cannot keep a task-context handler from
+// taking it afterwards, only make it return
+static OSAL_MUTEX_DEF(_handler_mutexdef);
+static osal_mutex_t _handler_mutex;
+#endif
 
 // max NAK before giving up in a frame. 0 means infinite NAKs
 static tuh_configure_max3421_t _tuh_cfg = {
@@ -273,20 +279,34 @@ static void max3421_spi_unlock(uint8_t rhport, bool in_isr) {
 // A BSP may run the interrupt handler in a task (in_isr = false), which masking INT does not stop once it runs
 static void handler_lock(bool in_isr) {
   if (!in_isr) {
-    (void) osal_mutex_lock(_hcd_data.handler_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+    (void) osal_mutex_lock(_handler_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   }
 }
 
 static void handler_unlock(bool in_isr) {
   if (!in_isr) {
-    (void) osal_mutex_unlock(_hcd_data.handler_mutex);
+    (void) osal_mutex_unlock(_handler_mutex);
   }
+}
+
+// For a task outside the handler. A task-context handler retries a NAKed transaction without returning: while the
+// count is non-zero it defers that retry to the next frame, so the waiter gets in.
+static void handler_lock_wait(void) {
+  usbh_spin_lock(false);
+  _hcd_data.handler_waiters++;
+  usbh_spin_unlock(false);
+
+  handler_lock(false);
+
+  usbh_spin_lock(false);
+  _hcd_data.handler_waiters--;
+  usbh_spin_unlock(false);
 }
 
 // Keep the interrupt handler, task or ISR, off the endpoint table. INT is masked under spi_mutex like an SPI frame,
 // so unmasking it cannot land inside another task's frame.
 static void edpt_lock(uint8_t rhport) {
-  handler_lock(false);
+  handler_lock_wait();
   (void) osal_mutex_lock(_hcd_data.spi_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   tuh_max3421_int_api(rhport, false);
 }
@@ -519,7 +539,9 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
 #if OSAL_MUTEX_REQUIRED
   _hcd_data.spi_mutex = osal_mutex_create(&_hcd_data.spi_mutexdef);
-  _hcd_data.handler_mutex = osal_mutex_create(&_hcd_data.handler_mutexdef);
+  if (_handler_mutex == NULL) {
+    _handler_mutex = osal_mutex_create(&_handler_mutexdef);
+  }
 #endif
   _hcd_data.running = true;
 
@@ -574,18 +596,20 @@ bool hcd_deinit(uint8_t rhport) {
   // disable interrupt
   tuh_max3421_int_api(rhport, false);
 
+  // Masking INT does not stop a task-context handler: wait for it to leave. One entering later, or resuming after an
+  // unlocked event post, sees running false and returns without touching the chip.
+  // tuh_deinit() closes its devices after this: they must not take the deleted spi_mutex or unmask INT again.
+  handler_lock_wait();
+  _hcd_data.running = false;
+  handler_unlock(false);
+
   // reset max3421 and power down
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
   reg_write(rhport, USBCTL_ADDR, USBCTL_PWRDOWN, false);
 
-  // tuh_deinit() closes its devices after this: they must not take the deleted mutexes or unmask INT again
-  _hcd_data.running = false;
-
   #if OSAL_MUTEX_REQUIRED
   osal_mutex_delete(_hcd_data.spi_mutex);
   _hcd_data.spi_mutex = NULL;
-  osal_mutex_delete(_hcd_data.handler_mutex);
-  _hcd_data.handler_mutex = NULL;
   #endif
 
   return true;
@@ -825,17 +849,18 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   if (!_hcd_data.running) {
     return true; // nothing survives hcd_deinit()
   }
-  max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
-  TU_VERIFY(ep);
 
-  if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
-    edpt_lock(rhport);
+  // looked up under the lock: the handler may complete the transfer while this waits for it
+  edpt_lock(rhport);
+  max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
+  const bool pending = (ep != NULL) && EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX;
+  if (pending) {
     ep->state = EP_STATE_ABORTING;
     sndfifo_owner_release(ep); // a NAKed OUT waiting for the next frame gets no HXFRDN to release it
-    edpt_unlock(rhport);
   }
+  edpt_unlock(rhport);
 
-  return true;
+  return pending; // false once completed: its queued event releases the endpoint
 }
 
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
@@ -899,7 +924,9 @@ static void handle_connect_irq(uint8_t rhport, bool in_isr) {
       handler_unlock(in_isr); // see xfer_complete_isr()
       hcd_event_device_remove(rhport, in_isr);
       handler_lock(in_isr);
-      reg_write(rhport, HCTL_ADDR, 0, in_isr);
+      if (_hcd_data.running) {
+        reg_write(rhport, HCTL_ADDR, 0, in_isr);
+      }
       break;
 
     default: {
@@ -967,7 +994,9 @@ static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t re
   hcd_event_xfer_complete(daddr, ep_addr, xferred_len, result, in_isr);
   handler_lock(in_isr);
 
-  xact_next_pending(rhport, ep, in_isr); // ep may be freed by now, only its slot is used
+  if (_hcd_data.running) {
+    xact_next_pending(rhport, ep, in_isr); // ep may be freed by now, only its slot is used
+  }
 }
 
 static void handle_xfer_done(uint8_t rhport, bool in_isr) {
@@ -995,21 +1024,25 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
 
   xfer_result_t xfer_result;
   switch(hresult) {
-    case HRSL_NAK:
-      if (ep_num == 0) {
+    case HRSL_NAK: {
+      // a task-context handler would loop here on immediate retries, holding the lock a waiting task needs
+      const bool defer_retry = !in_isr && _hcd_data.handler_waiters > 0;
+      if (defer_retry) {
+        save_data_toggle(ep, hrsl); // a restart restores it, and may come after other packets of this transfer
+      } else if (ep_num == 0) {
         // control endpoint -> retry immediately and return
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
         return;
       }
       if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
-        ep->state++;
+        ep->state++; // > EP_STATE_ATTEMPT_1: the next frame restarts it
       }
 
       max3421_ep_t * next_ep = find_next_pending_ep(ep);
-      if (ep == next_ep) {
+      if (ep == next_ep && !defer_retry) {
         // this endpoint is only one pending -> retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-      } else if (next_ep) {
+      } else if (next_ep != NULL && next_ep != ep) {
         // switch to next pending endpoint
         xact_generic(rhport, next_ep, true, in_isr);
       } else {
@@ -1019,6 +1052,7 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
         usbh_spin_unlock(in_isr);
       }
       return;
+    }
 
     case HRSL_BAD_REQ:
       // occurred when initialized without any pending transfer. Skip for now
@@ -1144,6 +1178,9 @@ static void handle_int(uint8_t rhport, bool in_isr) {
 
   if (hirq & HIRQ_CONDET_IRQ) {
     handle_connect_irq(rhport, in_isr);
+    if (!_hcd_data.running) {
+      return; // hcd_deinit() ran while it posted an event unlocked
+    }
   }
 
   // queue more transfer in handle_xfer_done() can cause hirq to be set again while external IRQ may not catch and/or
@@ -1181,6 +1218,9 @@ static void handle_int(uint8_t rhport, bool in_isr) {
     if (hirq & HIRQ_HXFRDN_IRQ) {
       hirq_write(rhport, HIRQ_HXFRDN_IRQ, in_isr);
       handle_xfer_done(rhport, in_isr);
+      if (!_hcd_data.running) {
+        return; // hcd_deinit() ran while it posted an event unlocked
+      }
     }
 
     hirq = reg_read(rhport, HIRQ_ADDR, in_isr);
@@ -1196,7 +1236,9 @@ static void handle_int(uint8_t rhport, bool in_isr) {
 // Interrupt handler
 void hcd_int_handler(uint8_t rhport, bool in_isr) {
   handler_lock(in_isr);
-  handle_int(rhport, in_isr);
+  if (_hcd_data.running) { // a task-context handler may have waited out hcd_deinit()
+    handle_int(rhport, in_isr);
+  }
   handler_unlock(in_isr);
 }
 
