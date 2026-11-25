@@ -810,7 +810,7 @@ void audioh_close(uint8_t daddr) {
     }
     audioh_playback_reset(&p_audio->playback);
 
-    // A disconnected device cannot complete its pending control request.
+    // usbh already failed its control requests, reporting them to the application, before closing the driver
     tu_memclr(&p_audio->ctrl, sizeof(p_audio->ctrl));
 
     p_audio->stream_count      = 0;

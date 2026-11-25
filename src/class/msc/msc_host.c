@@ -87,7 +87,6 @@ typedef struct {
 } msch_epbuf_t;
 
 static msch_interface_t _msch_itf[CFG_TUH_DEVICE_MAX];
-static uint8_t _msch_tagid[CFG_TUH_DEVICE_MAX]; // bumped per open and close
 static uint32_t _msch_ready_start_ms; // first Test Unit Ready of the enumeration: usbh configures one device at a time
 CFG_TUH_MEM_SECTION static msch_epbuf_t _msch_epbuf[CFG_TUH_DEVICE_MAX];
 
@@ -392,8 +391,7 @@ static bool reset_recovery_submit(uint8_t daddr, const msch_interface_t* p_msc) 
       .ep_addr     = 0,
       .setup       = (p_msc->stage == MSC_STAGE_RESET) ? &bomsr : &clear_halt,
       .buffer      = NULL,
-      .complete_cb = reset_recovery_complete,
-      .user_data   = _msch_tagid[daddr - 1]
+      .complete_cb = reset_recovery_complete
   };
   return tuh_control_xfer(&xfer);
 }
@@ -414,9 +412,9 @@ static void reset_recovery_end(uint8_t daddr, msch_interface_t* p_msc, bool succ
 static void reset_recovery_complete(tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
   msch_interface_t* p_msc = get_itf(daddr);
-  // unplugged, also while usbh runs tuh_umount_cb() ahead of msch_close(): discarded with the interface; the
-  // application learns of it from tuh_msc_umount_cb()
-  TU_VERIFY(p_msc->configured && xfer->user_data == _msch_tagid[daddr - 1] && tuh_connected(daddr),);
+  // unplugged: usbh fails the device's requests before tuh_umount_cb() and msch_close(), discarded with the
+  // interface; the application learns of it from tuh_msc_umount_cb()
+  TU_VERIFY(p_msc->configured && tuh_connected(daddr),);
 
   bool ok = (xfer->result == XFER_RESULT_SUCCESS);
   switch (p_msc->stage) {
@@ -491,9 +489,6 @@ void msch_close(uint8_t dev_addr) {
   TU_VERIFY(p_msc->ep_in != 0,);
 
   TU_LOG_DRV("  MSCh close addr = %d\r\n", dev_addr);
-
-  // drop a recovery completion that the callback could deliver by driving tuh_task()
-  _msch_tagid[dev_addr - 1]++;
 
   // invoke Application Callback
   if (p_msc->mounted) {
@@ -644,7 +639,6 @@ uint16_t msch_open(uint8_t rhport, uint8_t dev_addr, const tusb_desc_interface_t
   p_msc->ep_out           = ep_out->bEndpointAddress;
   p_msc->ep_in_mps        = ep_in_mps;
   p_msc->itf_num          = desc_itf->bInterfaceNumber;
-  _msch_tagid[dev_addr - 1]++;
 
   return (uint16_t) (p_desc - (const uint8_t *) desc_itf);
 }
@@ -679,8 +673,7 @@ bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
       .ep_addr     = 0,
       .setup       = &request,
       .buffer      = enum_buf,
-      .complete_cb = config_get_maxlun_complete,
-      .user_data    = _msch_tagid[daddr - 1]
+      .complete_cb = config_get_maxlun_complete
   };
   // usbh ignores set_config's result: report completion here or the enumeration never ends
   if (!tuh_control_xfer(&xfer)) {
@@ -693,9 +686,7 @@ bool msch_set_config(uint8_t daddr, uint8_t itf_num) {
 static void config_get_maxlun_complete(tuh_xfer_t* xfer) {
   uint8_t const daddr = xfer->daddr;
   msch_interface_t* p_msc = get_itf(daddr);
-  // unplugged: usbh closed this driver, then failed the transfer and ended the enumeration itself.
-  // A stale tagid is a request queued before the unplug that usbh fails only after the address was reopened.
-  TU_VERIFY(p_msc->configured && xfer->user_data == _msch_tagid[daddr - 1],);
+  TU_VERIFY(p_msc->configured && tuh_connected(daddr),);
 
   // MAXLUN's response is minus 1 by specs, STALL means 1
   if (XFER_RESULT_SUCCESS == xfer->result) {
