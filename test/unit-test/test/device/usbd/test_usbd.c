@@ -1320,16 +1320,20 @@ void test_usbd_get_descriptor_out_is_stalled(void) {
   tud_task();
 }
 
-// An OUT GET_INTERFACE to an interface stalls before reaching its class driver: no mscd_control_xfer_cb expected
-void test_usbd_get_interface_out_to_interface_is_stalled(void) {
+// USB 2.0 9.3.1: with wLength 0 the direction bit is ignored, so an OUT GET_DESCRIPTOR has no data stage and is
+// answered with the IN status ZLP, not stalled
+void test_usbd_get_descriptor_out_zero_length_sends_status(void) {
   static const tusb_control_request_t req = {
-    .bmRequestType = 0x01, .bRequest = TUSB_REQ_GET_INTERFACE, .wValue = 0, .wIndex = 0, .wLength = 1
+    .bmRequestType = 0x00, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = (TUSB_DESC_DEVICE << 8), .wIndex = 0,
+    .wLength = 0
   };
-  msc_configured();
+  desc_device = (uint8_t const *) &data_desc_device;
+  bus_reset();
 
   dcd_event_setup_received(rhport, (const uint8_t*) &req, false);
-  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_OUT);
-  dcd_edpt_stall_Expect(rhport, EDPT_CTRL_IN);
+  dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
+  dcd_event_xfer_complete(rhport, EDPT_CTRL_IN, 0, 0, false);
+  dcd_edpt0_status_complete_ExpectWithArray(rhport, &req, 1);
   tud_task();
 }
 

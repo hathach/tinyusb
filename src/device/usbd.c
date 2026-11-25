@@ -1223,8 +1223,9 @@ static bool process_setup_received(uint8_t rhport, tusb_control_request_t const 
 
   p_request = &ctrl_xfer->request; // re-direct request pointer to internal copy (modifiable for hacking)
   TU_ASSERT(p_request->bmRequestType_bit.type < TUSB_REQ_TYPE_INVALID);
+  // USB 2.0 9.3.1: the direction bit is ignored when wLength is 0, there is no data stage to misroute
   TU_VERIFY(!(TUSB_REQ_TYPE_STANDARD == p_request->bmRequestType_bit.type &&
-              TUSB_DIR_OUT == p_request->bmRequestType_bit.direction &&
+              TUSB_DIR_OUT == p_request->bmRequestType_bit.direction && p_request->wLength != 0U &&
               is_std_request_in_only(p_request->bRequest)));
 
   // Vendor request
