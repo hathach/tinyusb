@@ -220,6 +220,7 @@ typedef struct {
   }sndfifo_owner;
 
   bool busy_lock; // busy transferring
+  bool running;   // between hcd_init() and hcd_deinit()
 
 #if OSAL_MUTEX_REQUIRED
   OSAL_MUTEX_DEF(spi_mutexdef);
@@ -520,6 +521,7 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
   _hcd_data.spi_mutex = osal_mutex_create(&_hcd_data.spi_mutexdef);
   _hcd_data.handler_mutex = osal_mutex_create(&_hcd_data.handler_mutexdef);
 #endif
+  _hcd_data.running = true;
 
   // full duplex, interrupt negative edge
   reg_write(rhport, PINCTL_ADDR, _tuh_cfg.pinctl | PINCTL_FDUPSPI, false);
@@ -575,6 +577,9 @@ bool hcd_deinit(uint8_t rhport) {
   // reset max3421 and power down
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
   reg_write(rhport, USBCTL_ADDR, USBCTL_PWRDOWN, false);
+
+  // tuh_deinit() closes its devices after this: they must not take the deleted mutexes or unmask INT again
+  _hcd_data.running = false;
 
   #if OSAL_MUTEX_REQUIRED
   osal_mutex_delete(_hcd_data.spi_mutex);
@@ -634,6 +639,9 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
 // HCD closes all opened endpoints belong to this device
 // usbh then releases their buffers without hcd_edpt_abort_xfer()/hcd_edpt_close(), so no transfer may survive this
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
+  if (!_hcd_data.running) {
+    return;
+  }
   edpt_lock(rhport);
   max3421_ep_t* ep0 = &_hcd_data.ep[0];
   if (dev_addr == 0 && EP_STATE_ATTEMPT_1 <= ep0->state && ep0->state < EP_STATE_ATTEMPT_MAX) {
@@ -678,6 +686,7 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
+  TU_VERIFY(_hcd_data.running);
 
   edpt_lock(rhport);
   max3421_ep_t * ep = find_ep_not_addr0(daddr, ep_num, ep_dir);
@@ -813,12 +822,16 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
+  if (!_hcd_data.running) {
+    return true; // nothing survives hcd_deinit()
+  }
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
   TU_VERIFY(ep);
 
   if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
     edpt_lock(rhport);
     ep->state = EP_STATE_ABORTING;
+    sndfifo_owner_release(ep); // a NAKed OUT waiting for the next frame gets no HXFRDN to release it
     edpt_unlock(rhport);
   }
 
@@ -1018,11 +1031,10 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
       break;
   }
 
-  if (!ep_dir) {
-    sndfifo_owner_clear(); // SETUP or OUT: any non-NAK result ends the retry of its packet, ACKed or not
-  }
-
   if (xfer_result != XFER_RESULT_SUCCESS) {
+    if (!ep_dir && !(hxfr_type & (HXFR_SETUP | HXFR_HS))) {
+      sndfifo_owner_clear(); // the failed packet stays committed in SNDFIFO: it must not pass as a NAK retry
+    }
     xfer_complete_isr(rhport, ep, xfer_result, hrsl, in_isr);
     return;
   }
@@ -1043,6 +1055,8 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
     }
   } else {
     // SETUP or OUT transfer
+    sndfifo_owner_clear(); // data is sent
+
     uint8_t xact_len;
 
     if (hxfr_type & HXFR_SETUP) {
