@@ -1591,6 +1591,9 @@ static void edpt_fix_fullspeed_bulk_size(tusb_desc_endpoint_t *desc_ep, tusb_spe
 }
 
 bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
+  // removing: hcd_device_close() already ran, nothing would free an endpoint opened now
+  const usbh_device_t* dev = get_device(dev_addr);
+  TU_VERIFY(dev == NULL || !dev->removing);
   // enumeration already fixed the configuration descriptor, this covers descriptors the application opens itself
   edpt_fix_fullspeed_bulk_size((tusb_desc_endpoint_t *)(uintptr_t)desc_ep, tuh_speed_get(dev_addr));
   TU_ASSERT(tu_edpt_validate(desc_ep, tuh_speed_get(dev_addr)));
@@ -1601,9 +1604,14 @@ bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
   const uint8_t epnum = tu_edpt_number(ep_addr);
   const uint8_t dir   = tu_edpt_dir(ep_addr);
   TU_VERIFY(0 != epnum); // cannot close EP0
+  usbh_device_t* dev = get_device(daddr);
+  if (dev != NULL && dev->removing) {
+    // hcd_device_close() already closed it, e.g. called from tuh_umount_cb(): only usbh's state is left to release
+    edpt_release_busy(dev, epnum, dir);
+    return true;
+  }
   if (!tuh_edpt_abort_xfer(daddr, ep_addr)) { // abort any pending transfer
     // the HCD had none to abort, but the endpoint is closing: release it all the same
-    usbh_device_t* dev = get_device(daddr);
     if (dev != NULL && (dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY)) {
       edpt_release_busy(dev, epnum, dir);
     }
@@ -1929,7 +1937,8 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
         TU_LOG_USBH("[%u:%u:%u] unplugged address = %u\r\n", rhport, hub_addr, hub_port, daddr);
 
         // Close it in the HCD and fail its control transfers first: their callbacks run before tuh_umount_cb(), with
-        // class state intact. Class close() makes no HCD call, and usbh refuses new transfers for a removing device.
+        // class state intact. Class close() makes no HCD call; for a removing device usbh refuses new transfers and
+        // endpoint opens, and tuh_edpt_close() skips the HCD.
         usbh_device_close(rhport, daddr);
 
         #if CFG_TUH_HUB

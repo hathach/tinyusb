@@ -5,6 +5,12 @@
 
 #include "unity.h"
 
+// Route usbh.c's endpoint HCD calls to this suite: open and abort are counted below, close lands on usbh.c's weak
+// default, which fails, so a successful tuh_edpt_close() proves it made no HCD call.
+#define hcd_edpt_open       counted_hcd_edpt_open
+#define hcd_edpt_abort_xfer counted_hcd_edpt_abort_xfer
+#define hcd_edpt_close      weak_hcd_edpt_close
+
 // Include the production implementation to build a device tree and drive remove_device_tree() directly.
 #include "host/usbh.c"
 
@@ -57,15 +63,35 @@ static void assert_event(uint8_t idx, uint8_t kind, uintptr_t value) {
   }
 }
 
+static const tusb_desc_endpoint_t bulk_in_desc = {
+  .bLength          = sizeof(tusb_desc_endpoint_t),
+  .bDescriptorType  = TUSB_DESC_ENDPOINT,
+  .bEndpointAddress = 0x81,
+  .bmAttributes     = {.xfer = TUSB_XFER_BULK},
+  .wMaxPacketSize   = 64,
+  .bInterval        = 0};
+
 // tuh_umount_cb() is where an application may drive tuh_task(): snapshot what it would see there
 static bool umount_xfer_tried;
 static bool umount_xfer_ok;
+static bool umount_edpt_open_tried;
+static bool umount_edpt_open_ok;
+static bool umount_edpt_close_tried;
+static bool umount_edpt_close_ok;
+static uint8_t umount_ep_state_after_close;
 
 void remove_tree_umount_observer(uint8_t daddr) {
   log_event(EV_UMOUNT, daddr, XFER_RESULT_INVALID);
   if (umount_xfer_tried) {
     static uint8_t buf[8];
     umount_xfer_ok = usbh_edpt_xfer(daddr, 0x81, buf, sizeof(buf));
+  }
+  if (umount_edpt_open_tried) {
+    umount_edpt_open_ok = tuh_edpt_open(daddr, &bulk_in_desc);
+  }
+  if (umount_edpt_close_tried) {
+    umount_edpt_close_ok        = tuh_edpt_close(daddr, 0x81);
+    umount_ep_state_after_close = get_device(daddr)->ep_status[1][TUSB_DIR_IN];
   }
   if (umount_count == 0) {
     first_umount_daddr = daddr;
@@ -83,6 +109,25 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]
   (void) rhport;
   (void) daddr;
   (void) setup_packet;
+  return true;
+}
+
+static uint8_t hcd_edpt_open_count;
+static uint8_t hcd_edpt_abort_count;
+
+bool counted_hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep_desc) {
+  (void) rhport;
+  (void) daddr;
+  (void) ep_desc;
+  hcd_edpt_open_count++;
+  return true;
+}
+
+bool counted_hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
+  (void) rhport;
+  (void) daddr;
+  (void) ep_addr;
+  hcd_edpt_abort_count++;
   return true;
 }
 
@@ -160,6 +205,13 @@ void setUp(void) {
   xfer_hook   = NULL;
   umount_xfer_tried = false;
   umount_xfer_ok    = false;
+  umount_edpt_open_tried  = false;
+  umount_edpt_open_ok     = false;
+  umount_edpt_close_tried = false;
+  umount_edpt_close_ok    = false;
+  umount_ep_state_after_close = 0xFF;
+  hcd_edpt_open_count  = 0;
+  hcd_edpt_abort_count = 0;
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
 
   umount_count       = 0;
@@ -360,5 +412,50 @@ void test_remove_refuses_endpoint_xfer_from_umount_cb(void) {
   remove_device_tree(RHPORT, HUB_1, 1);
 
   TEST_ASSERT_FALSE(umount_xfer_ok);
+  assert_removed(DEV_A);
+}
+
+static bool cancel_edpt_open_ok;
+
+static void open_from_cancel(const tuh_xfer_t *xfer) {
+  cancel_edpt_open_ok = tuh_edpt_open(xfer->daddr, &bulk_in_desc);
+}
+
+// The HCD closed the device before its control callbacks and tuh_umount_cb(): an endpoint opened from either, e.g. a
+// class reconfiguring after a failed request, would never be freed, so it is refused before the HCD
+void test_remove_refuses_edpt_open_from_cancel_and_umount_cb(void) {
+  attach(HUB_1, 0, 0);
+  attach(DEV_A, HUB_1, 1);
+  TEST_ASSERT_TRUE(tuh_edpt_open(DEV_A, &bulk_in_desc));
+  TEST_ASSERT_EQUAL(1, hcd_edpt_open_count);
+
+  TEST_ASSERT_TRUE(submit(DEV_A, 0xA1)); // in flight
+  cancel_edpt_open_ok    = true;
+  xfer_hook              = open_from_cancel;
+  umount_edpt_open_tried = true;
+  umount_edpt_open_ok    = true;
+
+  remove_device_tree(RHPORT, HUB_1, 1);
+
+  assert_event(0, EV_XFER, 0xA1);
+  TEST_ASSERT_FALSE(cancel_edpt_open_ok);
+  TEST_ASSERT_FALSE(umount_edpt_open_ok);
+  TEST_ASSERT_EQUAL(1, hcd_edpt_open_count);
+  assert_removed(DEV_A);
+}
+
+// tuh_edpt_close() from tuh_umount_cb() releases usbh's endpoint state and succeeds without reaching the HCD, which
+// already closed the endpoint in hcd_device_close()
+void test_remove_edpt_close_from_umount_cb_skips_hcd(void) {
+  attach(HUB_1, 0, 0);
+  attach(DEV_A, HUB_1, 1);
+  get_device(DEV_A)->ep_status[1][TUSB_DIR_IN] = TU_EDPT_STATE_CLAIMED | TU_EDPT_STATE_BUSY;
+  umount_edpt_close_tried = true;
+
+  remove_device_tree(RHPORT, HUB_1, 1);
+
+  TEST_ASSERT_TRUE(umount_edpt_close_ok);
+  TEST_ASSERT_EQUAL(0, umount_ep_state_after_close);
+  TEST_ASSERT_EQUAL(0, hcd_edpt_abort_count);
   assert_removed(DEV_A);
 }
