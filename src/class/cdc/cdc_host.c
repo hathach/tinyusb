@@ -742,9 +742,7 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 // The descriptor after p_desc when it has at least min_len bytes and its bLength fits before desc_end, else NULL.
 // A descriptor longer than defined is valid, its extra bytes skipped (USB 2.0 9.5).
 static const uint8_t *desc_next_bounded(const uint8_t *p_desc, const uint8_t *desc_end, uint8_t min_len) {
-  TU_VERIFY(p_desc < desc_end, NULL);
-  TU_VERIFY(TUH_VALIDATE_BASIC(tu_desc_len(p_desc) >= min_len && tu_desc_len(p_desc) <= (size_t)(desc_end - p_desc)),
-            NULL);
+  TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= min_len, NULL);
   return tu_desc_next(p_desc);
 }
 
