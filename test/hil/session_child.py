@@ -13,13 +13,24 @@ SERIAL_GRACE = 2.0  # s
 _stranded = {}
 
 
+def proc_state_start(path):
+    """(state, starttime) from proc(5) stat file `path`, None when it is gone or malformed."""
+    # after the last ')': comm may hold one. starttime is field 22: a recycled pid has another
+    try:
+        with open(path, errors='replace') as f:
+            fields = f.read().rpartition(')')[2].split()
+    except (OSError, ValueError):
+        return None
+    return (fields[0], fields[19]) if len(fields) >= 20 else None
+
+
 def write_pidfile(path):
     """Record "<pid> <starttime>" for hil_test._session_alive; called before any device work."""
-    # starttime is proc(5) stat field 22: a recycled pid has another
-    with open('/proc/self/stat') as f:
-        start = f.read().rpartition(')')[2].split()[19]
+    ident = proc_state_start('/proc/self/stat')
+    if ident is None:
+        raise RuntimeError('/proc/self/stat is unreadable: no starttime to record')
     with open(path, 'w') as f:
-        f.write(f'{os.getpid()} {start}\n')
+        f.write(f'{os.getpid()} {ident[1]}\n')
 
 
 def enumeration_id(path):

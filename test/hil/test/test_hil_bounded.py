@@ -779,6 +779,23 @@ class SessionPidfile(unittest.TestCase):
             pidfile.write_text('')
             self.assertEqual(hil_test._session_alive(str(pidfile)), 'with an unrecorded pid')
 
+    def test_stat_fields_are_split_after_the_last_paren(self):
+        with TemporaryDirectory() as d:
+            stat = Path(d) / 'stat'
+            stat.write_text('42 (a) b) S ' + ' '.join(map(str, range(4, 22))) + ' 777 0\n')
+            self.assertEqual(session_child.proc_state_start(str(stat)), ('S', '777'))
+            stat.write_text('42 (a) S 1 2\n')
+            self.assertIsNone(session_child.proc_state_start(str(stat)), 'a short record')
+            self.assertIsNone(session_child.proc_state_start(str(Path(d) / 'gone')))
+
+    def test_an_unreadable_identity_writes_no_record(self):
+        usbtest_harness.patch(self, session_child, 'proc_state_start', lambda path: None)
+        with TemporaryDirectory() as d:
+            pidfile = Path(d) / 'pid'
+            with self.assertRaises(RuntimeError):
+                session_child.write_pidfile(str(pidfile))
+            self.assertFalse(pidfile.exists())
+
     def test_a_live_thread_behind_an_exited_leader_keeps_the_session_alive(self):
         # a stranded bounded_read thread can stay blocked past SIGKILL while the leader already reads Z
         child = ('import ctypes, sys, threading, time\n'
@@ -792,7 +809,7 @@ class SessionPidfile(unittest.TestCase):
             self.addCleanup(p.wait)
             self.addCleanup(p.kill)
             deadline = time.monotonic() + 10
-            while (hil_test._proc_state_start(f'/proc/{p.pid}/stat') or ('',))[0] != 'Z':
+            while (session_child.proc_state_start(f'/proc/{p.pid}/stat') or ('',))[0] != 'Z':
                 self.assertLess(time.monotonic(), deadline, 'the leader never exited')
                 time.sleep(0.05)
             self.assertEqual(hil_test._session_alive(str(pidfile)), f'pid {p.pid}')
