@@ -645,7 +645,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   edpt_lock(rhport);
   max3421_ep_t* ep0 = &_hcd_data.ep[0];
   if (dev_addr == 0 && EP_STATE_ATTEMPT_1 <= ep0->state && ep0->state < EP_STATE_ATTEMPT_MAX) {
-    // ep[0] stays allocated, and the lookup of an in-flight addr0 transfer always finds it: abort, so a NAK ends it
+    // ep[0] stays allocated, and the lookup of an in-flight addr0 transfer always finds it: abort, so its HXFRDN ends it
     ep0->state = EP_STATE_ABORTING;
   }
   free_ep(dev_addr);
@@ -944,16 +944,19 @@ static void xact_next_pending(uint8_t rhport, max3421_ep_t *cur_ep, bool in_isr)
   }
 }
 
+static void save_data_toggle(max3421_ep_t *ep, uint8_t hrsl) {
+  if (ep->hxfr_bm.is_out) {
+    ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1u : 0u;
+  }else {
+    ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1u : 0u;
+  }
+}
+
 static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t hrsl, bool in_isr) {
   const uint8_t ep_dir = 1 - ep->hxfr_bm.is_out;
   const uint8_t ep_addr = tu_edpt_addr(ep->hxfr_bm.ep_num, ep_dir);
 
-  // save data toggle
-  if (ep_dir) {
-    ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1u : 0u;
-  }else {
-    ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1u : 0u;
-  }
+  save_data_toggle(ep, hrsl);
 
   ep->state = EP_STATE_IDLE;
   const uint8_t daddr = ep->daddr;
@@ -981,21 +984,25 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
     return;
   }
 
+  if (ep->state == EP_STATE_ABORTING) {
+    // aborted while its transaction was in flight: its buffer may be released, drop the result, keep the toggle in sync
+    save_data_toggle(ep, hrsl);
+    ep->state = EP_STATE_IDLE;
+    sndfifo_owner_release(ep);
+    xact_next_pending(rhport, ep, in_isr);
+    return;
+  }
+
   xfer_result_t xfer_result;
   switch(hresult) {
     case HRSL_NAK:
-      if (ep->state == EP_STATE_ABORTING) {
-        ep->state = EP_STATE_IDLE;
-        sndfifo_owner_release(ep);
-      } else {
-        if (ep_num == 0) {
-          // control endpoint -> retry immediately and return
-          hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-          return;
-        }
-        if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
-          ep->state++;
-        }
+      if (ep_num == 0) {
+        // control endpoint -> retry immediately and return
+        hxfr_write(rhport, _hcd_data.hxfr, in_isr);
+        return;
+      }
+      if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
+        ep->state++;
       }
 
       max3421_ep_t * next_ep = find_next_pending_ep(ep);
@@ -1145,12 +1152,15 @@ static void handle_int(uint8_t rhport, bool in_isr) {
     if (hirq & HIRQ_RCVDAV_IRQ) {
       const uint8_t ep_num = _hcd_data.hxfr_bm.ep_num;
       max3421_ep_t* ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
+      if (ep != NULL && ep->state == EP_STATE_ABORTING) {
+        ep = NULL; // its buffer may be released: handle_xfer_done() drops the result
+      }
       uint8_t xact_len = 0;
 
       // RCVDAV_IRQ can trigger 2 times (dual buffered)
       while (hirq & HIRQ_RCVDAV_IRQ) {
         const uint8_t rcvbc = reg_read(rhport, RCVBC_ADDR, in_isr);
-        // ep is NULL if closed while its IN was in flight: release the FIFO unread
+        // ep is NULL if closed or aborted while its IN was in flight: release the FIFO unread
         xact_len = (ep != NULL) ? (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len) : 0;
         if (xact_len) {
           hwfifo_receive(rhport, ep->buf, xact_len, in_isr);
