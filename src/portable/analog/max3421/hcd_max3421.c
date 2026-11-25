@@ -669,7 +669,7 @@ void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
   }
   edpt_lock(rhport);
   max3421_ep_t* ep0 = &_hcd_data.ep[0];
-  if (dev_addr == 0 && EP_STATE_ATTEMPT_1 <= ep0->state && ep0->state < EP_STATE_ATTEMPT_MAX) {
+  if (dev_addr == 0 && EP_STATE_ATTEMPT_1 <= ep0->state && ep0->state <= EP_STATE_ATTEMPT_MAX) {
     // ep[0] stays allocated, and the lookup of an in-flight addr0 transfer always finds it: abort, so its HXFRDN ends it
     ep0->state = EP_STATE_ABORTING;
   }
@@ -854,7 +854,7 @@ bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   // looked up under the lock: the handler may complete the transfer while this waits for it
   edpt_lock(rhport);
   max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
-  const bool pending = (ep != NULL) && EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX;
+  const bool pending = (ep != NULL) && EP_STATE_ATTEMPT_1 <= ep->state && ep->state <= EP_STATE_ATTEMPT_MAX;
   if (pending) {
     ep->state = EP_STATE_ABORTING;
     sndfifo_owner_release(ep); // a NAKed OUT waiting for the next frame gets no HXFRDN to release it
