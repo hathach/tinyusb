@@ -102,6 +102,13 @@ uint8_t *usbh_get_enum_buf(void) {
   return enum_buf;
 }
 
+static bool device_connected; // false once usbh starts removing the device, ahead of its class close
+
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  return device_connected;
+}
+
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   TEST_ASSERT_EQUAL(HID_DEV_ADDR, dev_addr);
   config_complete_count++;
@@ -168,6 +175,7 @@ void tuh_hid_report_failed_cb(uint8_t dev_addr, uint8_t idx, xfer_result_t resul
 // Tests
 //--------------------------------------------------------------------+
 void setUp(void) {
+  device_connected = true;
   edpt_xfer_buffer = NULL;
   report_cb_count  = 0;
   report_cb_daddr  = 0;
@@ -426,4 +434,14 @@ void test_hid_parse_report_descriptor_collection_depth_overflow(void) {
   TEST_ASSERT_EQUAL_UINT8(1, info[0].report_id);
   TEST_ASSERT_EQUAL_UINT16(HID_USAGE_PAGE_DESKTOP, info[0].usage_page);
   TEST_ASSERT_EQUAL_UINT8(HID_USAGE_DESKTOP_MOUSE, info[0].usage);
+}
+
+// usbh fails the in-flight report descriptor request on unplug before closing the driver: no mount
+void test_hidh_set_config_unplug_does_not_mount(void) {
+  set_config_to_report_desc();
+  device_connected = false;
+  complete_ctrl_xfer(XFER_RESULT_FAILED);
+
+  TEST_ASSERT_EQUAL(0, mount_cb_count);
+  TEST_ASSERT_EQUAL(0, config_complete_count);
 }

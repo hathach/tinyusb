@@ -246,6 +246,13 @@ bool tu_edpt_validate(const tusb_desc_endpoint_t *desc_ep, tusb_speed_t speed) {
   return tu_edpt_packet_size(desc_ep) > 0;
 }
 
+static bool device_connected; // false once usbh starts removing the device, ahead of its class close
+
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  return device_connected;
+}
+
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   (void) dev_addr; (void) itf_num;
   config_complete_count++;
@@ -395,6 +402,7 @@ static void assert_ump_write_goes_to(uint8_t daddr, uint8_t ep_addr) {
 }
 
 void setUp(void) {
+  device_connected = true;
   reset_records();
   close_supported = true;
   open_refused_ep = 0;
@@ -958,4 +966,16 @@ void test_short_interface_after_audio_control_is_rejected(void) {
   TEST_ASSERT_EQUAL(TUSB_CLASS_AUDIO, ITF_MS);
   TEST_ASSERT_EQUAL(0, midih2_open(0, 1, (const tusb_desc_interface_t *) desc_short_itf, sizeof(desc_short_itf)));
   TEST_ASSERT_EQUAL(0, opened_count);
+}
+
+// usbh fails the in-flight SET_INTERFACE on unplug before closing the driver: no mount, no reception started
+void test_set_interface_unplug_does_not_mount(void) {
+  interface_set_result = XFER_RESULT_FAILED;
+  device_connected     = false;
+  enumerate(1, desc_own_ep, sizeof(desc_own_ep));
+
+  TEST_ASSERT_EQUAL(1, interface_set_count);
+  TEST_ASSERT_EQUAL(0, mount_count);
+  TEST_ASSERT_EQUAL(1, config_complete_count); // Audio Control passed through only
+  TEST_ASSERT_EQUAL(0, closed_count);
 }

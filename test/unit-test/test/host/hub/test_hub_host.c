@@ -103,6 +103,13 @@ bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt, tuh_xfer
   return tuh_control_xfer(&xfer);
 }
 
+static bool device_connected; // false once usbh starts removing the device, ahead of its class close
+
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  return device_connected;
+}
+
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   (void) dev_addr;
   (void) itf_num;
@@ -290,6 +297,7 @@ static void attach_on_port1(uint8_t daddr) {
 }
 
 void setUp(void) {
+  device_connected = true;
   ctrl_count     = 0;
   ctrl_reject    = false;
   interface_set_reject = false;
@@ -435,13 +443,14 @@ void test_port_status_survives_clear_feature(void) {
   TEST_ASSERT_TRUE(status.status.connection);
 }
 
-// usbh fails a closed hub's requests after hub_close(); e.g. enumeration behind it must still hear about it
-void test_port_status_failed_after_close_reaches_caller(void) {
+// usbh fails an unplugged hub's requests before hub_close(); e.g. enumeration behind it must still hear about it
+void test_port_status_failed_on_unplug_reaches_caller(void) {
   open_hub(HUB_A);
   TEST_ASSERT_TRUE(hub_port_get_status(HUB_A, 1, NULL, cb_a, 1));
 
-  hub_close(HUB_A);
+  device_connected = false;
   complete_ctrl(0, XFER_RESULT_FAILED);
+  hub_close(HUB_A);
 
   TEST_ASSERT_EQUAL(1, cb_count);
   TEST_ASSERT_EQUAL(1, cb_records[0].user_data);
@@ -487,13 +496,14 @@ void test_short_hub_status_rearms(void) {
 //--------------------------------------------------------------------+
 // Status sequence of a closed hub
 //--------------------------------------------------------------------+
-void test_status_failed_after_close_does_not_rearm(void) {
+void test_status_failed_on_unplug_does_not_rearm(void) {
   configure_hub(HUB_A, 4);
   trigger_recovery(HUB_A, 1);
   const uint8_t polls = poll_count;
 
-  hub_close(HUB_A);
+  device_connected = false;
   complete_ctrl(0, XFER_RESULT_FAILED);
+  hub_close(HUB_A);
 
   TEST_ASSERT_EQUAL(polls, poll_count);
   TEST_ASSERT_FALSE(hub_edpt_status_xfer(HUB_A));
@@ -773,17 +783,31 @@ void test_hub_without_ports_completes_config(void) {
   TEST_ASSERT_EQUAL(1, poll_count);
 }
 
-// usbh fails a removed hub's requests after hub_close(): nothing to complete or arm
-void test_failed_config_after_close_does_nothing(void) {
+// usbh fails an unplugged hub's requests before hub_close(): nothing to complete or arm
+void test_failed_config_on_unplug_does_nothing(void) {
   open_hub(HUB_A);
   TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
   const hub_desc_cs_t desc_hub = {.bLength = sizeof(hub_desc_cs_t), .bNbrPorts = 2};
   complete_ctrl_data(0, &desc_hub, sizeof(desc_hub));
 
-  hub_close(HUB_A);
+  device_connected = false;
   complete_ctrl(1, XFER_RESULT_FAILED);
+  hub_close(HUB_A);
 
   TEST_ASSERT_EQUAL(2, ctrl_count);
   TEST_ASSERT_EQUAL(0, config_complete_count);
   TEST_ASSERT_EQUAL(0, poll_count);
+}
+
+// usbh fails the in-flight Get Hub Descriptor on unplug before closing the driver: configuration stops there
+void test_set_config_unplug_stops_configuration(void) {
+  open_hub(HUB_A);
+  const uint8_t first = ctrl_count;
+  TEST_ASSERT_TRUE(hub_set_config(HUB_A, 0));
+
+  device_connected = false;
+  complete_ctrl(first, XFER_RESULT_FAILED);
+
+  TEST_ASSERT_EQUAL(first + 1, ctrl_count);
+  TEST_ASSERT_EQUAL(0, config_complete_count);
 }

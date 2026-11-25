@@ -617,6 +617,7 @@ static void process_set_config(tuh_xfer_t* xfer) {
   uintptr_t const state = xfer->user_data;
   uint8_t const itf_num = (uint8_t) tu_le16toh(xfer->setup->wIndex);
   uint8_t const daddr = xfer->daddr;
+  TU_VERIFY(tuh_connected(daddr),);
 
   uint8_t const idx = tuh_hid_itf_get_index(daddr, itf_num);
   hidh_interface_t* p_hid = get_hid_itf(daddr, idx);
@@ -676,8 +677,7 @@ static void process_set_config(tuh_xfer_t* xfer) {
       break;
   }
 
-  // a request that failed to queue never calls back: mount without the descriptor so enumeration continues.
-  // No disconnect check: usbh closes class drivers before clearing the device, and get_hid_itf() fails after close.
+  // a request that failed to queue never calls back: mount without the descriptor so enumeration continues
   if (!queued) {
     config_driver_mount_complete(daddr, idx, NULL, 0);
   }

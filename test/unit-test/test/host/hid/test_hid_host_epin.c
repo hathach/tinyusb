@@ -44,6 +44,7 @@ bool tuh_descriptor_get_hid_report(uint8_t daddr, uint8_t itf_num, uint8_t desc_
   return false;
 }
 uint8_t *usbh_get_enum_buf(void) { TEST_FAIL(); return NULL; }
+bool tuh_connected(uint8_t daddr) { (void) daddr; return true; }
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) { (void) dev_addr; (void) itf_num; TEST_FAIL(); }
 bool usbh_edpt_claim(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; return true; }
 bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) { (void) dev_addr; (void) ep_addr; TEST_FAIL(); return false; }

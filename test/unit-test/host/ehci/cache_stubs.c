@@ -61,6 +61,11 @@ bool tuh_control_xfer(tuh_xfer_t* xfer) {
   abort();
 }
 
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  abort();
+}
+
 bool tuh_interface_set(uint8_t daddr, uint8_t itf_num, uint8_t itf_alt,
                        tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
   (void) daddr;

@@ -1876,6 +1876,7 @@ static void audioh_mount_clock_next(uint8_t idx) {
 }
 
 static void audioh_mount_clock_complete(tuh_xfer_t *xfer) {
+  TU_VERIFY(tuh_connected(xfer->daddr),);
   const uint8_t        idx     = (uint8_t)xfer->user_data;
   audioh_interface_t  *p_audio = &_audioh_itf[idx];
   audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
@@ -2598,6 +2599,7 @@ static void audioh_mount_feature_unit_next(uint8_t idx) {
 }
 
 static void audioh_mount_feature_unit_complete(tuh_xfer_t *xfer) {
+  TU_VERIFY(tuh_connected(xfer->daddr),);
   const uint8_t        idx     = (uint8_t)xfer->user_data;
   audioh_interface_t  *p_audio = &_audioh_itf[idx];
   audioh_ctrl_state_t *ctrl    = &p_audio->ctrl;
