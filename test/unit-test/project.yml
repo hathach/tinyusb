@@ -142,6 +142,7 @@
       - CFG_TUH_ENABLED=1
       - CFG_TUH_CDC=2
       - CFG_TUH_CDC_FTDI=1
+      - CFG_TUH_ENDPOINT_MAX=8 # below 16, so a descriptor can list an endpoint number usbh has no state for
       - CFG_TUSB_DEBUG=0
       - CFG_TUSB_DEBUG_BREAKPOINT=cdc_breakpoint_hook
     :test_audio_host:

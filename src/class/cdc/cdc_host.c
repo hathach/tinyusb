@@ -15,6 +15,7 @@
 
 #if (CFG_TUH_ENABLED && CFG_TUH_CDC)
 
+#include "host/hcd.h"
 #include "host/usbh.h"
 #include "host/usbh_pvt.h"
 
@@ -313,9 +314,12 @@ static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
 
 // Another CDC slot or a driver bound by an earlier interface may own an endpoint this interface lists. It is not
 // opened again: the HCD may accept the reopen (EHCI, MAX3421), and cdch_open()'s failure path, which closes by
-// address, would then close it under its owner.
+// address, would then close it under its owner. An endpoint usbh has no state for (EP0, or past CFG_TUH_ENDPOINT_MAX)
+// is refused too: usbh_edpt_is_bound() reports it unbound, and closing it would index past usbh's endpoint table.
 static bool edpt_is_unowned(uint8_t daddr, uint8_t ep_addr) {
-  return TUSB_INDEX_INVALID_8 == get_idx_by_ep_addr(daddr, ep_addr) && !usbh_edpt_is_bound(daddr, ep_addr);
+  const uint8_t epnum = tu_edpt_number(ep_addr);
+  return epnum > 0 && epnum < CFG_TUH_ENDPOINT_MAX && TUSB_INDEX_INVALID_8 == get_idx_by_ep_addr(daddr, ep_addr) &&
+         !usbh_edpt_is_bound(daddr, ep_addr);
 }
 
 // determine the interface from the completed transfer
@@ -746,8 +750,8 @@ static const uint8_t *desc_next_bounded(const uint8_t *p_desc, const uint8_t *de
 
 // Open the two bulk endpoints at p_desc; returns the descriptor after them, or NULL.
 // Both descriptors are checked before either opens; a controller refusal of the second leaves the first to cdch_open().
-// NULL is silent only for an endpoint another owner holds (USB 2.0 9.6.3 lets alternate settings share one); every
-// other failure asserts here, so callers use TU_VERIFY. Same for open_ep_notif().
+// NULL is silent only for an endpoint edpt_is_unowned() refuses (an owned one: USB 2.0 9.6.3 lets alternate settings
+// share one); every other failure asserts here, so callers use TU_VERIFY. Same for open_ep_notif().
 static const uint8_t *open_ep_stream_pair(cdch_interface_t *p_cdc, const uint8_t *p_desc, const uint8_t *desc_end) {
   const tusb_desc_endpoint_t *desc_eps[2];
   for (size_t i = 0; i < 2; i++) {

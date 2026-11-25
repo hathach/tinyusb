@@ -296,6 +296,49 @@ void test_failed_acm_open_keeps_endpoint_bound_to_another_driver(void) {
   TEST_ASSERT_EQUAL(0, breakpoint_count);
 }
 
+// usbh keeps no state for EP0 or an endpoint number at or past CFG_TUH_ENDPOINT_MAX: such an endpoint is neither opened
+// nor, on a failed open, closed (tuh_edpt_close() would index past usbh's endpoint table)
+void test_open_refuses_endpoint_usbh_has_no_state_for(void) {
+  enum { EP_PAST_MAX = 0x80 | CFG_TUH_ENDPOINT_MAX };
+  TEST_ASSERT_EQUAL(8, CFG_TUH_ENDPOINT_MAX);
+
+  uint8_t acm[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_CDC, CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EP_PAST_MAX, TUSB_XFER_INTERRUPT, U16_TO_U8S_LE(8), 16,
+    9, TUSB_DESC_INTERFACE, 1, 0, 2, TUSB_CLASS_CDC_DATA, 0, 0, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  edpt_open_fail_addr = EP_IN;
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) acm, sizeof(acm)));
+  TEST_ASSERT_EQUAL(0, opened_count);
+  TEST_ASSERT_EQUAL(0, closed_count);
+
+  // the same past the limit in the data pair: only the notification endpoint this open opened is closed
+  acm[9 + 2]             = EP_NOTIF;
+  acm[9 + 7 + 9 + 7 + 2] = EP_PAST_MAX;
+  edpt_open_fail_addr    = 0;
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) acm, sizeof(acm)));
+  TEST_ASSERT_EQUAL(1, opened_count);
+  TEST_ASSERT_EQUAL(1, closed_count);
+  TEST_ASSERT_EQUAL_HEX8(EP_NOTIF, closed_eps[0]);
+
+  // EP0 in a stream pair
+  opened_count = closed_count = 0;
+  device_desc.idVendor  = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t ftdi_ep0[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, 0x80, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  TEST_ASSERT_EQUAL(0, cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) ftdi_ep0, sizeof(ftdi_ep0)));
+  TEST_ASSERT_EQUAL(0, opened_count);
+  TEST_ASSERT_EQUAL(0, closed_count);
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+}
+
 // A slot freed by a failed configuration keeps its stream endpoints: a failed open on it closes none of them
 void test_failed_open_on_reused_slot_closes_only_its_endpoints(void) {
   device_desc.idVendor = 0x0403;
