@@ -354,9 +354,6 @@ void test_failed_alt_open_keeps_open_interface(void) {
 // An alternate setting may list the endpoints setting 0 already opened (USB 2.0 9.6.3): with a second slot free, its
 // open fails without asserting, neither opening them again nor closing them under setting 0
 void test_failed_second_alt_keeps_first_alt_endpoints(void) {
-#if CFG_TUH_CDC < 2
-  TEST_IGNORE_MESSAGE("needs CFG_TUH_CDC >= 2");
-#else
   device_desc.idVendor = 0x0403;
   device_desc.idProduct = 0x6001;
   device_desc.bcdDevice = 0x0600;
@@ -375,7 +372,6 @@ void test_failed_second_alt_keeps_first_alt_endpoints(void) {
   TEST_ASSERT_EQUAL(2, opened_count);
   TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
   TEST_ASSERT_EQUAL(0, breakpoint_count);
-#endif
 }
 
 // USB 2.0 9.5: a descriptor longer than defined is valid, its extra bytes skipped. ACM with a 9-byte notification
