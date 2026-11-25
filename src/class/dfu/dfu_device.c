@@ -194,7 +194,7 @@ uint16_t dfu_moded_open(uint8_t rhport, const tusb_desc_interface_t* itf_desc, u
   TU_ASSERT(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= sizeof(tusb_desc_dfu_functional_t) &&
             tu_desc_type(p_desc) == TUSB_DESC_FUNCTIONAL, 0);
   const tusb_desc_dfu_functional_t* func_desc = (const tusb_desc_dfu_functional_t*) p_desc;
-  const uint16_t drv_len = (uint16_t) ((p_desc - desc_start) + sizeof(tusb_desc_dfu_functional_t));
+  const uint16_t drv_len = (uint16_t) ((p_desc - desc_start) + tu_desc_len(p_desc));
 
   _dfu_ctx.attrs = func_desc->bAttributes;
   // at least one alt was counted; with 256 alts the counter wrapped to 0 and minus 1 gives 255

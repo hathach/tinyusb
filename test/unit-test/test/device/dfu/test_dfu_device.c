@@ -219,6 +219,20 @@ void test_open_rejects_short_functional_descriptor(void) {
   TEST_ASSERT_EQUAL(0, open_dfu(DFU_ITF_LEN));
 }
 
+// A functional descriptor longer than 9 bytes is claimed whole, so the next interface's walk starts on its bLength
+static uint8_t desc_dfu_long_func[DFU_ITF_LEN + 1 + sizeof(tusb_desc_interface_t)];
+
+void test_open_claims_long_functional_descriptor(void) {
+  const uint8_t next_itf[] = {TUD_DFU_ALT(ITF_NUM_DFU + 1, 0, 0)};
+  memcpy(desc_dfu_long_func, desc_configuration + TUD_CONFIG_DESC_LEN, DFU_ITF_LEN);
+  desc_dfu_long_func[2 * sizeof(tusb_desc_interface_t)] = sizeof(tusb_desc_dfu_functional_t) + 1;
+  desc_dfu_long_func[DFU_ITF_LEN] = 0; // padding byte
+  memcpy(desc_dfu_long_func + DFU_ITF_LEN + 1, next_itf, sizeof(next_itf));
+
+  TEST_ASSERT_EQUAL(DFU_ITF_LEN + 1,
+                    dfu_moded_open(RHPORT, (const tusb_desc_interface_t *) desc_dfu_long_func, sizeof(desc_dfu_long_func)));
+}
+
 // A zero bLength would never move the walk forward
 void test_open_rejects_zero_length_descriptors(void) {
   copy_dfu_itf();
