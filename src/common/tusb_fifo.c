@@ -508,17 +508,10 @@ uint16_t tu_fifo_read_n_access_mode(tu_fifo_t *f, void *buffer, uint16_t n, cons
   return n;
 }
 
-// Write n items to fifo with access mode
-uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
-                                     const tu_hwfifo_access_t *access_mode) {
-  if (n == 0) {
-    return 0;
-  }
-
-  ff_lock(f->mutex_wr);
-
+// Write n items counting free space from rd_idx, with the write mutex held
+static uint16_t ff_write_n(tu_fifo_t *f, const void *data, uint16_t n, uint16_t rd_idx,
+                           const tu_hwfifo_access_t *access_mode) {
   uint16_t wr_idx = f->wr_idx;
-  uint16_t rd_idx = f->rd_idx;
 
   const uint8_t *buf8 = (const uint8_t *)data;
 
@@ -569,9 +562,25 @@ uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
     TU_LOG(TU_FIFO_DBG, "\tnew_wr = %u\r\n", f->wr_idx);
   }
 
+  return n;
+}
+
+// Write n items to fifo with access mode
+uint16_t tu_fifo_write_n_access_mode(tu_fifo_t *f, const void *data, uint16_t n,
+                                     const tu_hwfifo_access_t *access_mode) {
+  if (n == 0) {
+    return 0;
+  }
+
+  ff_lock(f->mutex_wr);
+  n = ff_write_n(f, data, n, f->rd_idx, access_mode);
   ff_unlock(f->mutex_wr);
 
   return n;
+}
+
+uint16_t tu_fifo_write_n_from(tu_fifo_t *f, const void *data, uint16_t n, uint16_t rd_idx) {
+  return ff_write_n(f, data, n, rd_idx, NULL);
 }
 
 uint16_t tu_fifo_discard_n(tu_fifo_t *f, uint16_t n) {

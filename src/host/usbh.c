@@ -1455,9 +1455,8 @@ bool usbh_edpt_release(uint8_t dev_addr, uint8_t ep_addr) {
   return true;
 }
 
-// Submit an transfer
-bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes,
-                                  tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+static bool edpt_xfer(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes,
+                      tuh_xfer_cb_t complete_cb, uintptr_t user_data, bool release_on_fail) {
   (void) complete_cb;
   (void) user_data;
 
@@ -1475,10 +1474,10 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
 
 #if TUP_HCD_MEM_ALIGN > 1
   // The buffer must meet the host controller's alignment (TUP_HCD_MEM_ALIGN): declare it with CFG_TUH_MEM_ALIGN.
-  // A zero-length packet moves no data, so its buffer is not checked. A refused buffer ends the caller's claim, as a
-  // transfer the HCD refuses does.
+  // A zero-length packet moves no data, so its buffer is not checked. A refused buffer is handled as a transfer the
+  // HCD refuses.
   bool const aligned = (total_bytes == 0) || ((((uintptr_t) buffer) & (TUP_HCD_MEM_ALIGN - 1u)) == 0);
-  if (!aligned) {
+  if (!aligned && release_on_fail) {
     *ep_state &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
   }
   TU_ASSERT(aligned);
@@ -1497,12 +1496,23 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
     TU_LOG_USBH("OK\r\n");
     return true;
   } else {
-    // HCD error, clear busy and claimed to allow next transfer
-    *ep_state &= (uint8_t) ~(TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED);
+    // HCD refused
+    const uint8_t clear = release_on_fail ? (TU_EDPT_STATE_BUSY | TU_EDPT_STATE_CLAIMED) : TU_EDPT_STATE_BUSY;
+    *ep_state &= (uint8_t) ~clear;
     TU_LOG1("Failed\r\n");
 //    TU_BREAKPOINT();
     return false;
   }
+}
+
+// Submit an transfer
+bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes,
+                                  tuh_xfer_cb_t complete_cb, uintptr_t user_data) {
+  return edpt_xfer(dev_addr, ep_addr, buffer, total_bytes, complete_cb, user_data, true);
+}
+
+bool usbh_edpt_xfer_keep_claim(uint8_t dev_addr, uint8_t ep_addr, uint8_t* buffer, uint16_t total_bytes) {
+  return edpt_xfer(dev_addr, ep_addr, buffer, total_bytes, NULL, 0, false);
 }
 
 static bool usbh_edpt_control_open(uint8_t dev_addr, uint8_t max_packet_size) {

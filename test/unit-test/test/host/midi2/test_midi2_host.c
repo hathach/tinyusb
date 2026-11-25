@@ -285,6 +285,11 @@ bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool ove
   return tu_fifo_config(&s->ff, ff_buf, ff_bufsize, overwritable);
 }
 
+void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
+  tu_fifo_clear(&s->ff);
+  s->tx_pending = 0;
+}
+
 uint32_t tu_edpt_stream_read_xfer(tu_edpt_stream_t *s) {
   TU_VERIFY(s->ep_addr != 0 && s->is_host && s->ep_buf != NULL, 0);
   const uint16_t available = tu_fifo_remaining(&s->ff);

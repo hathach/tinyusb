@@ -209,6 +209,9 @@ TU_ATTR_ALWAYS_INLINE static inline uint16_t tu_fifo_write_n(tu_fifo_t *f, const
   return tu_fifo_write_n_access_mode(f, data, n, NULL);
 }
 
+// tu_fifo_write_n() counting free space from rd_idx instead of the read index; the caller holds the write mutex
+uint16_t tu_fifo_write_n_from(tu_fifo_t *f, const void *data, uint16_t n, uint16_t rd_idx);
+
 //--------------------------------------------------------------------+
 // Hardware FIFO API
 // Special hardware FIFO/Buffer to hold USB data, usually requires certain access method these can be configured with

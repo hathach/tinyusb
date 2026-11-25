@@ -87,6 +87,11 @@ bool tu_edpt_stream_write_zlp_if_needed(tu_edpt_stream_t *s, uint32_t last_xferr
   return false;
 }
 
+void tu_edpt_stream_clear(tu_edpt_stream_t *s) {
+  tu_fifo_clear(&s->ff);
+  s->tx_pending = 0;
+}
+
 uint32_t tu_edpt_stream_write_available(tu_edpt_stream_t *s) {
   (void)s;
   return 0;
