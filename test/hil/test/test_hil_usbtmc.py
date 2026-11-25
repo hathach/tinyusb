@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 # usbtmc_test.Dut.find against a fake sysfs tree and a fake pyusb: every USBTMC DUT is cafe:401c, so the
-# requested serial is resolved from sysfs, bounded, before the one matching device is opened.
+# requested serial is resolved from sysfs, bounded, before the one matching device is opened, and read
+# again from that device before it is claimed.
 # SessionChild: the sysfs walk and bounded serial read session_child.py gives usbtmc_test and mtp_test.
 # Run directly:
 #   python3 test/hil/test/test_hil_usbtmc.py
@@ -32,14 +33,26 @@ class FakeItf(list):
 
 
 class FakeDev:
-    def __init__(self, vid=usbtmc_test.VID, pid=usbtmc_test.PID):
-        self.idVendor, self.idProduct = vid, pid
+    iSerialNumber = 3
+
+    def __init__(self, vid=usbtmc_test.VID, pid=usbtmc_test.PID, serial='U'):
+        self.idVendor, self.idProduct, self.serial = vid, pid, serial
+        self.detached = []
+
+    def get_string(self, index):
+        assert index == self.iSerialNumber
+        if self.serial is None:
+            raise usbtmc_test.usb.core.USBError('Pipe error')
+        return self.serial
 
     def get_active_configuration(self):
         return {(0, 0): FakeItf([FakeEp(0x01, 2), FakeEp(0x81, 2), FakeEp(0x82, 3)])}
 
     def is_kernel_driver_active(self, itf):
-        return False
+        return True
+
+    def detach_kernel_driver(self, itf):
+        self.detached.append(itf)
 
 
 class Find(unittest.TestCase):
@@ -55,9 +68,11 @@ class Find(unittest.TestCase):
             self.opened.append((kw['bus'], kw['address']))
             return self.devices.get((kw['bus'], kw['address']))
         usbtest_harness.patch(self, usbtmc_test.usb.core, 'find', find)
-        usbtest_harness.patch(self, usbtmc_test.usb.util, 'get_string',
-                              lambda *a: self.fail('a live string read opens the device'))
-        usbtest_harness.patch(self, usbtmc_test.usb.util, 'claim_interface', lambda dev, itf: None)
+        # reached only through find, which opens just the sysfs match: no neighbour's string is read
+        usbtest_harness.patch(self, usbtmc_test.usb.util, 'get_string', lambda dev, index: dev.get_string(index))
+        self.claimed, self.disposed = [], []
+        usbtest_harness.patch(self, usbtmc_test.usb.util, 'claim_interface', lambda dev, itf: self.claimed.append(dev))
+        usbtest_harness.patch(self, usbtmc_test.usb.util, 'dispose_resources', self.disposed.append)
         self.node('usb1', '1d6b', '0002', 'root hub', 1, 1)
         (self.root / '1-9:1.0').mkdir()   # an interface: no idVendor
 
@@ -112,6 +127,22 @@ class Find(unittest.TestCase):
         self.devices[(1, 2)] = FakeDev(vid=0x1234)
         with self.assertRaisesRegex(RuntimeError, 'serial U not found'):
             self.dut()
+
+    def test_another_board_that_took_the_address_is_never_claimed(self):
+        # it keeps the scanned bus/address and vid:pid; only its own serial, unreadable or another, tells it apart
+        self.node('1-1', 'cafe', '401c', 'U', 1, 2)
+        impostors = [FakeDev(serial='OTHER'), FakeDev(serial=None)]
+        board = FakeDev()
+        queue = iter(impostors[1:] + [board])
+        self.devices[(1, 2)] = impostors[0]
+        usbtest_harness.patch(self, usbtmc_test.time, 'sleep',
+                              lambda s: self.devices.__setitem__((1, 2), next(queue)))
+        d = self.dut(timeout=5)
+        self.assertIs(d.dev, board)
+        self.assertEqual(self.claimed, [board])
+        self.assertEqual(board.detached, [0])
+        self.assertEqual([i.detached for i in impostors], [[], []])
+        self.assertEqual(self.disposed, impostors)
 
     def test_a_device_that_appears_later_is_found(self):
         usbtest_harness.patch(self, usbtmc_test.time, 'sleep',

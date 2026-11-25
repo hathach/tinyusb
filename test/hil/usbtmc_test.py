@@ -67,13 +67,22 @@ class Dut:
                 usb.util.dispose_resources(dev)
                 return None
 
+        def serial(dev):
+            # the selected device only: the scan read sysfs before this open, and another board may own the address now
+            try:
+                return usb.util.get_string(dev, dev.iSerialNumber)
+            except (usb.core.USBError, ValueError):
+                return None
+
         while True:
             # From sysfs alone: every USBTMC DUT shares this vid:pid, and a pyusb string read opens the device,
             # which on a wedged peer blocks in D state under its device lock
             found = session_child.find_devices(_SYS_USB, f'{VID:04x}', f'{PID:04x}', self.uid)
             # only the one match is opened; a stale same-serial node (dual-port part) is waited out
             self.dev = usb.core.find(bus=found[0][0], address=found[0][1]) if len(found) == 1 else None
-            if self.dev is not None and (self.dev.idVendor, self.dev.idProduct) != (VID, PID):
+            if self.dev is not None and ((self.dev.idVendor, self.dev.idProduct) != (VID, PID) or
+                                         serial(self.dev) != self.uid):
+                usb.util.dispose_resources(self.dev)
                 self.dev = None   # the address was reused after the scan
             cfg = None if self.dev is None else configuration(self.dev)
             if cfg is not None:
