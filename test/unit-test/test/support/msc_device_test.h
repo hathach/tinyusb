@@ -24,12 +24,15 @@
  * This file is part of the TinyUSB stack.
  */
 
-// Shared by the MSC device driver tests: constructors for a Data-In CBW and the CSW that answers it
+// Shared by the MSC device driver tests: Data-In CBW and CSW constructors, and an endpoint CLEAR_FEATURE(HALT)
 
 #ifndef MSC_DEVICE_TEST_H_
 #define MSC_DEVICE_TEST_H_
 
 #include "tusb.h"
+#include "mock_dcd.h"
+
+static uint8_t const rhport = 0;
 
 static inline msc_cbw_t data_in_cbw(uint8_t cmd_code, uint32_t total_bytes) {
   msc_cbw_t cbw = {
@@ -52,6 +55,19 @@ static inline msc_csw_t csw_with_residue(uint32_t residue) {
     .status       = MSC_CSW_STATUS_PASSED
   };
   return csw;
+}
+
+static inline void clear_halt(uint8_t ep_addr) {
+  tusb_control_request_t const request_clear_halt = {
+    .bmRequestType = 0x02,
+    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
+    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
+    .wIndex        = ep_addr,
+    .wLength       = 0
+  };
+
+  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
+  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
 }
 
 #endif

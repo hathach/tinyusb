@@ -59,8 +59,6 @@ enum {
   EDPT_MSC_IN  = 0x81,
 };
 
-uint8_t const rhport = 0;
-
 enum {
   ITF_NUM_MSC,
   ITF_NUM_TOTAL
@@ -186,19 +184,6 @@ static void configure_msc(msc_cbw_t const* cbw) {
   dcd_edpt_xfer_ReturnMemThruPtr_buffer((uint8_t*) (uintptr_t) cbw, sizeof(msc_cbw_t));
   dcd_edpt_xfer_ExpectAndReturn(rhport, EDPT_CTRL_IN, NULL, 0, false, true);
   tud_task();
-}
-
-static void clear_halt(uint8_t ep_addr) {
-  tusb_control_request_t const request_clear_halt = {
-    .bmRequestType = 0x02,
-    .bRequest      = TUSB_REQ_CLEAR_FEATURE,
-    .wValue        = TUSB_REQ_FEATURE_EDPT_HALT,
-    .wIndex        = ep_addr,
-    .wLength       = 0
-  };
-
-  dcd_event_setup_received(rhport, (uint8_t const*) &request_clear_halt, false);
-  dcd_edpt_clear_stall_Expect(rhport, ep_addr);
 }
 
 //--------------------------------------------------------------------+
