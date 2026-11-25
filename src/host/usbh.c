@@ -1430,6 +1430,11 @@ bool tuh_edpt_abort_xfer(uint8_t daddr, uint8_t ep_addr) {
     TU_VERIFY(dev);
 
     TU_VERIFY(dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY); // non-control skip if not busy
+    if (dev->hcd_closed) {
+      // hcd_device_close() already dropped the endpoint and its transfer: an HCD call now would fail its lookup
+      edpt_release_busy(dev, epnum, dir);
+      return true;
+    }
     // Abort, then mark as ready and release the endpoint. A transfer the HCD no longer has (completed, its event still
     // queued) is not aborted: that event releases the endpoint. Released here, a new transfer could start into the
     // same buffer, and the stale event would complete it with whatever that buffer holds by then.

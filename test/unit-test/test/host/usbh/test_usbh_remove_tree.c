@@ -82,6 +82,9 @@ static bool umount_edpt_open_ok;
 static bool umount_edpt_close_tried;
 static bool umount_edpt_close_ok;
 static uint8_t umount_ep_state_after_close;
+static bool umount_edpt_abort_tried;
+static bool umount_edpt_abort_ok;
+static uint8_t umount_ep_state_after_abort;
 static uint8_t peer_close_daddr; // closed from the first tuh_umount_cb(), before its own hcd_device_close()
 static bool    peer_close_ok;
 static uint8_t peer_ep_state_after_close;
@@ -99,6 +102,10 @@ void remove_tree_umount_observer(uint8_t daddr) {
   if (umount_edpt_close_tried) {
     umount_edpt_close_ok        = tuh_edpt_close(daddr, 0x81);
     umount_ep_state_after_close = get_device(daddr)->ep_status[1][TUSB_DIR_IN];
+  }
+  if (umount_edpt_abort_tried) {
+    umount_edpt_abort_ok        = tuh_edpt_abort_xfer(daddr, 0x81);
+    umount_ep_state_after_abort = get_device(daddr)->ep_status[1][TUSB_DIR_IN];
   }
   if (umount_count == 0) {
     if (peer_close_daddr != 0) {
@@ -220,6 +227,9 @@ void setUp(void) {
   umount_edpt_close_tried = false;
   umount_edpt_close_ok    = false;
   umount_ep_state_after_close = 0xFF;
+  umount_edpt_abort_tried     = false;
+  umount_edpt_abort_ok        = false;
+  umount_ep_state_after_abort = 0xFF;
   peer_close_daddr          = 0;
   peer_close_ok             = true;
   peer_ep_state_after_close = 0xFF;
@@ -470,6 +480,22 @@ void test_remove_edpt_close_from_umount_cb_skips_hcd(void) {
 
   TEST_ASSERT_TRUE(umount_edpt_close_ok);
   TEST_ASSERT_EQUAL(0, umount_ep_state_after_close);
+  TEST_ASSERT_EQUAL(0, hcd_edpt_abort_count);
+  assert_removed(DEV_A);
+}
+
+// tuh_edpt_abort_xfer() from tuh_umount_cb() on a busy endpoint releases it without reaching the HCD: hcd_device_close()
+// already dropped the endpoint and its transfer, and an HCD such as stm32_fsdev asserts on the failed lookup
+void test_remove_edpt_abort_from_umount_cb_skips_hcd(void) {
+  attach(HUB_1, 0, 0);
+  attach(DEV_A, HUB_1, 1);
+  get_device(DEV_A)->ep_status[1][TUSB_DIR_IN] = TU_EDPT_STATE_CLAIMED | TU_EDPT_STATE_BUSY;
+  umount_edpt_abort_tried = true;
+
+  remove_device_tree(RHPORT, HUB_1, 1);
+
+  TEST_ASSERT_TRUE(umount_edpt_abort_ok);
+  TEST_ASSERT_EQUAL(0, umount_ep_state_after_abort);
   TEST_ASSERT_EQUAL(0, hcd_edpt_abort_count);
   assert_removed(DEV_A);
 }
