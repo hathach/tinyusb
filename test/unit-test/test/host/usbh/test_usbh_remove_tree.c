@@ -71,6 +71,9 @@ static const tusb_desc_endpoint_t bulk_in_desc = {
   .wMaxPacketSize   = 64,
   .bInterval        = 0};
 
+static uint8_t hcd_edpt_open_count;
+static uint8_t hcd_edpt_abort_count;
+
 // tuh_umount_cb() is where an application may drive tuh_task(): snapshot what it would see there
 static bool umount_xfer_tried;
 static bool umount_xfer_ok;
@@ -79,6 +82,10 @@ static bool umount_edpt_open_ok;
 static bool umount_edpt_close_tried;
 static bool umount_edpt_close_ok;
 static uint8_t umount_ep_state_after_close;
+static uint8_t peer_close_daddr; // closed from the first tuh_umount_cb(), before its own hcd_device_close()
+static bool    peer_close_ok;
+static uint8_t peer_ep_state_after_close;
+static uint8_t peer_abort_count;
 
 void remove_tree_umount_observer(uint8_t daddr) {
   log_event(EV_UMOUNT, daddr, XFER_RESULT_INVALID);
@@ -94,6 +101,11 @@ void remove_tree_umount_observer(uint8_t daddr) {
     umount_ep_state_after_close = get_device(daddr)->ep_status[1][TUSB_DIR_IN];
   }
   if (umount_count == 0) {
+    if (peer_close_daddr != 0) {
+      peer_close_ok             = tuh_edpt_close(peer_close_daddr, 0x81);
+      peer_ep_state_after_close = get_device(peer_close_daddr)->ep_status[1][TUSB_DIR_IN];
+      peer_abort_count          = hcd_edpt_abort_count;
+    }
     first_umount_daddr = daddr;
     for (uint8_t addr = 1; addr <= TOTAL_DEVICES; addr++) {
       connected_at_first_umount[addr] = tuh_connected(addr);
@@ -112,8 +124,6 @@ bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]
   return true;
 }
 
-static uint8_t hcd_edpt_open_count;
-static uint8_t hcd_edpt_abort_count;
 
 bool counted_hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep_desc) {
   (void) rhport;
@@ -210,6 +220,10 @@ void setUp(void) {
   umount_edpt_close_tried = false;
   umount_edpt_close_ok    = false;
   umount_ep_state_after_close = 0xFF;
+  peer_close_daddr          = 0;
+  peer_close_ok             = true;
+  peer_ep_state_after_close = 0xFF;
+  peer_abort_count          = 0;
   hcd_edpt_open_count  = 0;
   hcd_edpt_abort_count = 0;
   _usbh_data.enumerating_daddr = TUSB_INDEX_INVALID_8;
@@ -458,4 +472,23 @@ void test_remove_edpt_close_from_umount_cb_skips_hcd(void) {
   TEST_ASSERT_EQUAL(0, umount_ep_state_after_close);
   TEST_ASSERT_EQUAL(0, hcd_edpt_abort_count);
   assert_removed(DEV_A);
+}
+
+// A sibling marked for removal but not yet closed in the HCD: tuh_edpt_close() on it from another device's
+// tuh_umount_cb() must abort and close in the HCD, or the controller could still fill a buffer the caller released
+void test_remove_edpt_close_of_unclosed_sibling_reaches_hcd(void) {
+  attach(HUB_1, 0, 0);
+  attach(DEV_A, HUB_1, 1);
+  attach(DEV_B, HUB_1, 2);
+  get_device(DEV_B)->ep_status[1][TUSB_DIR_IN] = TU_EDPT_STATE_CLAIMED | TU_EDPT_STATE_BUSY;
+  peer_close_daddr = DEV_B;
+
+  remove_device_tree(RHPORT, 0, 0);
+
+  TEST_ASSERT_EQUAL(DEV_A, first_umount_daddr);
+  TEST_ASSERT_EQUAL(1, peer_abort_count);
+  TEST_ASSERT_EQUAL(0, peer_ep_state_after_close);
+  TEST_ASSERT_FALSE(peer_close_ok); // reached usbh.c's weak hcd_edpt_close(), which fails
+  assert_removed(DEV_A);
+  assert_removed(DEV_B);
 }

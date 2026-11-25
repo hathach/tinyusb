@@ -131,6 +131,7 @@ typedef struct {
     volatile uint8_t mounted    : 1; // All drivers configured and tuh_mount_cb() invoked
     volatile uint8_t suspended  : 1; // Bus suspended
     volatile uint8_t removing   : 1; // Unplugged, being torn down: tuh_connected() is false from tuh_umount_cb() on
+    volatile uint8_t hcd_closed : 1; // hcd_device_close() ran: its endpoints are gone from the HCD
   };
 
   // Endpoint & Interface
@@ -459,7 +460,8 @@ static void usbh_device_close(uint8_t rhport, uint8_t daddr) {
   (void) osal_mutex_lock(_usbh_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
   usbh_device_t* dev = get_device(daddr);
   if (dev != NULL) {
-    dev->removing = 1; // every caller clears an addressed device after closing it
+    dev->removing   = 1; // every caller clears an addressed device after closing it
+    dev->hcd_closed = 1;
   }
   const bool is_enumerating = (daddr == _usbh_data.enumerating_daddr);
   if (is_enumerating) {
@@ -1529,7 +1531,8 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t* bu
   // Attempt to transfer on a busy endpoint, sound like an race condition !
   TU_ASSERT((*ep_state & TU_EDPT_STATE_BUSY) == 0);
 
-  // removing: already closed in the HCD, e.g. a class advancing a transfer from tuh_umount_cb(). Ends the claim.
+  // removing: unplugged, closed in the HCD or about to be, e.g. a class advancing a transfer from tuh_umount_cb().
+  // Ends the claim.
   if (dev->removing) {
     *ep_state &= (uint8_t) ~TU_EDPT_STATE_CLAIMED;
     return false;
@@ -1591,7 +1594,7 @@ static void edpt_fix_fullspeed_bulk_size(tusb_desc_endpoint_t *desc_ep, tusb_spe
 }
 
 bool tuh_edpt_open(uint8_t dev_addr, tusb_desc_endpoint_t const* desc_ep) {
-  // removing: hcd_device_close() already ran, nothing would free an endpoint opened now
+  // removing: hcd_device_close() ran or is about to, nothing would free an endpoint opened now
   const usbh_device_t* dev = get_device(dev_addr);
   TU_VERIFY(dev == NULL || !dev->removing);
   // enumeration already fixed the configuration descriptor, this covers descriptors the application opens itself
@@ -1605,8 +1608,9 @@ bool tuh_edpt_close(uint8_t daddr, uint8_t ep_addr) {
   const uint8_t dir   = tu_edpt_dir(ep_addr);
   TU_VERIFY(0 != epnum); // cannot close EP0
   usbh_device_t* dev = get_device(daddr);
-  if (dev != NULL && dev->removing) {
-    // hcd_device_close() already closed it, e.g. called from tuh_umount_cb(): only usbh's state is left to release
+  if (dev != NULL && dev->hcd_closed) {
+    // hcd_device_close() already closed it, e.g. called from tuh_umount_cb(): only usbh's state is left to release.
+    // Not removing alone: a device marked with its unplugged branch stays open in the HCD until its own close.
     edpt_release_busy(dev, epnum, dir);
     return true;
   }
@@ -1938,7 +1942,7 @@ static void remove_device_tree(uint8_t rhport, uint8_t hub_addr, uint8_t hub_por
 
         // Close it in the HCD and fail its control transfers first: their callbacks run before tuh_umount_cb(), with
         // class state intact. Class close() makes no HCD call; for a removing device usbh refuses new transfers and
-        // endpoint opens, and tuh_edpt_close() skips the HCD.
+        // endpoint opens, and tuh_edpt_close() skips the HCD once the device is closed there.
         usbh_device_close(rhport, daddr);
 
         #if CFG_TUH_HUB
