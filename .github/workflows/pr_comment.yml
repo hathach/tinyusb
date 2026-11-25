@@ -55,6 +55,11 @@ jobs:
       github.event.workflow_run.conclusion != 'cancelled' &&
       needs.pr_number.outputs.number != ''
     runs-on: ubuntu-latest
+    # one sticky post at a time per PR, every pending job queued in order (as code-size-comment)
+    concurrency:
+      group: hil-comment-${{ needs.pr_number.outputs.number }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
       actions: read
@@ -69,8 +74,8 @@ jobs:
         with:
           persist-credentials: false
 
-      # agentrc at the default branch's pin: is-current's gh_pr_comment.py and the SystemView decoder; without it
-      # the post gate cannot tell (exit 2) and fails, so a failed fetch fails here first
+      # agentrc at the default branch's pin: gh_pr_comment.py and the SystemView decoder; without it the post cannot
+      # tell (exit 2) and fails, so a failed fetch fails here first
       - name: Get agentrc
         run: python3 test/hil/helper/agentrc.py fetch
 
@@ -114,8 +119,8 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
 
-      # a run a newer push or attempt supersedes would only discard the SystemView work below; "Skip a superseded
-      # run" checks again before posting
+      # a run a newer push or attempt supersedes would only discard the SystemView work below; the post checks again
+      # right before its write
       - name: Check the run is still the PR's latest
         id: early-current
         env:
@@ -140,7 +145,7 @@ jobs:
             echo '_SystemView report unavailable: checking the HIL reports for captures failed (see the job log)._' \
               > "$SV/notice.md"
           fi
-          # 1: superseded, nothing to render; 2: unknown, left to "Skip a superseded run" to fail on
+          # 1: superseded, nothing to render; 2: unknown, left to the post to fail on
           rc=0
           python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
             --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
@@ -252,35 +257,26 @@ jobs:
           zwsp=$(printf '\342\200\213')
           sed -i -E "s/@([A-Za-z0-9_-])/@${zwsp}\1/g" hil_combined.md
           cat hil_combined.md
-          echo "found=true" >> "$GITHUB_OUTPUT"
 
-      - name: Skip a superseded run
-        id: current
-        if: steps.combine.outputs.found == 'true'
+      # agentrc's sticky post keeps marocchino's marker for the header, so it updates that action's earlier comment.
+      # It rechecks freshness right before the write: 1: superseded, a newer run posts; 2: unknown, never a silent skip
+      - name: Post HIL report as sticky PR comment
         env:
           PR: ${{ needs.pr_number.outputs.number }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          # 1: superseded, a newer run posts; 2: unknown, never a silent skip
+          agentrc=$(python3 test/hil/helper/agentrc.py fetch)
           rc=0
-          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
-            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
+          python3 "$agentrc/skills/hil/scripts/gh_pr_comment.py" post --repo "$REPO" --pr "$PR" --header hil-report \
+            --body-file hil_combined.md --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" \
+            --workflow build.yml || rc=$?
           case $rc in
-            0) echo "post=true" >> "$GITHUB_OUTPUT" ;;
-            1) ;;
-            *) echo "::error::cannot tell whether run $RUN_ID is still the PR's latest (exit $rc): not posting"
+            0|1) ;;
+            *) echo "::error::HIL report comment not posted (exit $rc): see the reason above"
                exit 1 ;;
           esac
-
-      - name: Post HIL report as sticky PR comment
-        if: steps.current.outputs.post == 'true'
-        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
-        with:
-          header: hil-report
-          path: hil_combined.md
-          number: ${{ needs.pr_number.outputs.number }}
 
   # ---------------------------------------
   # Code size of the PR's CI-pinned boards against the master push run of the commit it was
@@ -295,6 +291,12 @@ jobs:
       needs.pr_number.outputs.number != ''
     runs-on: ubuntu-latest
     continue-on-error: true
+    # the sticky post is a lookup then a write: one at a time per PR, every pending job queued in order (as
+    # membrowse-comment.yml), so a superseded one stops at its freshness check and the newest posts last
+    concurrency:
+      group: code-size-comment-${{ needs.pr_number.outputs.number }}
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: read
       actions: read
@@ -367,29 +369,22 @@ jobs:
           name: code-size-report
           path: ${{ runner.temp }}/code-size/out/code-size.*
 
-      - name: Skip a superseded run
-        id: current
+      # agentrc's sticky post keeps marocchino's marker for the header, so it updates that action's earlier comment.
+      # It rechecks freshness right before the write: 1: superseded, a newer run posts; 2: unknown, never a silent skip
+      - name: Post code size as sticky PR comment
         env:
           PR: ${{ needs.pr_number.outputs.number }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          # 1: superseded, a newer run posts; 2: unknown, never a silent skip
+          agentrc=$(python3 test/hil/helper/agentrc.py fetch)
           rc=0
-          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
-            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
+          python3 "$agentrc/skills/hil/scripts/gh_pr_comment.py" post --repo "$REPO" --pr "$PR" --header code-size \
+            --body-file "$RUNNER_TEMP/code-size/out/comment.md" --run-id "$RUN_ID" --attempt "$ATTEMPT" \
+            --head-sha "$HEAD_SHA" --workflow build.yml || rc=$?
           case $rc in
-            0) echo "post=true" >> "$GITHUB_OUTPUT" ;;
-            1) ;;
-            *) echo "::error::cannot tell whether run $RUN_ID is still the PR's latest (exit $rc): not posting"
+            0|1) ;;
+            *) echo "::error::code size comment not posted (exit $rc): see the reason above"
                exit 1 ;;
           esac
-
-      - name: Post code size as sticky PR comment
-        if: steps.current.outputs.post == 'true'
-        uses: marocchino/sticky-pull-request-comment@773744901bac0e8cbb5a0dc842800d45e9b2b405 # v2.9.4
-        with:
-          header: code-size
-          path: ${{ runner.temp }}/code-size/out/comment.md
-          number: ${{ needs.pr_number.outputs.number }}

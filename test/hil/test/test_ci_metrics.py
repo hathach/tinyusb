@@ -51,6 +51,14 @@ def _read(path):
         return f.read()
 
 
+def step_script(name, workflow='pr_comment.yml'):
+    """The dedented `run: |` block of the step `name` (unique in `workflow`), up to its first blank line."""
+    text = _read(os.path.join(REPO, '.github', 'workflows', workflow))
+    i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
+    j = re.search(r'^\s*$', text[i:], re.M).start() + i
+    return re.sub(r'^ {10}', '', text[i:j], flags=re.M)
+
+
 class TestCircleCiSentinelContract(unittest.TestCase):
     """config.yml's set-matrix rewrites config2.yml's parameter defaults by matching
     a sentinel comment line — the only way past /pipeline/continue's 512-char
@@ -454,14 +462,6 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
     def test_the_code_size_comment_is_written_even_without_usable_snapshots(self):
         # a run without usable snapshots, and a baseline lookup that fails, must still
         # leave a comment.md, so the post replaces an earlier push's table
-        import subprocess, tempfile
-        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'), encoding='utf-8') as f:
-            text = f.read()
-
-        def step_script(name):
-            i = text.index('run: |\n', text.index(f'- name: {name}\n')) + len('run: |\n')
-            j = re.search(r'^\s*$', text[i:], re.M).start() + i  # the block ends at the first blank line
-            return re.sub(r'^ {10}', '', text[i:j], flags=re.M)
         with tempfile.TemporaryDirectory() as d:
             env = {**os.environ, 'RUNNER_TEMP': d, 'REPO': 'x/y', 'RUN_URL': 'https://example/run',
                    'GITHUB_STEP_SUMMARY': os.path.join(d, 'summary.md'), 'GITHUB_OUTPUT': os.path.join(d, 'out'),
@@ -490,22 +490,18 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         self.assertTrue(comment.endswith('_[Full report](https://example/run)_\n'))
 
     def test_a_freshness_check_that_cannot_tell_never_skips_silently(self):
-        # is-current exits 1 for a superseded run (skip the post) and 2 when the API cannot tell (fail the step)
-        import tempfile
+        # hil-comment's early SystemView gate: 1 superseded and 2 unknown both skip the SystemView work, the unknown
+        # one with a warning; the post's own recheck is what fails on unknown
         if _no_bash() or sys.platform == 'win32':   # which('gh') there finds a .bat, not this sh stub
             raise unittest.SkipTest(_no_bash() or 'a POSIX gh stub')
-        with open(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'), encoding='utf-8') as f:
-            text = f.read()
         for wf in ('pr_comment.yml', 'membrowse-comment.yml'):
-            with open(os.path.join(REPO, '.github', 'workflows', wf), encoding='utf-8') as f:
-                calls = f.read().split('code_size_ci.py is-current')[1:]
+            calls = _read(os.path.join(REPO, '.github', 'workflows', wf)).split('code_size_ci.py is-current')[1:]
             self.assertTrue(calls, wf)
             for call in calls:
                 self.assertIn('|| rc=$?', call.split('\n')[1], wf)   # its exit code is read, never just tested
-        i = text.index('run: |\n', text.index('- name: Skip a superseded run\n')) + len('run: |\n')
-        j = re.search(r'^\s*$', text[i:], re.M).start() + i
-        script = re.sub(r'^ {10}', '', text[i:j], flags=re.M)
-        for answer, rc, posted in (('exit 1', 1, ''), ("echo '{\"head\": {\"sha\": \"bbbbbbb\"}}'", 0, '')):
+        script = step_script("Check the run is still the PR's latest")
+        for answer, said in (('exit 1', '::warning::cannot tell'),
+                             ("echo '{\"head\": {\"sha\": \"bbbbbbb\"}}'", 'stale: PR #5 head moved')):
             with self.subTest(gh=answer), tempfile.TemporaryDirectory() as d:
                 with open(os.path.join(d, 'gh'), 'w', encoding='utf-8', newline='\n') as f:
                     f.write(f'#!/bin/sh\n{answer}\n')
@@ -513,16 +509,54 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                 out = os.path.join(d, 'out')
                 open(out, 'w').close()
                 env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '1', 'HEAD_SHA': 'a' * 40,
-                       'GITHUB_OUTPUT': out, 'PATH': d + os.pathsep + os.environ['PATH']}
+                       'RUNNER_TEMP': d, 'GITHUB_OUTPUT': out, 'PATH': d + os.pathsep + os.environ['PATH']}
                 r = run_bash(['-e', '-o', 'pipefail', '-c', script], cwd=REPO, capture_output=True, text=True,
                              env=env)
-                self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
-                with open(out, encoding='utf-8') as f:
-                    self.assertEqual(f.read(), posted)
-                if rc:
-                    self.assertIn('::error::cannot tell', r.stdout)
-                else:
-                    self.assertIn('stale: PR #5 head moved', r.stdout)
+                self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+                self.assertEqual(_read(out), '')   # no current=true: the SystemView work is skipped
+                self.assertIn(said, r.stdout)
+
+    def test_the_sticky_posts_run_agentrcs_post_and_read_its_exit(self):
+        # gh_pr_comment.py post's own rules are agentrc's tests; this pins the wiring: its arguments, and that 0
+        # (posted) and 1 (superseded) pass while 2 (unknown) fails the step
+        if _no_bash():
+            raise unittest.SkipTest(_no_bash())
+        text = _read(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'))
+        hil, size = text.index('\n  hil-comment:\n'), text.index('\n  code-size-comment:\n')
+        fetch = '$(python3 test/hil/helper/agentrc.py fetch)'
+        stub = ('import json, os, sys\n'
+                "json.dump(sys.argv[1:], open(os.environ['ARGV'], 'w'))\n"
+                "sys.exit(int(os.environ['STUB_RC']))\n")
+        for job, step, header, body, what in (
+                (text[hil:size], 'Post HIL report as sticky PR comment', 'hil-report', 'hil_combined.md',
+                 'HIL report comment'),
+                (text[size:], 'Post code size as sticky PR comment', 'code-size', '{t}/code-size/out/comment.md',
+                 'code size comment')):
+            name = job[3:job.index(':')]
+            self.assertIn(f'concurrency:\n      group: {name}-${{{{ needs.pr_number.outputs.number }}}}\n', job)
+            self.assertNotIn('uses: marocchino', job)
+            self.assertNotIn('steps.current.', job)   # no gate of its own: post rechecks right before its write
+            script = step_script(step)
+            self.assertIn(fetch, script)
+            for stub_rc, rc in ((0, 0), (1, 0), (2, 1)):
+                with self.subTest(header, exit=stub_rc), tempfile.TemporaryDirectory() as d:
+                    scripts = os.path.join(d, 'agentrc', 'skills', 'hil', 'scripts')
+                    os.makedirs(scripts)
+                    with open(os.path.join(scripts, 'gh_pr_comment.py'), 'w', encoding='utf-8') as f:
+                        f.write(stub)
+                    argv = os.path.join(d, 'argv.json')
+                    env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '2',
+                           'HEAD_SHA': 'a' * 40, 'RUNNER_TEMP': d, 'ARGV': argv, 'STUB_RC': str(stub_rc)}
+                    r = run_bash(['-e', '-o', 'pipefail', '-c',
+                                  script.replace(fetch, shlex.quote(os.path.join(d, 'agentrc')))],
+                                 cwd=d, capture_output=True, text=True, env=env)
+                    self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
+                    self.assertEqual(json.loads(_read(argv)),
+                                     ['post', '--repo', 'x/y', '--pr', '5', '--header', header,
+                                      '--body-file', body.format(t=d), '--run-id', '7', '--attempt', '2',
+                                      '--head-sha', 'a' * 40, '--workflow', 'build.yml'])
+                    if rc:
+                        self.assertIn(f'::error::{what} not posted (exit 2)', r.stdout)
 
     def _run_block(self, block, sel, setup=None):
         """Run a dedented build.yml step block with `sel` as selection.json in a temp
