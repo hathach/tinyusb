@@ -28,7 +28,7 @@ jobs:
     # its own freshness check runs and its post lands last (never cancel one mid-post).
     # queue: max keeps every pending job in FIFO order: the default single queue would let a
     # late older Build's job replace the newest one, which then never posts; a superseded
-    # job still stops at is-current.
+    # job still stops at its freshness check.
     concurrency:
       group: membrowse-comment-${{ github.event.workflow_run.head_repository.full_name || 'dispatch' }}-${{ github.event.workflow_run.head_branch || inputs.pr_number }}
       cancel-in-progress: false
@@ -42,15 +42,15 @@ jobs:
       actions: read
       pull-requests: write
     steps:
-      # the whole default branch, as pr_comment.yml: code_size_ci.py imports tools/code_size.py,
-      # which imports test/hil/helper; the step below fetches agentrc at the pin for gh_pr_comment.py
+      # the default branch, never the PR's: test/hil/helper/agentrc.py fetches agentrc at its pin
+      # for gh_pr_comment.py
       - name: Checkout default branch scripts and the comment template
         uses: actions/checkout@v6
         with:
           persist-credentials: false
 
       # The PR from trusted workflow_run metadata (never from build artifacts, which a fork
-      # controls) by agentrc's gh_pr_comment.py, then the same freshness gate as pr_comment.yml:
+      # controls) and the freshness gate, both by agentrc's gh_pr_comment.py as in pr_comment.yml:
       # a Build that a newer push, run or attempt has superseded must not overwrite the comment
       # with an older report. An API error (exit 2) fails the step, never a silent skip.
       - name: Resolve the PR and skip a superseded run
@@ -79,8 +79,8 @@ jobs:
           [ -n "$num" ] || { echo "no single open PR for $HEAD_SHA, not commenting"; exit 0; }
           echo "number=$num" >> "$GITHUB_OUTPUT"
           rc=0
-          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$num" \
-            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
+          python3 "$agentrc/skills/hil/scripts/gh_pr_comment.py" fresh --repo "$REPO" --pr "$num" \
+            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" --workflow build.yml || rc=$?
           case $rc in
             0) echo "post=true" >> "$GITHUB_OUTPUT" ;;
             1) ;;

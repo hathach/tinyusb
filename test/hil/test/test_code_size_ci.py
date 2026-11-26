@@ -34,12 +34,12 @@ def artifact(art_id, name, expired=False):
 
 class FakeGh:
     """The API paths code_size_ci.py reads: first-parent history, runs per commit,
-    artifacts per run, the ancestry compare, a PR and a run, as gh_pr_comment.gh answers: a paginated
+    artifacts per run, the ancestry compare and a PR's base, as gh_pr_comment.gh answers: a paginated
     call gets the items under its key."""
 
     def __init__(self, parents, runs=None, artifacts=None, status='ahead'):
         self.parents, self.runs, self.artifacts, self.status = parents, runs or {}, artifacts or {}, status
-        self.pr_head, self.pr_repo, self.attempts, self.pr_base = None, NAME, {}, 'master'
+        self.pr_base = 'master'
         self.compared = []
 
     def __call__(self, path, paginate_key=None):
@@ -51,14 +51,11 @@ class FakeGh:
             return {'workflow_runs': self.runs.get(m.group(1), [])}
         if m := re.fullmatch(rf'repos/{NAME}/actions/runs/(\d+)/artifacts\?per_page=100', path):
             return {'artifacts': self.artifacts.get(int(m.group(1)), [])}
-        if m := re.fullmatch(rf'repos/{NAME}/actions/runs/(\d+)', path):
-            return {'run_attempt': self.attempts[int(m.group(1))]}
         if m := re.fullmatch(rf'repos/{NAME}/commits/(\w+)', path):
             parent = self.parents.get(m.group(1))
             return {'parents': [{'sha': parent}] if parent else []}
         if re.fullmatch(rf'repos/{NAME}/pulls/\d+', path):
-            return {'head': {'sha': self.pr_head, 'ref': 'feature', 'repo': {'full_name': self.pr_repo}},
-                    'base': {'ref': self.pr_base}}
+            return {'base': {'ref': self.pr_base}}
         if m := re.fullmatch(rf'repos/{NAME}/compare/\w+\.\.\.([\w./-]+)', path):
             self.compared.append(m.group(1))
             return {'status': self.status}
@@ -181,59 +178,6 @@ class BaselineOfAnotherKind(unittest.TestCase):
             info = ci.lookup_sha(NAME, sha('b'), usable=lambda names: seen.append(names) or 'sysview-tinyusb' in names)
         self.assertEqual((info['run_id'], seen), (7, [{'sysview-tinyusb', 'binaries-x'}]))
         self.assertFalse(ci.has_snapshots({'sysview-tinyusb', 'code-size-scope'}))
-
-
-def pr_run(run_id, prs=(5,), branch='feature', repo=NAME):
-    return {**run(run_id, sha('c'), event='pull_request', branch=branch, repo=repo),
-            'pull_requests': [{'number': n} for n in prs]}
-
-
-class IsCurrent(unittest.TestCase):
-    """is-current is agentrc's gh_pr_comment.fresh for build.yml with tinyusb's default rule (no run_name: every
-    PR a run lists counts): its stale and fork rules are agentrc's tests (tests/test_gh_pr_comment.py Fresh). These
-    pin the wiring: the workflow, the exit codes and what counts as unknown."""
-
-    def setUp(self):
-        self.helper = ci.agentrc.load_file(ci.GH_PR_COMMENT)
-
-    def check(self, pr_head=sha('c'), runs=(pr_run(7),), attempts=None, fail=None):
-        fake = FakeGh({}, {sha('c'): list(runs)})
-        fake.pr_head, fake.attempts = pr_head, attempts or {7: 1}
-        helper = self.helper
-
-        def api(path, paginate_key=None):
-            if fail:
-                raise helper.ApiError(fail)
-            if m := re.fullmatch(rf'repos/{NAME}/actions/workflows/build\.yml/runs\?event=pull_request&head_sha=(\w+)'
-                                 r'&per_page=100', path):
-                return fake.runs.get(m.group(1), [])
-            return fake.reply(path)
-        args = ['code_size_ci.py', 'is-current', '--repo', NAME, '--pr', '5', '--run-id', '7',
-                '--attempt', '1', '--head-sha', sha('c')]
-        out, err = io.StringIO(), io.StringIO()
-        with mock.patch.object(helper, 'gh', api), mock.patch.object(sys, 'argv', args), \
-             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            return ci.main(), out.getvalue().strip(), err.getvalue().strip()
-
-    def test_the_latest_attempt_of_the_latest_run_of_the_head_is_current(self):
-        self.assertEqual(self.check(), (0, 'current', ''))
-
-    def test_a_newer_run_is_stale(self):
-        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8)))[:2],
-                         (1, 'stale: run 8 is newer than run 7 for ccccccc'))
-
-    def test_a_newer_run_of_another_pr_sharing_the_head_does_not_supersede(self):
-        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8, prs=(6,))))[:2], (0, 'current'))
-        self.assertEqual(self.check(runs=(pr_run(7), pr_run(8, prs=(5, 6))))[:2],
-                         (1, 'stale: run 8 is newer than run 7 for ccccccc'))
-
-    def test_an_api_error_or_no_helper_is_unknown(self):
-        code, out, err = self.check(fail='HTTP 502')
-        self.assertEqual((code, out), (2, ''))
-        self.assertIn('unknown: HTTP 502', err)
-        with mock.patch.object(ci.agentrc, 'load_file', side_effect=ImportError('no agentrc at /x')):
-            code, out, err = self.check()
-        self.assertEqual((code, out, err), (2, '', 'unknown: no agentrc at /x'))
 
 
 if __name__ == '__main__':

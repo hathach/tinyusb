@@ -238,18 +238,15 @@ class PrCommentWorkflow(unittest.TestCase):
         self.assertFalse(job['concurrency']['cancel-in-progress'])
         self.assertEqual(job['concurrency']['queue'], 'max')  # no pending job replaces another
         gate = next(s for s in steps if s.get('id') == 'current')
-        self.assertIn('code_size_ci.py is-current', gate['run'])
+        self.assertIn('/skills/hil/scripts/gh_pr_comment.py" fresh', gate['run'])
+        self.assertIn('--workflow build.yml || rc=$?', gate['run'])
         post = next(s for s in steps if 'comment-action' in s.get('uses', ''))
         self.assertEqual(post['if'], "steps.current.outputs.post == 'true'")
         self.assertEqual(post['with']['pr_number'], '${{ steps.current.outputs.number }}')
-        # the whole tree: code_size_ci.py imports tools/code_size.py and test/hil/helper
+        # the whole tree: test/hil/helper/agentrc.py and its pin fetch agentrc
         checkout = next(s for s in steps if s.get('uses', '').startswith('actions/checkout'))
         self.assertNotIn('sparse-checkout', checkout['with'])
         self.assertFalse(checkout['with']['persist-credentials'])
-        r = subprocess.run([sys.executable, os.path.join(REPO, '.github', 'scripts', 'code_size_ci.py'),
-                            'is-current', '--help'], capture_output=True, text=True,
-                           env={**os.environ, 'AGENTRC_DIR': os.devnull})
-        self.assertEqual(r.returncode, 0, r.stderr)
 
 
 class PrCommentTemplate(unittest.TestCase):

@@ -495,11 +495,17 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         if _no_bash() or sys.platform == 'win32':   # which('gh') there finds a .bat, not this sh stub
             raise unittest.SkipTest(_no_bash() or 'a POSIX gh stub')
         for wf in ('pr_comment.yml', 'membrowse-comment.yml'):
-            calls = _read(os.path.join(REPO, '.github', 'workflows', wf)).split('code_size_ci.py is-current')[1:]
+            calls = _read(os.path.join(REPO, '.github', 'workflows', wf)).split('gh_pr_comment.py" fresh')[1:]
             self.assertTrue(calls, wf)
             for call in calls:
-                self.assertIn('|| rc=$?', call.split('\n')[1], wf)   # its exit code is read, never just tested
+                self.assertIn('--workflow build.yml || rc=$?', call.split('\n')[1], wf)   # its exit code is read
+        fetch = '$(python3 test/hil/helper/agentrc.py fetch)'
         script = step_script("Check the run is still the PR's latest")
+        self.assertIn(fetch, script)
+        # the agentrc this checkout selects (the pin in CI, else the installed one), as fetch prints it
+        sys.path.insert(0, os.path.join(REPO, 'test', 'hil'))
+        from helper import agentrc
+        script = script.replace(fetch, shlex.quote(str(agentrc.selected()[1])))
         for answer, said in (('exit 1', '::warning::cannot tell'),
                              ("echo '{\"head\": {\"sha\": \"bbbbbbb\"}}'", 'stale: PR #5 head moved')):
             with self.subTest(gh=answer), tempfile.TemporaryDirectory() as d:
