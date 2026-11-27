@@ -161,6 +161,9 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_mutex_unlock(osal_mutex_t mutex_hd
 // rd_idx past it. Writers are the USB ISR, which runs to completion against the task, and the task, which
 // masks the USB interrupt (interrupt_set) while it writes. So the task never holds off the ISR to read,
 // which matters on controllers that NAK every endpoint until the ISR runs (WCH USBHS INT_BUSY).
+// On a multi-core MCU (OSAL_MUTEX_REQUIRED) the reader masks the interrupt too, as this queue always did
+// before: the publish order above has no memory barrier. The mask acts on the calling core only, so the
+// USB ISR and the task must run on the same core; use an RTOS or OPT_OS_PICO to split them.
 //
 // Items are copied as pointer-sized elements: an item type must be a whole number of intptr_t and
 // intptr_t aligned (event types are; they hold pointers or 32-bit fields and are not packed), which
@@ -233,14 +236,23 @@ TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_delete(osal_queue_t qhdl) {
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_receive(osal_queue_t qhdl, void* data, uint32_t msec) {
   (void) msec; // not used, always behave as msec = 0
 
-  // Lock-free: only the task reads. Read wr_idx, then the item, then release the slot through rd_idx.
+  #if OSAL_MUTEX_REQUIRED
+  qhdl->interrupt_set(false);
+  #endif
+
+  // Only the task reads. Read wr_idx, then the item, then release the slot through rd_idx.
   uint16_t const rd = qhdl->rd_idx;
-  if (qhdl->wr_idx == rd) {
-    return false;
+  bool const success = (qhdl->wr_idx != rd);
+  if (success) {
+    osal_queue_copy_(qhdl, data, osal_queue_item_(qhdl, rd));
+    qhdl->rd_idx = osal_queue_next_(qhdl, rd);
   }
-  osal_queue_copy_(qhdl, data, osal_queue_item_(qhdl, rd));
-  qhdl->rd_idx = osal_queue_next_(qhdl, rd);
-  return true;
+
+  #if OSAL_MUTEX_REQUIRED
+  qhdl->interrupt_set(true);
+  #endif
+
+  return success;
 }
 
 TU_ATTR_ALWAYS_INLINE static inline bool osal_queue_send(osal_queue_t qhdl, void const* data, bool in_isr) {

@@ -105,7 +105,8 @@ static void step(osal_queue_def_t* qdef, model_t* m, bool send, bool in_isr, uin
         TEST_ASSERT_EQUAL_HEX8(0xA5, item[i]); // an empty receive leaves the destination alone
       }
     }
-    TEST_ASSERT_EQUAL_UINT(0u, int_calls - calls); // the reader takes no lock
+    // the reader takes no lock on a single core, the interrupt mask on a multi-core MCU
+    TEST_ASSERT_EQUAL_UINT(OSAL_MUTEX_REQUIRED ? 2u : 0u, int_calls - calls);
   }
   TEST_ASSERT_EQUAL(m->count == 0, osal_queue_empty(q));
   TEST_ASSERT_EQUAL_INT(0, int_disabled);
