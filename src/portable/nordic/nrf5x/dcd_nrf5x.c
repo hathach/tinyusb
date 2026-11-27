@@ -1096,6 +1096,10 @@ static void hfclk_disable(void) {
 #endif
 }
 
+// Set when USB_EVT_DETECTED enables USBD, cleared once its READY event cause is consumed.
+// EVENTCAUSE.READY is raised only once per enable, so a repeated USB_EVT_READY must not wait for it.
+static volatile bool _usbd_ready_pending = false;
+
 // Power & Clock Peripheral on nRF5x to manage USB
 //
 // USB Bus power is managed by Power module, there are 3 VBUS power events:
@@ -1157,6 +1161,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
 #endif
 
         // Enable the peripheral (will cause Ready event)
+        _usbd_ready_pending = true;
         NRF_USBD->ENABLE = 1;
         __ISB();
         __DSB(); // for sync
@@ -1171,8 +1176,13 @@ void tusb_hal_nrf_power_event(uint32_t event) {
       // Application probably call this more than necessary.
       if (NRF_USBD->USBPULLUP && hfclk_running()) break;
 
-      // Waiting for USBD peripheral enabled
-      while (!(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE)) {}
+      // Waiting for USBD peripheral enabled. Only when USB_EVT_DETECTED enabled it and its READY has
+      // not been consumed yet: a repeated READY event (e.g. from usb_softdevice_post_enable()) or a USBD
+      // already enabled before a soft reset would otherwise wait forever for a cause that never comes.
+      if (_usbd_ready_pending) {
+        while (!(USBD_EVENTCAUSE_READY_Msk & NRF_USBD->EVENTCAUSE)) {}
+        _usbd_ready_pending = false;
+      }
 
       NRF_USBD->EVENTCAUSE = USBD_EVENTCAUSE_READY_Msk;
       __ISB();
@@ -1269,6 +1279,7 @@ void tusb_hal_nrf_power_event(uint32_t event) {
         }
         _dcd.dma_pending = 0;
 
+        _usbd_ready_pending = false;
         NRF_USBD->ENABLE = 0;
         __ISB();
         __DSB(); // for sync
