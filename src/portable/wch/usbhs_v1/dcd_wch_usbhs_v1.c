@@ -45,6 +45,7 @@ static bool high_speed; // speed negotiated by the last bus reset, for the SOF f
 // TX_CTRL toggle bits each bulk/interrupt IN packet in flight was armed with (one byte per endpoint:
 // written from task and ISR context, so never a shared read-modify-write)
 static uint8_t in_pkt_tog[EP_MAX];
+static bool sof_requested; // by usbd; reset completion also needs the SOF interrupt
 
 static void queue_in_packet(uint8_t ep_num, xfer_ctl_t* xfer) {
   uint16_t remaining = xfer->total_len - xfer->queued_len;
@@ -156,6 +157,7 @@ bool dcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
   memset(&xfer_status, 0, sizeof(xfer_status));
   ep0_tog = true;
   reset_evt_pending = false;
+  sof_requested = false;
   high_speed = false;
 
   USBHSD->HOST_CTRL = 0x00;
@@ -224,6 +226,9 @@ void dcd_edpt_close_all(uint8_t rhport) {
   (void)rhport;
 
   for (size_t ep = 1; ep < EP_MAX; ep++) {
+    // Retire pending transfers first, so neither the ISR nor a later clear-stall re-arms one
+    xfer_status[ep][TUSB_DIR_OUT].valid = false;
+    xfer_status[ep][TUSB_DIR_IN].valid  = false;
     EP_TX_LEN(ep)  = 0;
     EP_TX_CTRL(ep) = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0;
     EP_RX_CTRL(ep) = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0;
@@ -258,12 +263,14 @@ void dcd_disconnect(uint8_t rhport) {
 }
 
 void dcd_sof_enable(uint8_t rhport, bool en) {
-  (void)rhport;
-  if (en) {
+  dcd_int_disable(rhport);
+  sof_requested = en;
+  if (en || reset_evt_pending) {
     USBHSD->INT_EN |= USBHS_SOF_ACT_EN;
   } else {
     USBHSD->INT_EN &= ~(USBHS_SOF_ACT_EN);
   }
+  dcd_int_enable(rhport);
 }
 
 void dcd_edpt0_status_complete(uint8_t rhport, const tusb_control_request_t *request) {
@@ -287,6 +294,7 @@ bool dcd_edpt_open(uint8_t rhport, const tusb_desc_endpoint_t *desc_edpt) {
   }
 
   xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, dir);
+  xfer->valid      = false;
   xfer->max_size   = tu_edpt_packet_size(desc_edpt);
 
   xfer->is_iso = (desc_edpt->bmAttributes.xfer == TUSB_XFER_ISOCHRONOUS);
@@ -317,6 +325,7 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr) {
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
 
+  xfer_status[ep_num][dir].valid = false;
   if (dir == TUSB_DIR_OUT) {
     EP_RX_CTRL(ep_num)    = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0;
     EP_RX_MAX_LEN(ep_num) = 0;
@@ -346,40 +355,49 @@ bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep)
   #endif
 
 void dcd_edpt_stall(uint8_t rhport, uint8_t ep_addr) {
-  (void)rhport;
-
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
 
+  // Stalling drops the queued transfer: invalidate it so neither the ISR nor a clear-stall acts on it
+  dcd_int_disable(rhport);
+  xfer_status[ep_num][dir].valid = false;
   if (dir == TUSB_DIR_OUT) {
     EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_STALL;
   } else {
     EP_TX_LEN(ep_num) = 0;
     EP_TX_CTRL(ep_num) = USBHS_EP_T_RES_STALL;
   }
+  dcd_int_enable(rhport);
 }
 
 void dcd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr) {
-  (void)rhport;
-
   const uint8_t    ep_num = tu_edpt_number(ep_addr);
   const tusb_dir_t dir    = tu_edpt_dir(ep_addr);
+  xfer_ctl_t      *xfer   = XFER_CTL_BASE(ep_num, dir);
+  const bool       autotog = (ep_num != 0 && !xfer->is_iso);
 
+  // A transfer still valid here was not stalled (a stall retires it): the class driver considers it submitted
+  // and won't submit it again, so re-arm it with the reset toggle instead of leaving the endpoint NAKing until
+  // the next configuration. usbtest's toggle test 29 clears the halt on an armed bulk OUT pipe. Masked so a
+  // pending completion cannot retire the transfer between the check and the re-arm.
+  dcd_int_disable(rhport);
   if (dir == TUSB_DIR_OUT) {
-    xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_OUT);
-    EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0 |
-                         ((ep_num != 0 && !xfer->is_iso) ? USBHS_EP_R_AUTOTOG : 0);
+    EP_RX_CTRL(ep_num) = USBHS_EP_R_RES_NAK | USBHS_EP_R_TOG_0 | (autotog ? USBHS_EP_R_AUTOTOG : 0);
     if (xfer->valid) {
-      // A receive is still armed (the class driver considers it submitted and won't re-arm it);
-      // re-queue it (ACK/NYET) instead of leaving it NAKing, or the endpoint NAKs forever after
-      // clear-halt (usbtest toggle test 29 clears the halt on an armed bulk-OUT pipe).
       queue_out_packet(ep_num, xfer);
     }
   } else {
-    xfer_ctl_t *xfer = XFER_CTL_BASE(ep_num, TUSB_DIR_IN);
-    EP_TX_CTRL(ep_num) = USBHS_EP_T_RES_NAK | USBHS_EP_T_TOG_0 |
-                         ((ep_num != 0 && !xfer->is_iso) ? USBHS_EP_T_AUTOTOG : 0);
+    uint8_t tx_ctrl = USBHS_EP_T_TOG_0 | (autotog ? USBHS_EP_T_AUTOTOG : 0);
+    if (xfer->valid && autotog) {
+      // The armed packet (TX_LEN and DMA address are kept) goes again as DATA0
+      in_pkt_tog[ep_num] = USBHS_EP_T_TOG_0;
+      tx_ctrl |= USBHS_EP_T_RES_ACK;
+    } else {
+      tx_ctrl |= USBHS_EP_T_RES_NAK;
+    }
+    EP_TX_CTRL(ep_num) = tx_ctrl;
   }
+  dcd_int_enable(rhport);
 }
 
 bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t total_bytes, bool is_isr) {
@@ -427,7 +445,8 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 // late for all three. dcd_int_handler() is therefore one assembly body that:
 // 1. snapshots INT_FG and INT_ST in its first instructions, and RX_LEN for an OUT;
 // 2. for a transfer on a non-EP0 endpoint (IN, or OUT with a matching toggle): NAKs the endpoint unless it
-//    is isochronous, clears the transfer flag (ending INT_BUSY) and tail-calls int_handler_xfer();
+//    is isochronous or its transfer was retired (that response is final: NAK, or a STALL that must stay),
+//    clears the transfer flag (ending INT_BUSY) and tail-calls int_handler_xfer();
 // 3. for everything else (bus reset, SOF, EP0, OUT toggle mismatch, SETUP, suspend): tail-calls
 //    int_handler_other() with the snapshot.
 // It uses only caller-saved registers and returns through the helper it tail-calls, so the same body is the
@@ -498,6 +517,8 @@ static void int_handler_other(uint8_t rhport, uint8_t int_flag, uint8_t int_stat
   if (int_flag & USBHS_BUS_RST_FLAG) {
     // Reset invalidates pending completions, so handle it before TRANSFER or SETUP.
     // The first SOF follows speed negotiation and completes the reset notification.
+    // usbd_reset() clears its SOF consumers without calling dcd_sof_enable(), so drop the stale request too.
+    sof_requested = false;
     reset_evt_pending = true;
     USBHSD->INT_EN |= USBHS_SOF_ACT_EN;
     dcd_event_bus_signal(rhport, DCD_EVENT_BUS_RESET_START, true);
@@ -533,7 +554,9 @@ static void int_handler_other(uint8_t rhport, uint8_t int_flag, uint8_t int_stat
         }
         high_speed = (actual_speed == TUSB_SPEED_HIGH);
         dcd_event_bus_reset(rhport, actual_speed, true);
-        USBHSD->INT_EN &= ~USBHS_SOF_ACT_EN;
+        if (!sof_requested) {
+          USBHSD->INT_EN &= ~USBHS_SOF_ACT_EN;
+        }
       } else {
         // At high speed every microframe SOF interrupts, and FRAME_NO holds the frame number (bits 10:0)
         // and the microframe (bits 15:13): report the 14-bit microframe count, as DWC2 does
@@ -569,9 +592,7 @@ static void int_handler_other(uint8_t rhport, uint8_t int_flag, uint8_t int_stat
     // The SUSPEND interrupt fires on both suspend and resume; MIS_ST's suspend bit tells them apart
     // (set while suspended, clear once resumed). Reporting both as suspend leaves usbd suspended for
     // good: SOF interrupts are off after reset, so nothing else clears it and tud_ready() stays false.
-    dcd_event_t event = {.rhport = rhport,
-                         .event_id = (USBHSD->MIS_ST & USBHS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME};
-    dcd_event_handler(&event, true);
+    dcd_event_bus_signal(rhport, (USBHSD->MIS_ST & USBHS_SUSPEND) ? DCD_EVENT_SUSPEND : DCD_EVENT_RESUME, true);
 
     USBHSD->INT_FG = USBHS_SUSPEND_FLAG; /* Clear flag */
   } else {
@@ -584,9 +605,14 @@ static void int_handler_other(uint8_t rhport, uint8_t int_flag, uint8_t int_stat
 // The assembly takes every register offset, mask and struct offset as an operand; these are the
 // assumptions an operand cannot carry.
   #define USBHS_FAST_OFF(_member) offsetof(USBHSD_TypeDef, _member)
-TU_VERIFY_STATIC(sizeof(bool) == 1, "is_iso is loaded as a byte");
+TU_VERIFY_STATIC(sizeof(bool) == 1 && offsetof(xfer_ctl_t, valid) == offsetof(xfer_ctl_t, is_iso) + 1 &&
+                 (offsetof(xfer_ctl_t, is_iso) % 2) == 0 && (sizeof(xfer_ctl_t) % 2) == 0,
+                 "is_iso and valid are loaded as one little-endian halfword");
 TU_VERIFY_STATIC(USBHS_EP_T_RES_MASK == USBHS_EP_R_RES_MASK && USBHS_EP_T_RES_NAK == USBHS_EP_R_RES_NAK,
                  "one NAK sequence serves both directions");
+
+// The halfword {is_iso, valid} of an endpoint the handler NAKs: not isochronous, transfer still valid
+  #define USBHS_FAST_NAK_STATE 0x100
 
 // Constant ("i") operands only, as is usual in naked functions (no register or stack operands)
   #define USBHS_FAST_OPERANDS                                                                                 \
@@ -599,7 +625,8 @@ TU_VERIFY_STATIC(USBHS_EP_T_RES_MASK == USBHS_EP_R_RES_MASK && USBHS_EP_T_RES_NA
     [o_iso_out] "i"(TUSB_DIR_OUT * sizeof(xfer_ctl_t) + offsetof(xfer_ctl_t, is_iso)),                       \
     [o_iso_in] "i"(TUSB_DIR_IN * sizeof(xfer_ctl_t) + offsetof(xfer_ctl_t, is_iso)),                         \
     [m_res_keep] "i"((uint8_t) ~USBHS_EP_T_RES_MASK), [m_res] "i"(USBHS_EP_T_RES_MASK),                     \
-    [res_nak] "i"(USBHS_EP_T_RES_NAK), [h_xfer] "i"(int_handler_xfer), [h_other] "i"(int_handler_other)
+    [res_nak] "i"(USBHS_EP_T_RES_NAK), [nak_state] "i"(USBHS_FAST_NAK_STATE), [h_xfer] "i"(int_handler_xfer), \
+    [h_other] "i"(int_handler_other)
 
 // The handler (see "Interrupt handler" above). rhport is ignored: the DCD drives one USBHS controller.
 __attribute__((naked, used)) void dcd_int_handler(__attribute__((unused)) uint8_t rhport) {
@@ -622,23 +649,24 @@ __attribute__((naked, used)) void dcd_int_handler(__attribute__((unused)) uint8_
     "andi t2, a2, %[tog_ok]\n\t"
     "beqz t2, 9f\n\t"                    // OUT toggle mismatch: C path drops it
     "lhu  a3, %[o_rxlen](t0)\n\t"        // OUT: snapshot RX_LEN
-    "li   t2, %[xfer_row]\n\t"           // t2 = xfer_status[ep][OUT].is_iso
+    "li   t2, %[xfer_row]\n\t"           // t2 = xfer_status[ep][OUT] {is_iso, valid}
     "mul  t2, a4, t2\n\t"
     "la   t3, %[xfer]\n\t"
     "add  t2, t2, t3\n\t"
-    "lbu  t2, %[o_iso_out](t2)\n\t"
+    "lhu  t2, %[o_iso_out](t2)\n\t"
     "addi t3, t0, %[o_rx_ctrl]\n\t"      // t3 = &UEP0_RX_CTRL
     "j    2f\n\t"
     "1:\n\t"                             // IN
     "li   a3, 0\n\t"
-    "li   t2, %[xfer_row]\n\t"           // t2 = xfer_status[ep][IN].is_iso
+    "li   t2, %[xfer_row]\n\t"           // t2 = xfer_status[ep][IN] {is_iso, valid}
     "mul  t2, a4, t2\n\t"
     "la   t3, %[xfer]\n\t"
     "add  t2, t2, t3\n\t"
-    "lbu  t2, %[o_iso_in](t2)\n\t"
+    "lhu  t2, %[o_iso_in](t2)\n\t"
     "addi t3, t0, %[o_tx_ctrl]\n\t"      // t3 = &UEP0_TX_CTRL
     "2:\n\t"
-    "bnez t2, 3f\n\t"                    // non-ISO: NAK the endpoint before releasing INT_BUSY
+    "addi t2, t2, -%[nak_state]\n\t"
+    "bnez t2, 3f\n\t"                    // non-ISO, valid: NAK the endpoint before releasing INT_BUSY
     "slli t2, a4, 2\n\t"                 // UEPn_*_CTRL stride is 4 bytes
     "add  t3, t3, t2\n\t"
     "lbu  t2, 0(t3)\n\t"
@@ -683,12 +711,13 @@ __attribute__((naked, used)) void dcd_int_handler(__attribute__((unused)) uint8_
     "tst  r2, %[tog_ok]\n\t"
     "beq  9f\n\t"                        // OUT toggle mismatch: C path drops it
     "ldrh r1, [r12, %[o_rxlen]]\n\t"     // OUT: snapshot RX_LEN
-    "movw r3, #:lower16:%c[xfer]\n\t"    // r3 = xfer_status[ep][OUT].is_iso
+    "movw r3, #:lower16:%c[xfer]\n\t"    // r3 = xfer_status[ep][OUT] {is_iso, valid}
     "movt r3, #:upper16:%c[xfer]\n\t"
     "mov  r2, %[xfer_row]\n\t"
     "mla  r3, r0, r2, r3\n\t"
-    "ldrb r3, [r3, %[o_iso_out]]\n\t"
-    "cbnz r3, 3f\n\t"                    // non-ISO: NAK the endpoint before releasing INT_BUSY
+    "ldrh r3, [r3, %[o_iso_out]]\n\t"
+    "cmp  r3, %[nak_state]\n\t"
+    "bne  3f\n\t"                        // non-ISO, valid: NAK the endpoint before releasing INT_BUSY
     "add  r2, r12, %[o_rx_ctrl]\n\t"
     "add  r2, r2, r0, lsl #2\n\t"        // UEPn_*_CTRL stride is 4 bytes
     "ldrb r3, [r2]\n\t"
@@ -702,12 +731,13 @@ __attribute__((naked, used)) void dcd_int_handler(__attribute__((unused)) uint8_
     "b    %c[h_xfer]\n\t"                // step 2: int_handler_xfer(ep_num, len, token)
     "1:\n\t"                             // IN
     "movs r1, #0\n\t"
-    "movw r3, #:lower16:%c[xfer]\n\t"    // r3 = xfer_status[ep][IN].is_iso
+    "movw r3, #:lower16:%c[xfer]\n\t"    // r3 = xfer_status[ep][IN] {is_iso, valid}
     "movt r3, #:upper16:%c[xfer]\n\t"
     "mov  r2, %[xfer_row]\n\t"
     "mla  r3, r0, r2, r3\n\t"
-    "ldrb r3, [r3, %[o_iso_in]]\n\t"
-    "cbnz r3, 4f\n\t"
+    "ldrh r3, [r3, %[o_iso_in]]\n\t"
+    "cmp  r3, %[nak_state]\n\t"
+    "bne  4f\n\t"
     "add  r2, r12, %[o_tx_ctrl]\n\t"
     "add  r2, r2, r0, lsl #2\n\t"
     "ldrb r3, [r2]\n\t"

@@ -42,11 +42,11 @@
 
 "Port WCH USBFS":
   - changed-files:
-      - any-glob-to-any-file: 'src/portable/wch/*usbfs*'
+      - any-glob-to-any-file: 'src/portable/wch/usbfs/**'
 
 "Port WCH USBHS":
   - changed-files:
-      - any-glob-to-any-file: 'src/portable/wch/*usbhs*'
+      - any-glob-to-any-file: 'src/portable/wch/usbhs_v*/**'
 
 "Port MAX3421":
   - changed-files:
