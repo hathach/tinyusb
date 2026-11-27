@@ -2307,7 +2307,9 @@ static bool channel_xfer_in_retry(dwc2_regs_t* dwc2, uint8_t ch_id, uint32_t hci
 
     const uint32_t ucount = (hprt_speed_get(dwc2) == TUSB_SPEED_HIGH ? 1 : 8);
     if (edpt->uframe_interval == ucount) {
-      // retry on next frame if bInterval is 1
+      // retry on next frame if bInterval is 1. The core may leave DoPing set after the NAK halt, and an IN channel
+      // re-enabled with it is never serviced again (seen on ESP32-P4, DMA mode, full-speed device on the root port).
+      channel->hctsiz &= ~HCTSIZ_DOPING;
       hcchar.odd_frame = 1 - (dwc2->hfnum & 1);
       channel->hcchar = hcchar.value;
       channel_send_in_token(dwc2, channel, false, HCD_SPLIT_SLOT_NONE);
