@@ -87,8 +87,8 @@ Partial workaround:
 
 - Give the USB interrupt the highest priority allowed for an ISR that calls the RTOS (e.g.
   ``configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY`` with FreeRTOS), or the highest priority without an RTOS.
-  It must preempt every other interrupt, the system tick included; on CH32V30x the BSP sets SysTick
-  to ``0x80``, below USBHS at ``0``.
+  It must preempt every other interrupt, the system tick included; without an RTOS the CH32V30x BSP
+  sets SysTick to ``0x80``, below USBHS at ``0``.
 - Force full speed (``dev_init.speed = TUSB_SPEED_FULL`` in ``tusb_init()``, see
   :ref:`item 2 <wch-usbhs-interrupt-starvation>`) to give software more time to process a transfer
   before the next one completes.
@@ -156,7 +156,7 @@ The USBFS and USBHS device drivers both enable the ``INT_BUSY`` NAK of
 :ref:`item 2 <wch-usbhs-interrupt-starvation>`, so ISR time before the transfer flag is cleared is
 time the bus NAKs. USBFS clears the flag at the end of its ISR; the USBHS vector clears it first for
 endpoints other than EP0. SystemView records the ISR entry inside that window at every ``SYSVIEW``
-level, except in the USBHS vector.
+level, except for those endpoints in the USBHS vector.
 Levels 2-4 add records before an endpoint is re-armed, in task context or from the ISR (audio).
 Records or logging executed before the transfer flag is cleared widen the window further. Traced
 builds can therefore see more NAKs and lower throughput: compare WCH timings only between builds at
