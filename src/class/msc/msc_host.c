@@ -789,7 +789,10 @@ static bool config_read_capacity_complete(uint8_t dev_addr, tuh_msc_complete_dat
 
   // Capacity response field: Block size and Last LBA are both Big-Endian
   scsi_read_capacity10_resp_t* resp = (scsi_read_capacity10_resp_t*) (uintptr_t) enum_buf;
-  p_msc->capacity[cbw->lun].block_count = (uint32_t) (tu_ntohl(resp->last_lba) + 1u);
+  // A last LBA of 0xFFFFFFFF means the device is larger than READ CAPACITY(10) can describe,
+  // keep the block count at its maximum instead of letting it wrap to 0
+  uint32_t const last_lba = tu_ntohl(resp->last_lba);
+  p_msc->capacity[cbw->lun].block_count = (last_lba == UINT32_MAX) ? UINT32_MAX : last_lba + 1u;
   p_msc->capacity[cbw->lun].block_size  = tu_ntohl(resp->block_size);
 
   // Mark enumeration is complete

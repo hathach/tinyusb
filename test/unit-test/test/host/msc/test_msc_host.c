@@ -675,6 +675,13 @@ void test_msc_host_geometry_of_lun_0(void) {
   TEST_ASSERT_EQUAL(512, tuh_msc_get_block_size(DADDR, 0));
 }
 
+// Devices over 2^32 blocks report 0xFFFFFFFF as the last LBA, the block count must not wrap to 0
+void test_msc_host_geometry_last_lba_max(void) {
+  complete_enumeration_capacity_as_lun(0, 0, 512); // last_lba = 0 - 1 = 0xFFFFFFFF
+  TEST_ASSERT_EQUAL_UINT32(UINT32_MAX, tuh_msc_get_block_count(DADDR, 0));
+  TEST_ASSERT_EQUAL(512, tuh_msc_get_block_size(DADDR, 0));
+}
+
 // capacity[1] holds geometry, but LUN 1 is past the one LUN the device reported
 void test_msc_host_geometry_past_reported_count_is_zero(void) {
   complete_enumeration_capacity_as_lun(1, 1000, 512);
