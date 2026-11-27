@@ -206,6 +206,11 @@ TU_ATTR_ALWAYS_INLINE static inline void dcd_event_bus_signal (uint8_t rhport, d
   dcd_event_t event;
   event.rhport = rhport;
   event.event_id = eid;
+  // DCDs without a frame counter signal DCD_EVENT_SOF here, and usbd reads sof.frame_count (GCC 14 LTO:
+  // -Wmaybe-uninitialized). eid is a constant at almost every call site, so only SOF sites pay the store.
+  if (eid == DCD_EVENT_SOF) {
+    event.sof.frame_count = 0;
+  }
   dcd_event_handler(&event, in_isr);
 }
 

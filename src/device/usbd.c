@@ -433,7 +433,7 @@ static bool _usbd_task_stop;
   #define _usbd_mutex   NULL
 #endif
 
-TU_ATTR_ALWAYS_INLINE static inline bool queue_event(dcd_event_t const * event, bool in_isr) {
+static bool queue_event(dcd_event_t const * event, bool in_isr) {
   TU_ASSERT(osal_queue_send(_usbd_q, event, in_isr));
   tud_event_hook_cb(event->rhport, event->event_id, in_isr);
   return true;
@@ -882,8 +882,9 @@ bool tud_task_ext(uint32_t timeout_ms, bool in_isr) {
       break;
     }
 #endif
-    dcd_event_t event;
-    if (!osal_queue_receive(_usbd_q, &event, (_usbd_after_queue.func != NULL) ? 0 : timeout_ms)) {
+    // initialized: the queue copies a run-time item length, which gcc's LTO cannot prove fills the event
+    dcd_event_t event = { 0 };
+    if (!osal_queue_receive(_usbd_q, &event,(_usbd_after_queue.func != NULL) ? 0 : timeout_ms)) {
       if (!run_after_queue_call()) {
         return false;
       }

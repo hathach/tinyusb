@@ -21,7 +21,12 @@
 #define CXD56_SETUP_QUEUE_DEPTH (4)
 #define CXD56_MAX_DATA_OUT_SIZE (64)
 
-OSAL_QUEUE_DEF(usbd_int_set, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, struct usb_ctrlreq_s);
+// usb_ctrlreq_s is a byte struct: queue it in a union aligned like the queue's elements
+typedef union {
+  struct usb_ctrlreq_s req;
+  intptr_t align;
+} setup_qitem_t;
+OSAL_QUEUE_DEF(usbd_int_set, _setup_queue_def, CXD56_SETUP_QUEUE_DEPTH, setup_qitem_t);
 
 struct usbdcd_driver_s
 {
@@ -129,7 +134,8 @@ static int _dcd_setup(FAR struct usbdevclass_driver_s *driver, FAR struct usbdev
   }
   else
   {
-    osal_queue_send(usbdcd_driver.setup_queue, ctrl, true);
+    setup_qitem_t const item = {.req = *ctrl};
+    osal_queue_send(usbdcd_driver.setup_queue, &item, true);
   }
 
   if (outlen > 0 && outlen <= CXD56_MAX_DATA_OUT_SIZE)
@@ -379,14 +385,14 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t * buffer, uint16_t t
       }
     }
 
-    struct usb_ctrlreq_s ctrl;
+    setup_qitem_t item;
 
     if (usbdcd_driver.setup_processed)
     {
-      if (osal_queue_receive(usbdcd_driver.setup_queue, &ctrl, 100))
+      if (osal_queue_receive(usbdcd_driver.setup_queue, &item, 100))
       {
         usbdcd_driver.setup_processed = false;
-        dcd_event_setup_received(0, (uint8_t *)&ctrl, false);
+        dcd_event_setup_received(0, (uint8_t *)&item.req, false);
       }
     }
   }

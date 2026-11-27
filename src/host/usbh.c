@@ -401,8 +401,17 @@ TU_ATTR_ALWAYS_INLINE static inline bool is_hub_addr(uint8_t daddr) {
   return (CFG_TUH_HUB > 0) && (daddr > CFG_TUH_DEVICE_MAX); //-V560
 }
 
+// One out-of-line copy of each queue operation: osal_none inlines them, and usbh queues from several places
+static bool usbh_queue_send(osal_queue_t q, hcd_event_t const* event, bool in_isr) {
+  return osal_queue_send(q, event, in_isr);
+}
+
+static bool usbh_queue_receive(osal_queue_t q, hcd_event_t* event, uint32_t timeout_ms) {
+  return osal_queue_receive(q, event, timeout_ms);
+}
+
 TU_ATTR_ALWAYS_INLINE static inline bool queue_event(hcd_event_t const * event, bool in_isr) {
-  TU_ASSERT(osal_queue_send(_usbh_q, event, in_isr));
+  TU_ASSERT(usbh_queue_send(_usbh_q, event, in_isr));
   tuh_event_hook_cb(event->rhport, event->event_id, in_isr);
   return true;
 }
@@ -768,7 +777,7 @@ static bool usbh_process_event(hcd_event_t* event, bool in_isr) {
 #if CFG_TUH_HUB
       else {
         TU_LOG_USBH("[%u:] USBH Defer Attach until current enumeration complete\r\n", event->rhport);
-        TU_ASSERT(osal_queue_send(_usbh_daq, event, in_isr), false);
+        TU_ASSERT(usbh_queue_send(_usbh_daq, event, in_isr), false);
       }
 #endif
       break;
@@ -949,20 +958,21 @@ static bool usbh_task_run(uint32_t timeout_ms, bool in_isr, bool stoppable) {
       continue;
     }
 
-    hcd_event_t event;
+    // initialized: the queue copies a run-time item length, which gcc's LTO cannot prove fills the event
+    hcd_event_t event = { 0 };
 
   #if CFG_TUH_HUB
     // Get deferred device attachments if none is enumerating
     bool has_deferred_attach = false;
     if (_usbh_data.enumerating_daddr == TUSB_INDEX_INVALID_8) {
       // zero wait to avoid blocking the main event queue
-      has_deferred_attach = osal_queue_receive(_usbh_daq, &event, 0);
+      has_deferred_attach = usbh_queue_receive(_usbh_daq, &event, 0);
     }
 
     if (!has_deferred_attach) // skip event queue to process deferred attach
   #endif
     {
-      if (!osal_queue_receive(_usbh_q, &event, timeout_ms)) {
+      if (!usbh_queue_receive(_usbh_q, &event, timeout_ms)) {
         if (ctrl_xfer_expired) {
           control_xfer_timeout_expired();
         }
@@ -1010,7 +1020,7 @@ bool tuh_task_stop(void) {
   event.event_id        = USBH_EVENT_FUNC_CALL;
   event.func_call.func  = task_stop_call;
   event.func_call.param = NULL;
-  TU_VERIFY(osal_queue_send(_usbh_q, &event, false));
+  TU_VERIFY(usbh_queue_send(_usbh_q, &event, false));
   tuh_event_hook_cb(event.rhport, event.event_id, false);
   return true;
 }

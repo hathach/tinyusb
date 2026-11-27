@@ -161,6 +161,8 @@
       - CFG_TUH_HUB=1
       - CFG_TUH_DWC2_SLAVE_ENABLE=1
       - CFG_TUH_DWC2_DMA_ENABLE=1
+    :test_osal_none_queue_mc:
+      - TUP_MCU_MULTIPLE_CORE=1
     :test_hid_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_HID=1

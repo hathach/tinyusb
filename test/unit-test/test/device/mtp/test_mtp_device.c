@@ -73,9 +73,7 @@ typedef struct {
 static xfer_t xfers[2][16]; // [dir][epnum]
 
 static int dcd_refuse_ep; // the dcd refuses the next transfer on this endpoint, once; -1: none
-// an interrupt that fires, once, at the next dcd_int_enable() (after the stack held interrupts off
-// to take an event) or the next stall of EP_IN; NULL: none
-static void (*isr_at_int_enable)(void);
+// an interrupt that fires, once, at the next stall of EP_IN; NULL: none
 static void (*isr_at_in_stall)(void);
 
 static uint32_t app_received_now(void);
@@ -125,17 +123,28 @@ static bool stub_edpt_abort_xfer(uint8_t rhport, uint8_t ep, int n) {
 }
 static void stub_int_enable(uint8_t rhport, int n) {
   (void) rhport; (void) n;
-  fire(&isr_at_int_enable);
 }
 // the host drained the abandoned data IN after the dcd reported its next command
 static void isr_in_drained(void) {
   xfer_of(EP_IN)->active = false; // not host_finish(): the command already overwrote the buffer
   dcd_event_xfer_complete(RHPORT, EP_IN, BUFSIZE, XFER_RESULT_SUCCESS, true);
 }
-// interrupt producers take every free slot of the (empty) event queue; the events do nothing
+// events the usbd queue accepted: usbd invokes the hook only for an event it queued
+static uint32_t events_queued;
+void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr) {
+  (void) rhport; (void) eventid; (void) in_isr;
+  events_queued++;
+}
+// interrupt producers queue n filler events, every one accepted; a filler runs func (NULL: nothing)
+static void isr_send_fillers(unsigned n, osal_task_func_t func) {
+  const dcd_event_t filler = { .rhport = RHPORT, .event_id = USBD_EVENT_FUNC_CALL, .func_call = { .func = func } };
+  const uint32_t queued = events_queued;
+  for (unsigned i = 0; i < n; i++) dcd_event_handler(&filler, true);
+  TEST_ASSERT_EQUAL_MESSAGE(n, events_queued - queued, "filler event rejected by a full queue");
+}
+// interrupt producers take every slot of the (empty) event queue
 static void isr_fill_queue(void) {
-  const dcd_event_t filler = { .rhport = RHPORT, .event_id = USBD_EVENT_FUNC_CALL };
-  for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ; i++) dcd_event_handler(&filler, true);
+  isr_send_fillers(CFG_TUD_TASK_QUEUE_SZ, NULL);
 }
 static void run_task_until_idle(void) {
   for (unsigned i = 0; i < CFG_TUD_TASK_QUEUE_SZ / CFG_TUD_TASK_EVENTS_PER_RUN + 2; i++) tud_task();
@@ -413,7 +422,6 @@ void setUp(void) {
   dcd_edpt_abort_xfer_IgnoreAndReturn(false); // the stall + clear-stall stand-in, which the call log records
   memset(xfers, 0, sizeof(xfers));
   dcd_refuse_ep = -1;
-  isr_at_int_enable = NULL;
   isr_at_in_stall = NULL;
   log_reset();
 
@@ -1258,12 +1266,12 @@ static uint32_t queue_command_after_cancel_data_in(void) {
   return cmd.header.transaction_id;
 }
 
-// the drain completes after the task took the command, while it waits: absorbed, nothing aborted
+// the drain completes after the dcd reported the command: absorbed, nothing aborted. The task reads the
+// queue without masking interrupts, so this is also the drain landing just after the task took it.
 void test_cancel_in_data_in_drain_completion_after_next_command(void) {
   const uint32_t tid = queue_command_after_cancel_data_in();
-  isr_at_int_enable = isr_in_drained;
+  isr_in_drained();
   tud_task();
-  TEST_ASSERT_NULL(isr_at_int_enable);
   TEST_ASSERT_EQUAL(2, app.cmd_calls);
   TEST_ASSERT_EQUAL(0, app.xfer_calls);
   TEST_ASSERT_EQUAL(0, app.resp_complete_calls);
@@ -1288,21 +1296,42 @@ void test_cancel_in_data_in_drain_completion_at_abort(void) {
   TEST_ASSERT_EQUAL(1, app.resp_complete_calls);
 }
 
+// first filler behind the command: the task took the command, which now waits, then this filler;
+// interrupt producers retake both slots
+static unsigned refills_after_take;
+static void isr_refill_after_take(void* param) {
+  (void) param;
+  refills_after_take++;
+  isr_send_fillers(2, NULL);
+}
+
 // the command waits for an undrained IN while interrupt producers keep the event queue full: it is
-// still answered, once the queue drains
+// still answered, once the queue drains. isr NULL: they fill it right behind the command, and again
+// once the task has taken it.
 static void check_undrained_in_with_queue_refilled(void (**isr)(void)) {
   const uint32_t tid = queue_command_after_cancel_data_in();
-  *isr = isr_fill_queue;
+  refills_after_take = 0;
+  if (isr != NULL) {
+    *isr = isr_fill_queue;
+  } else {
+    // the command holds one slot, these fill the rest
+    isr_send_fillers(1, isr_refill_after_take);
+    isr_send_fillers(CFG_TUD_TASK_QUEUE_SZ - 2, NULL);
+  }
   run_task_until_idle();
-  TEST_ASSERT_NULL(*isr);
+  if (isr != NULL) {
+    TEST_ASSERT_NULL(*isr);
+  } else {
+    TEST_ASSERT_EQUAL_MESSAGE(1, refills_after_take, "queue not refilled after the task took the command");
+  }
   TEST_ASSERT_EQUAL_MESSAGE(2, app.cmd_calls, "waiting command lost");
   expect_call(DCD_STALL, EP_IN, 0);
   expect_call(DCD_CLEAR_STALL, EP_IN, 0);
   expect_response(tid, MTP_RESP_OK, 0);
 }
-// ... refilled as soon as the task took the command, before it could queue anything
+// ... refilled right behind the command, and to full again once the task has taken it and the command waits
 void test_cancel_in_data_in_queue_refilled_behind_next_command(void) {
-  check_undrained_in_with_queue_refilled(&isr_at_int_enable);
+  check_undrained_in_with_queue_refilled(NULL);
 }
 // ... refilled as the IN is aborted
 void test_cancel_in_data_in_queue_refilled_at_abort(void) {
