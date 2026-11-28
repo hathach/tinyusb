@@ -57,6 +57,10 @@
 #if CFG_TUSB_MCU == OPT_MCU_CH32V20X && defined(CFG_TUD_WCH_USBIP_FSDEV) && CFG_TUD_WCH_USBIP_FSDEV
   #define USBTEST_INT_EP_MPS_FS  16
   #define USBTEST_ISO_EP_MPS_FS  32  // double-buffered on fsdev: 2x32=64/ep, same 512 B PMA budget
+#elif defined(TUP_USBIP_FSDEV) && CFG_TUSB_FSDEV_PMA_SIZE <= 512u
+  // 512 B PMA (e.g. STM32F103): BTABLE 64 + EP0 128 + bulk 128 + int 2x16 + iso 2x64 = 480 B
+  #define USBTEST_INT_EP_MPS_FS  16
+  #define USBTEST_ISO_EP_MPS_FS  64
 #elif TU_CHECK_MCU(OPT_MCU_CH32V20X, OPT_MCU_CH32V103, OPT_MCU_CH32F20X, OPT_MCU_CH32V307, OPT_MCU_CH583)
   // WCH USBFS parts cap every endpoint (except EP3 IN) at 64 B. For the CH32V307 this applies to its
   // full-speed (usbfs) port; its high-speed (usbhs) port uses the _HS sizes below via desc_hs.

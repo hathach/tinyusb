@@ -87,9 +87,7 @@ function(family_configure_example TARGET RTOS)
   elseif (CMAKE_C_COMPILER_ID STREQUAL "Clang")
     message(FATAL_ERROR "Clang is not supported")
   elseif (CMAKE_C_COMPILER_ID STREQUAL "IAR")
-    target_link_options(${TARGET} PUBLIC
-      "LINKER:--config=${LD_FILE_IAR}"
-      )
+    message(FATAL_ERROR "IAR is not supported")
   endif ()
 
   set_source_files_properties(${STARTUP_FILE_${CMAKE_C_COMPILER_ID}} PROPERTIES

@@ -241,11 +241,12 @@ static inline void board_vbus_override_write(bool vbus_valid) {
 
 void ADC1_2_IRQHandler(void) {
   // Any OTG_HS register access, even a read, made while a TX FIFO holds a packet one word short of complete zeroes that
-  // endpoint's DIEPTSIZ.XFRSIZ: if this ISR preempts the stack's slave-mode FIFO push at that point, the rest of the
-  // transfer is never written and the IN endpoint NAKs forever. dcd_init() forces the override on at every (re)start,
-  // so the registers are read and corrected only for the first samples after it (the host does not enumerate, so no
-  // FIFO push, within 100 ms of connect); afterwards OTG_HS is touched only when VBUS changes, or while VBUS is absent:
-  // a tud_deinit()/tud_init() between two samples leaves the override forced on with no VBUS, and with no host attached
+  // endpoint's DIEPTSIZ.XFRSIZ (observed on OTG_HS, for which ES0553 lists no erratum; ES0499 2.25.2 documents it on
+  // OTG_FS): if this ISR preempts the stack's slave-mode FIFO push at that point, the rest of the transfer is never
+  // written and the IN endpoint NAKs forever. dcd_init() forces the override on at every (re)start, so the registers
+  // are read and corrected only for the first samples after it (the host does not enumerate, so no FIFO push, within
+  // 100 ms of connect); afterwards OTG_HS is touched only when VBUS changes, or while VBUS is absent: a
+  // tud_deinit()/tud_init() between two samples leaves the override forced on with no VBUS, and with no host attached
   // there is no FIFO push to collide with.
   static uint8_t sync_samples = BOARD_VBUS_SYNC_SAMPLES;
   static bool vbus_state;
@@ -264,7 +265,9 @@ void ADC1_2_IRQHandler(void) {
       const uint32_t gotgctl = USB_OTG_HS->GOTGCTL;
       const bool override_on = (gotgctl & USB_OTG_GOTGCTL_BVALOEN) != 0;
       vbus_state = vbus_sensed && override_on;
-      if (vbus_state != ((gotgctl & USB_OTG_GOTGCTL_BVALOVAL) != 0)) {
+      const bool bvalid = (gotgctl & USB_OTG_GOTGCTL_BVALOVAL) != 0;
+      const bool vbvalid = (USB_OTG_HS->GCCFG & USB_OTG_GCCFG_VBVALOVAL) != 0;
+      if (vbus_state != bvalid || vbus_state != vbvalid) {
         board_vbus_override_write(vbus_state);
       }
       if (override_on) {
