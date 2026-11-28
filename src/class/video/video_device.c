@@ -1158,11 +1158,16 @@ static int handle_video_stm_std_req(uint8_t rhport, uint8_t stage,
   }
 }
 
+/* Address of the streaming endpoint, 0 if the interface has none open. */
+static uint8_t _stm_ep_addr(videod_streaming_interface_t const *stm) {
+  return stm->desc.ep[0] ? _desc_ep_addr(_videod_itf[stm->index_vc].beg + stm->desc.ep[0]) : 0;
+}
+
 /* Index of the streaming interface whose endpoint is ep_addr, CFG_TUD_VIDEO_STREAMING if none. */
 static uint_fast8_t _find_stm_by_ep(uint8_t ep_addr) {
   for (uint_fast8_t itf = 0; itf < CFG_TUD_VIDEO_STREAMING; ++itf) {
-    videod_streaming_interface_t const *stm = &_videod_streaming_itf[itf];
-    if (stm->desc.ep[0] && ep_addr == _desc_ep_addr(_videod_itf[stm->index_vc].beg + stm->desc.ep[0])) {
+    uint8_t const stm_ep = _stm_ep_addr(&_videod_streaming_itf[itf]);
+    if (stm_ep && ep_addr == stm_ep) {
       return itf;
     }
   }
@@ -1174,10 +1179,10 @@ static uint_fast8_t _find_stm_by_ep(uint8_t ep_addr) {
  * Probe with a claim, not usbd_edpt_busy(): CLEAR_FEATURE on a non-halted endpoint clears BUSY
  * but keeps CLAIMED while its payload is still queued. */
 static bool _payload_pending(uint8_t rhport, videod_streaming_interface_t const *stm) {
-  if (!stm->bufsize || !stm->desc.ep[0]) {
+  uint8_t const ep_addr = _stm_ep_addr(stm);
+  if (!stm->bufsize || !ep_addr) {
     return false;
   }
-  uint8_t const ep_addr = _desc_ep_addr(_videod_itf[stm->index_vc].beg + stm->desc.ep[0]);
   if (!usbd_edpt_claim(rhport, ep_addr)) {
     return true;
   }
@@ -1282,6 +1287,11 @@ static int handle_video_stm_cs_req(uint8_t rhport, uint8_t stage,
           } else if (stage == CONTROL_STAGE_DATA) {
             video_probe_and_commit_control_t *param = &_videod_commit_param;
             TU_VERIFY(_update_streaming_parameters(stm, param), VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
+            /* UVC 1.5 4.3.1.1.1: COMMIT stalls an unsupported state. Leaving a field to negotiate leaves
+             * dwMaxPayloadTransferSize the host's, and a payload no larger than its header moves no data. */
+            TU_VERIFY(param->bFormatIndex && param->bFrameIndex && param->dwFrameInterval &&
+                        param->dwMaxPayloadTransferSize > sizeof(tusb_video_payload_header_t),
+                      VIDEO_ERROR_INVALID_VALUE_WITHIN_RANGE);
             /* Set the negotiated value */
             if (CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE < param->dwMaxPayloadTransferSize) {
               param->dwMaxPayloadTransferSize = CFG_TUD_VIDEO_STREAMING_EP_BUFSIZE;
@@ -1440,17 +1450,7 @@ static bool _submit_frame(uint_fast8_t ctl_idx, uint_fast8_t stm_idx, void *buff
     return false;
   }
 
-  /* Find EP address */
-  uint8_t const *desc = _videod_itf[stm->index_vc].beg;
-  uint8_t ep_addr = 0;
-  for (uint_fast8_t i = 0; i < CFG_TUD_VIDEO_STREAMING; ++i) {
-    uint_fast16_t ofs_ep = stm->desc.ep[i];
-    if (0 == ofs_ep) {
-      continue;
-    }
-    ep_addr = _desc_ep_addr(desc + ofs_ep);
-    break;
-  }
+  uint8_t const ep_addr = _stm_ep_addr(stm);
   if (0 == ep_addr) {
     return false;
   }

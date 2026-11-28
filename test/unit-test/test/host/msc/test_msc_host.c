@@ -33,6 +33,7 @@ static uint8_t  set_config_count;
 static uint8_t  set_config_daddr;
 static uint8_t  set_config_itf;
 static msc_csw_t complete_csw;
+static uint32_t  last_cbw_tag; // the device echoes it in the CSW
 static bool     retry_submitted;
 static uint8_t  enum_buf[64];
 static uint8_t  data[98304];
@@ -146,6 +147,9 @@ bool usbh_edpt_xfer_with_callback(uint8_t dev_addr, uint8_t ep_addr, uint8_t *bu
   xfer_ep[xfer_count]  = ep_addr;
   xfer_buf[xfer_count] = buffer;
   xfer_len[xfer_count] = total_bytes;
+  if (ep_addr == EP_OUT && total_bytes == sizeof(msc_cbw_t)) {
+    last_cbw_tag = ((const msc_cbw_t *) buffer)->tag;
+  }
   return xfer_count++ != xfer_fail_index;
 }
 
@@ -233,10 +237,14 @@ static void mount_bot_interface(void) {
   TEST_ASSERT_TRUE(msch_set_config(DADDR, ITF_NUM));
 }
 
-static void reply_csw(uint8_t status) {
-  const msc_csw_t csw = {.signature = MSC_CSW_SIGNATURE, .status = status};
-  memcpy(xfer_buf[xfer_count - 1], &csw, sizeof(csw));
+static void reply_csw_raw(const msc_csw_t *csw) {
+  memcpy(xfer_buf[xfer_count - 1], csw, sizeof(*csw));
   TEST_ASSERT_TRUE(msch_xfer_cb(DADDR, EP_IN, XFER_RESULT_SUCCESS, sizeof(msc_csw_t)));
+}
+
+static void reply_csw(uint8_t status) {
+  const msc_csw_t csw = {.signature = MSC_CSW_SIGNATURE, .tag = last_cbw_tag, .status = status};
+  reply_csw_raw(&csw);
 }
 
 static void reply_csw_passed(void) {
@@ -591,6 +599,49 @@ void test_msc_host_status_stage_failed_not_stale_csw(void) {
 
 void test_msc_host_status_stage_short_csw_fails(void) {
   assert_status_stage_failed(XFER_RESULT_SUCCESS, sizeof(msc_csw_t) - 1);
+}
+
+// BOT 1.0 6.3: a CSW that is not valid (signature, tag) or not meaningful (status, residue) is not reported as the
+// device sent it: the command fails with a Phase Error and the interface waits for Reset Recovery (6.5)
+static void assert_bad_csw_fails(uint32_t signature, uint32_t tag, uint8_t status, uint32_t residue) {
+  enumerate();
+  start_no_data_cb(record_complete);
+  const msc_csw_t csw = {.signature = signature, .tag = tag, .data_residue = residue, .status = status};
+  reply_csw_raw(&csw);
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_EQUAL_HEX32(MSC_CSW_SIGNATURE, complete_csw.signature);
+  TEST_ASSERT_EQUAL_HEX32(0x1234, complete_csw.tag);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
+  TEST_ASSERT_EQUAL(0, complete_csw.data_residue);
+  TEST_ASSERT_FALSE(tuh_msc_ready(DADDR));
+}
+
+void test_msc_host_csw_bad_signature_fails(void) {
+  assert_bad_csw_fails(MSC_CBW_SIGNATURE, 0x1234, MSC_CSW_STATUS_PASSED, 0);
+}
+
+void test_msc_host_csw_tag_mismatch_fails(void) {
+  assert_bad_csw_fails(MSC_CSW_SIGNATURE, 0x1235, MSC_CSW_STATUS_PASSED, 0);
+}
+
+void test_msc_host_csw_reserved_status_fails(void) {
+  assert_bad_csw_fails(MSC_CSW_SIGNATURE, 0x1234, 3, 0);
+}
+
+void test_msc_host_csw_residue_above_length_fails(void) {
+  assert_bad_csw_fails(MSC_CSW_SIGNATURE, 0x1234, MSC_CSW_STATUS_FAILED, 1);
+}
+
+// A Phase Error's residue is not meaningful (6.3.2): it is reported as the device sent it
+void test_msc_host_csw_phase_error_any_residue_reported(void) {
+  enumerate();
+  start_no_data_cb(record_complete);
+  const msc_csw_t csw = {.signature = MSC_CSW_SIGNATURE, .tag = 0x1234, .data_residue = 7,
+                         .status = MSC_CSW_STATUS_PHASE_ERROR};
+  reply_csw_raw(&csw);
+  TEST_ASSERT_EQUAL(1, complete_count);
+  TEST_ASSERT_EQUAL(MSC_CSW_STATUS_PHASE_ERROR, complete_csw.status);
+  TEST_ASSERT_EQUAL(7, complete_csw.data_residue);
 }
 
 // A failed CBW transfer leaves nothing pending: the command must still complete

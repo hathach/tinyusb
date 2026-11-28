@@ -233,6 +233,9 @@
     :test_mtp_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
+    # also configured by test_mtp_device: a buffer of 3 HS packets, not a power of 2
+    :test_mtp_device_1536:
+      - CFG_TUD_MTP_EP_BUFSIZE=1536
     :test_mtp_fs_example:
       - CFG_TUD_MSC=0
       - CFG_TUD_MTP=1
