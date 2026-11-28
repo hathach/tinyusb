@@ -359,6 +359,25 @@ static void ehci_enable_schedule(ehci_registers_t* regs, bool is_period) {
   }
 }
 
+// Free the removed QHs of one schedule, once the controller can no longer reach them
+static void qhd_release_removed(bool periodic) {
+  for (uint32_t i = 0; i < QHD_MAX; i++) {
+#if EHCI_ISO_ENABLED
+    if (qhd_is_iso(i)) {
+      continue;
+    }
+#endif
+    ehci_qhd_t* qhd = &ehci_data.qhd_pool[i].qhd;
+    if (qhd->removing && qhd_is_periodic(qhd) == periodic) {
+      if (qhd->attached_qtd != NULL) {
+        qhd_remove_qtd(qhd); // in-flight TD of a closed endpoint never completes
+      }
+      qhd->removing = 0;
+      qhd->used = 0;
+    }
+  }
+}
+
 // The periodic schedule has no removal handshake, and the controller may keep
 // periodic state cached for up to a frame (EHCI 4.7.2.1). Removed periodic QHs
 // and their in-flight TDs stay reserved until FRINDEX has moved past a whole
@@ -371,22 +390,7 @@ static void period_reclaim(void) {
     return;
   }
   ehci_data.period_unlink_pending = false;
-
-  for (uint32_t i = 0; i < QHD_MAX; i++) {
-#if EHCI_ISO_ENABLED
-    if (qhd_is_iso(i)) {
-      continue;
-    }
-#endif
-    ehci_qhd_t* qhd = &ehci_data.qhd_pool[i].qhd;
-    if (qhd->removing && qhd_is_periodic(qhd)) {
-      if (qhd->attached_qtd != NULL) {
-        qhd_remove_qtd(qhd); // in-flight TD of a closed endpoint never completes
-      }
-      qhd->removing = 0;
-      qhd->used = 0;
-    }
-  }
+  qhd_release_removed(true);
 }
 
 #if ((defined FSL_FEATURE_SOC_USBPHY_COUNT) && (FSL_FEATURE_SOC_USBPHY_COUNT > 0U))
@@ -1070,16 +1074,15 @@ static bool iso_td_idle(iso_ep_t const* ep) {
 }
 
 // Advance to the endpoint's first slot that can still be published, keeping
-// its phase: ISO intervals are powers of two.
+// its phase: ISO intervals are powers of two. An idle endpoint's slot is less
+// than an interval ahead but may be any age behind, too old for a signed
+// difference to order, so the slot is taken from earliest.
 static void iso_schedule(iso_ep_t* ep, uint32_t now) {
   uint32_t earliest = iso_earliest(now);
   if (ep->speed == TUSB_SPEED_FULL) {
     earliest = (earliest + 7) & ~7u;
   }
-  if ((int32_t) (ep->uframe - earliest) < 0) {
-    uint32_t const behind = earliest - ep->uframe;
-    ep->uframe += (behind + ep->interval - 1) & ~(ep->interval - 1);
-  }
+  ep->uframe = earliest + ((ep->uframe - earliest) & (ep->interval - 1));
   if (ep->speed == TUSB_SPEED_FULL) {
     ep->uframe = (ep->uframe + 7) & ~7u;
   }
@@ -1091,7 +1094,7 @@ static void iso_schedule(iso_ep_t* ep, uint32_t now) {
 static void iso_arm(iso_ep_t* ep) {
   iso_td_t* td = ep->td;
   uint32_t const buffer = (uint32_t) ep->buffer;
-  uint32_t const page = buffer & ~0xfffu;
+  uint32_t const page = tu_align4k(buffer);
   uint8_t const dir = tu_edpt_dir(ep->ep_addr);
   for (;;) {
     iso_schedule(ep, iso_now());
@@ -1099,10 +1102,10 @@ static void iso_arm(iso_ep_t* ep) {
       ehci_itd_t* itd = &td->itd;
       // One service interval is at most 3072 bytes, spanning at most two pages.
       // BufferPointer[2] keeps only the endpoint's Mult field set at open.
-      itd->BufferPointer[0] = page | (itd->BufferPointer[0] & 0xfff);
-      itd->BufferPointer[1] = (page + 4096) | (itd->BufferPointer[1] & 0xfff);
+      itd->BufferPointer[0] = page | tu_offset4k(itd->BufferPointer[0]);
+      itd->BufferPointer[1] = (page + 4096) | tu_offset4k(itd->BufferPointer[1]);
       uint8_t const slot = ep->uframe & 7;
-      td->words[ITD_XACT_WORD(slot)] = (buffer & 0xfff) | EHCI_ITD_XACT_IOC | EHCI_ITD_XACT_ACTIVE |
+      td->words[ITD_XACT_WORD(slot)] = tu_offset4k(buffer) | EHCI_ITD_XACT_IOC | EHCI_ITD_XACT_ACTIVE |
                                        ((uint32_t) ep->buflen << EHCI_ITD_XACT_LENGTH_SHIFT);
     } else {
       ehci_sitd_t* sitd = &td->sitd;
@@ -1294,23 +1297,8 @@ static bool iso_stop(uint8_t rhport, iso_ep_t* ep, bool close) {
 TU_ATTR_ALWAYS_INLINE static inline
 void async_advance_isr(uint8_t rhport) {
   (void) rhport;
-
-  for (uint32_t i = 0; i < QHD_MAX; i++) {
-#if EHCI_ISO_ENABLED
-    if (qhd_is_iso(i)) {
-      continue;
-    }
-#endif
-    ehci_qhd_t* qhd = &ehci_data.qhd_pool[i].qhd;
-    // the handshake covers the async schedule only: period_reclaim() frees periodic QHs
-    if (qhd->removing && !qhd_is_periodic(qhd)) {
-      if (qhd->attached_qtd != NULL) {
-        qhd_remove_qtd(qhd); // in-flight TD of a closed endpoint never completes
-      }
-      qhd->removing = 0;
-      qhd->used = 0;
-    }
-  }
+  // the handshake covers the async schedule only: period_reclaim() frees periodic QHs
+  qhd_release_removed(false);
 }
 
 TU_ATTR_ALWAYS_INLINE static inline

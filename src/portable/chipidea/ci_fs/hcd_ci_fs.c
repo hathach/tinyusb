@@ -8,7 +8,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && defined(TUP_USBIP_CHIPIDEA_FS)
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_CHIPIDEA_FS_KINETIS) && !CFG_TUH_MAX3421
 
 #include "host/hcd.h"
 #include "host/usbh.h"
@@ -18,13 +18,9 @@
 // interface is register-compatible via ci_fs_regs_t. Unlike the device driver, the host
 // driver does not include the ci_fs_<family>.h header because those define the device
 // dcd_int_enable()/dcd_int_disable() functions, which would collide in a dual-role build.
-#if defined(TUP_USBIP_CHIPIDEA_FS_KINETIS)
-  #include "fsl_device_registers.h"
-  #define CI_FS_REG(_port)  ((ci_fs_regs_t*) USB0_BASE)
-  #define CI_FS_IRQN        USB0_IRQn
-#else
-  #error "MCU is not supported"
-#endif
+#include "fsl_device_registers.h"
+#define CI_FS_REG(_port)  ((ci_fs_regs_t*) USB0_BASE)
+#define CI_FS_IRQN        USB0_IRQn
 
 #define CI_REG              CI_FS_REG(0)
 
@@ -231,10 +227,8 @@ static void suspend_transfer(int pipenum, buffer_descriptor_t *bd)
 {
   pipe_state_t *pipe = &_hcd.pipe[pipenum];
   pipe->buffer  = bd->addr;
-  // A NAK transfers no data, so the data toggle must be preserved for the retry.
-  // (Do NOT flip pipe->data here: flipping it makes the retried packet use the wrong
-  // DATA0/DATA1, which the device silently discards - breaking any bulk/interrupt
-  // transfer that is NAKed, e.g. the MSC CBW/CSW when the device is momentarily busy.)
+  // Do not take the retry toggle from bd->data: it read DATA1 at the first NAK
+  // of a DATA0 bulk IN on frdm_k64f.
   if ((TUSB_XFER_INTERRUPT == pipe->xfer) ||
       (TUSB_XFER_BULK == pipe->xfer)) {
     _hcd.pending |= TU_BIT(pipenum);
