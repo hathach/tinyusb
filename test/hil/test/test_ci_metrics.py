@@ -18,8 +18,10 @@ REPO = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))))
 CIRCLECI = os.path.join(REPO, '.circleci')
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO, 'test', 'hil'))
 from test_change_impact import mf  # noqa: E402  a manifest v1 fixture
 SENTINEL = 'example-map-default'
+FETCH = '$(python3 test/hil/helper/agentrc.py fetch)'
 # by PATH: Windows' CreateProcess looks in System32 first and would run WSL's bash.exe
 BASH = shutil.which('bash') or 'bash'
 # the CI steps below pipe through jq, which Git for Windows does not ship; CI runners have it
@@ -495,11 +497,15 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
         if _no_bash() or sys.platform == 'win32':   # which('gh') there finds a .bat, not this sh stub
             raise unittest.SkipTest(_no_bash() or 'a POSIX gh stub')
         for wf in ('pr_comment.yml', 'membrowse-comment.yml'):
-            calls = _read(os.path.join(REPO, '.github', 'workflows', wf)).split('code_size_ci.py is-current')[1:]
+            calls = _read(os.path.join(REPO, '.github', 'workflows', wf)).split('gh_pr_comment.py" fresh')[1:]
             self.assertTrue(calls, wf)
             for call in calls:
-                self.assertIn('|| rc=$?', call.split('\n')[1], wf)   # its exit code is read, never just tested
+                self.assertIn('--workflow build.yml || rc=$?', call.split('\n')[1], wf)   # its exit code is read
         script = step_script("Check the run is still the PR's latest")
+        self.assertIn(FETCH, script)
+        # the agentrc this checkout selects (the pin in CI, else the installed one), as fetch prints it
+        from helper import agentrc
+        script = script.replace(FETCH, shlex.quote(str(agentrc.selected()[1])))
         for answer, said in (('exit 1', '::warning::cannot tell'),
                              ("echo '{\"head\": {\"sha\": \"bbbbbbb\"}}'", 'stale: PR #5 head moved')):
             with self.subTest(gh=answer), tempfile.TemporaryDirectory() as d:
@@ -523,7 +529,6 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             raise unittest.SkipTest(_no_bash())
         text = _read(os.path.join(REPO, '.github', 'workflows', 'pr_comment.yml'))
         hil, size = text.index('\n  hil-comment:\n'), text.index('\n  code-size-comment:\n')
-        fetch = '$(python3 test/hil/helper/agentrc.py fetch)'
         stub = ('import json, os, sys\n'
                 "json.dump(sys.argv[1:], open(os.environ['ARGV'], 'w'))\n"
                 "sys.exit(int(os.environ['STUB_RC']))\n")
@@ -537,7 +542,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
             self.assertNotIn('uses: marocchino', job)
             self.assertNotIn('steps.current.', job)   # no gate of its own: post rechecks right before its write
             script = step_script(step)
-            self.assertIn(fetch, script)
+            self.assertIn(FETCH, script)
             for stub_rc, rc in ((0, 0), (1, 0), (2, 1)):
                 with self.subTest(header, exit=stub_rc), tempfile.TemporaryDirectory() as d:
                     scripts = os.path.join(d, 'agentrc', 'skills', 'hil', 'scripts')
@@ -548,7 +553,7 @@ class TestWorkflowSelectionHandOff(unittest.TestCase):
                     env = {**os.environ, 'REPO': 'x/y', 'PR': '5', 'RUN_ID': '7', 'ATTEMPT': '2',
                            'HEAD_SHA': 'a' * 40, 'RUNNER_TEMP': d, 'ARGV': argv, 'STUB_RC': str(stub_rc)}
                     r = run_bash(['-e', '-o', 'pipefail', '-c',
-                                  script.replace(fetch, shlex.quote(os.path.join(d, 'agentrc')))],
+                                  script.replace(FETCH, shlex.quote(os.path.join(d, 'agentrc')))],
                                  cwd=d, capture_output=True, text=True, env=env)
                     self.assertEqual(r.returncode, rc, r.stdout + r.stderr)
                     self.assertEqual(json.loads(_read(argv)),

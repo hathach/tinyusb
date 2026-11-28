@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""pr_comment.yml's code-size baseline lookup, and the freshness check of a Build run for the work no sticky post
-rechecks. Needs `gh` with a token that can read Actions.
+"""pr_comment.yml's code-size baseline lookup. Needs `gh` with a token that can read Actions.
 
   code_size_ci.py baseline --repo OWNER/NAME --current CUR_DIR --info INFO.json
 
@@ -11,13 +10,6 @@ lookup included, is a result, not an error. CUR_DIR holds the PR run's downloade
 code-size artifacts; INFO.json gets {sha, url, exact, note, run_id} for `tools/code_size.py
 compare --baseline-info`, sha and run_id None when there is no baseline. The workflow
 downloads run_id's `code-size-*` artifacts.
-
-  code_size_ci.py is-current --repo OWNER/NAME --pr N --run-id ID --attempt A --head-sha SHA
-
-exits 0 when that Build run attempt is still the PR's latest, 1 when a newer push, run
-or attempt supersedes it; 2 when the API, or agentrc's gh_pr_comment.py that answers it,
-cannot tell. membrowse-comment.yml gates its post on it, and hil-comment its SystemView
-work; agentrc's gh_pr_comment.py post applies the same rule to the sticky comments.
 """
 import argparse
 import json
@@ -29,7 +21,7 @@ import code_size  # noqa: E402  its engine's snapshot loader is the one compare 
 from helper import agentrc  # noqa: E402  test/hil/helper, on the path code_size.py adds
 
 WORKFLOW = 'build.yml'
-GH_PR_COMMENT = 'skills/hil/scripts/gh_pr_comment.py'   # agentrc's, for is-current
+GH_PR_COMMENT = 'skills/hil/scripts/gh_pr_comment.py'   # agentrc's, for gh
 BRANCH = 'master'
 MAX_DEPTH = 30  # first-parent ancestors tried before giving up
 
@@ -138,25 +130,6 @@ def baseline(args):
     return 0
 
 
-def is_current(args):
-    """Whether run `args.run_id` attempt `args.attempt` of the PR head is still the newest Build run: agentrc's
-    gh_pr_comment.fresh, by pull_requests (every PR a run lists) or a fork's head. Exit 2 when it cannot tell."""
-    try:
-        helper = agentrc.load_file(GH_PR_COMMENT)
-    except ImportError as e:
-        print(f'unknown: {e}', file=sys.stderr)
-        return 2
-    try:
-        # api read per call, so a test stubs helper.gh
-        ok, why = helper.fresh(args.repo, pr=args.pr, head_sha=args.head_sha, run_id=args.run_id,
-                               attempt=args.attempt, workflow=WORKFLOW, api=helper.gh)
-    except helper.ApiError as e:
-        print(f'unknown: {e}', file=sys.stderr)
-        return 2
-    print(why if ok else f'stale: {why}')
-    return 0 if ok else 1
-
-
 def main():
     top = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     sub = top.add_subparsers(dest='command', required=True)
@@ -164,15 +137,7 @@ def main():
     p.add_argument('--repo', required=True, help='OWNER/NAME whose master runs are baselines')
     p.add_argument('--current', required=True, help='The PR run\'s downloaded code-size artifacts')
     p.add_argument('--info', required=True, help='Where to write the baseline description JSON')
-    p = sub.add_parser('is-current', help='exit 1 when a newer push, run or attempt supersedes this one, '
-                                          '2 when it cannot tell')
-    p.add_argument('--repo', required=True)
-    p.add_argument('--pr', required=True, type=int)
-    p.add_argument('--run-id', required=True, type=int)
-    p.add_argument('--attempt', required=True, type=int)
-    p.add_argument('--head-sha', required=True)
-    args = top.parse_args()
-    return baseline(args) if args.command == 'baseline' else is_current(args)
+    return baseline(top.parse_args())
 
 
 if __name__ == '__main__':

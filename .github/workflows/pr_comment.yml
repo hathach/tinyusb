@@ -146,9 +146,10 @@ jobs:
               > "$SV/notice.md"
           fi
           # 1: superseded, nothing to render; 2: unknown, left to the post to fail on
+          agentrc=$(python3 test/hil/helper/agentrc.py fetch)
           rc=0
-          python3 .github/scripts/code_size_ci.py is-current --repo "$REPO" --pr "$PR" \
-            --run-id "$RUN_ID" --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" || rc=$?
+          python3 "$agentrc/skills/hil/scripts/gh_pr_comment.py" fresh --repo "$REPO" --pr "$PR" --run-id "$RUN_ID" \
+            --attempt "$ATTEMPT" --head-sha "$HEAD_SHA" --workflow build.yml || rc=$?
           case $rc in
             0) echo "current=true" >> "$GITHUB_OUTPUT" ;;
             1) ;;
