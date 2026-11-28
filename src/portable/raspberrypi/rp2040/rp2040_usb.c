@@ -197,17 +197,17 @@ void __tusb_irq_path_func(rp2usb_buffer_start)(hw_endpoint_t *ep, io_rw_32 *ep_r
   // Note: device EP0 does not have an endpoint control register
   if (ep_reg != NULL) {
     uint32_t ep_ctrl = *ep_reg;
-    // Isochronous endpoints get a single DPRAM buffer (hw_endpoint_open only double-sizes BULK), so
-    // they must never be double-buffered here even when a transfer spans multiple packets, or buffer
-    // 1 (at dpram_buf+64) would spill into the next endpoint's DPRAM. (Never true for BULK, so the
-    // double-buffered bulk path is unaffected.)
-    const bool is_iso = (((ep_ctrl >> EP_CTRL_BUFFER_TYPE_LSB) & 0x3u) == TUSB_XFER_ISOCHRONOUS);
+    // Isochronous and interrupt endpoints get a single DPRAM buffer (hw_endpoint_open only double-sizes BULK), so
+    // they must never be double-buffered here even when a transfer spans multiple packets, or buffer 1 (at
+    // dpram_buf+64) would spill into the next endpoint's DPRAM. Bulk and host control (EPX) stay double-buffered.
+    const uint32_t buffer_type = (ep_ctrl >> EP_CTRL_BUFFER_TYPE_LSB) & 0x3u;
+    const bool     single_buf  = (buffer_type == TUSB_XFER_ISOCHRONOUS) || (buffer_type == TUSB_XFER_INTERRUPT);
   #if CFG_TUH_ENABLED
-    // host interrupt endpoints, polled on EPX: a poll arms one packet (a poll without data gives back just that one,
-    // see hcd_rp2040.c)
-    const bool force_single = is_iso || (rp2usb_is_host_mode() && ep->transfer_type == TUSB_XFER_INTERRUPT);
+    // host interrupt endpoints, polled on EPX (whose buffer type may be bulk): a poll arms one packet (a poll without
+    // data gives back just that one, see hcd_rp2040.c)
+    const bool force_single = single_buf || (rp2usb_is_host_mode() && ep->transfer_type == TUSB_XFER_INTERRUPT);
   #else
-    const bool force_single = is_iso;
+    const bool force_single = single_buf;
   #endif
 
     if (ep->remaining_len && !force_single) {
