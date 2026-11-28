@@ -6,7 +6,7 @@
 
 --release takes `uname -r` of the rig's kernel in one of two forms only:
   upstream   X.Y.Z or X.Y.0-rcN              -> vX.Y.Z, vX.Y (for X.Y.0), vX.Y-rcN
-  Debian 13+ X.Y.Z+debN-<flavour>             -> vX.Y.Z, an UPSTREAM CANDIDATE: Debian may patch
+  Debian 13+ X.Y.Z+debN[.M]-<flavour>         -> vX.Y.Z, an UPSTREAM CANDIDATE: Debian may patch
                                                  the files; compare its source package to be sure
 Anything else (Debian <= 12 and Ubuntu ABI names, Fedora, Ubuntu mainline, local suffixes) is
 refused: pass --tag after reading the real version from /proc/version or the distro package.
@@ -36,7 +36,7 @@ FETCH_TIMEOUT = 60
 
 RE_TAG = re.compile(r'v\d[\w.+-]*')   # shape only: the fetch decides whether it exists
 RE_UPSTREAM = re.compile(r'(\d+)\.(\d+)\.(\d+)(-rc\d+)?')
-RE_DEBIAN = re.compile(r'(\d+)\.(\d+)\.(\d+)\+deb(\d+)(-[a-z0-9]+)+')
+RE_DEBIAN = re.compile(r'(\d+)\.(\d+)\.(\d+)\+deb(\d+)(?:\.\d+)?(-[a-z0-9]+)+')
 WAIT_APIS = {'wait_for_completion': 'no timeout',
              'wait_for_completion_timeout': 'timeout',
              'wait_for_completion_interruptible': 'no timeout, interruptible',

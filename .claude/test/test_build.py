@@ -808,6 +808,13 @@ class DepsTest(unittest.TestCase):
             self.assertEqual(self.git(outer, 'rev-parse', 'HEAD'), outer_head)
             self.assertEqual(self.git(outer, 'config', '--bool', 'core.bare'), 'false')
 
+    def test_get_a_dep_names_an_unknown_dependency(self):
+        import io
+        get_deps = build.tools_build.build_utils.get_deps
+        with mock.patch('sys.stdout', new_callable=io.StringIO) as out:
+            self.assertEqual(get_deps.get_a_dep('lib/nope'), 1)
+        self.assertEqual(out.getvalue(), 'lib/nope is not found in dependency list\n')
+
     def test_family_deps_come_from_get_deps_table(self):
         self.assertIn('hw/mcu/nordic/nrfx', [d for d, e in build.tools_build.build_utils.get_deps.deps_optional.items() if 'nrf' in e[2].split()])
 

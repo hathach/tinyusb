@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for .github/actions/setup_toolchain: the toolchain manifest and fetch.sh, with curl stubbed."""
+"""Tests for .github/actions/setup_toolchain: the toolchain manifest, cache_key.sh, and fetch.sh with curl stubbed."""
 import functools
 import hashlib
 import json
@@ -14,6 +14,7 @@ from pathlib import Path
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 ACTION = os.path.join(REPO, '.github', 'actions', 'setup_toolchain')
 FETCH = os.path.join(ACTION, 'download', 'fetch.sh')
+CACHE_KEY = os.path.join(ACTION, 'download', 'cache_key.sh')
 PAYLOAD = 'toolchain bytes\n'
 DIGEST = hashlib.sha256(PAYLOAD.encode()).hexdigest()
 BASH = shutil.which('bash')
@@ -63,6 +64,49 @@ class Manifest(unittest.TestCase):
     def test_esp_idf_pins_a_release_image(self):
         self.assertEqual(set(self.manifest['esp-idf']), {'image'})
         self.assertRegex(self.manifest['esp-idf']['image'], r'^espressif/idf:v\d+(\.\d+)*$')
+
+
+@unittest.skipUnless(shutil.which('jq') and _bash_runs_fetch_sh(),
+                     'cache_key.sh needs jq and a bash that runs it by this path')
+class CacheKey(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp)
+        # cache_key.sh reads ../toolchain.json beside itself, so run a copy next to a fixture manifest
+        os.mkdir(os.path.join(self.tmp, 'download'))
+        self.script = shutil.copy(CACHE_KEY, os.path.join(self.tmp, 'download', 'cache_key.sh'))
+        with open(os.path.join(self.tmp, 'toolchain.json'), 'w') as f:
+            json.dump({'arm-gcc': {'url': 'https://example.invalid/a', 'sha256': 'a' * 64},
+                       'esp-idf': {'image': 'espressif/idf:v1.0'}}, f)
+
+    def key(self, name, script=None):
+        return subprocess.run([BASH, script or self.script, name], capture_output=True, text=True)
+
+    def test_toolchain_is_its_own_sha256(self):
+        r = self.key('arm-gcc')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(r.stdout, 'a' * 64)
+
+    def test_entry_without_sha256_fails(self):
+        r = self.key('esp-idf')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(r.stdout, '')
+
+    def test_every_real_manifest_entry_has_a_key(self):
+        with open(os.path.join(ACTION, 'toolchain.json'), encoding='utf-8') as f:
+            manifest = json.load(f)
+        for name, entry in manifest.items():
+            if 'sha256' not in entry:
+                continue
+            with self.subTest(name):
+                r = self.key(name, CACHE_KEY)
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(r.stdout, entry['sha256'])
+
+    def test_unknown_toolchain_fails(self):
+        r = self.key('other')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertEqual(r.stdout, '')
 
 
 @unittest.skipUnless(shutil.which('jq') and _bash_runs_fetch_sh(),

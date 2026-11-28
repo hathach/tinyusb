@@ -8,7 +8,7 @@
 
 #include "tusb_option.h"
 
-#if CFG_TUH_ENABLED && defined(TUP_USBIP_CHIPIDEA_FS)
+#if CFG_TUH_ENABLED && defined(TUP_USBIP_CHIPIDEA_FS_KINETIS) && !CFG_TUH_MAX3421
 
 #include "host/hcd.h"
 #include "host/usbh.h"

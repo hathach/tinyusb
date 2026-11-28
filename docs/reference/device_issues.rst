@@ -54,12 +54,15 @@ NXP LPC55S2x/LPC552x
 
 Reference: `LPC55S2x Errata Sheet`_ USB.3, USB.5
 
-.. _LPC55S2x Errata Sheet: https://www.nxp.com/docs/en/errata/ES_LPC55S2x.pdf
+.. _LPC55S2x Errata Sheet: https://www.nxp.com/docs/en/nxp/errata/LPC55S2x_LPC552x_ES.pdf
 
 USB.3: As a high-speed device behind certain full-speed hubs, the device does not correctly detect
-the host's KJ chirp sequence and can behave erratically due to wrong speed detection. The documented
-workaround is to set the FORCE_FS bit in DEVCMDSTAT on bus reset when the reported link speed is
-full speed. TinyUSB does not implement this workaround.
+the host's KJ chirp sequence and can behave erratically due to wrong speed detection. In outline,
+both documented workarounds identify a full-speed host on bus reset, set the FORCE_FS bit in
+DEVCMDSTAT, and clear it again on detach; the second also raises the PHY receiver trip level
+(USBPHY RX ENVADJ) from attach until the first SETUP and restores it on detach. This is only a
+summary: implement the complete sequence from the erratum. TinyUSB does not implement this
+workaround.
 
 USB.5: An isochronous IN endpoint sending a 1024-byte maximum-packet-size packet raises no endpoint
 interrupt and its command/status entry is not updated. Workaround: cap the isochronous IN maximum

@@ -542,6 +542,12 @@ jobs:
           SPEC="$HIL_REPORT_DIR/$(basename "${{ env.HIL_JSON }}").failed"
           RERUN_ARGS=""
           [ -f "$SPEC" ] && RERUN_ARGS=$(cat "$SPEC")
+          # hil_test.py writes it from roster board and test names, which a PR can edit: a newline here
+          # writes extra NAME=VALUE lines into GITHUB_ENV. Refuse rather than guess.
+          case "$RERUN_ARGS" in
+            *[!-A-Za-z0-9_/\ .=+:,]*)
+              echo "::error::unexpected characters in the re-run spec $SPEC"; exit 1 ;;
+          esac
           echo "RERUN_ARGS=$RERUN_ARGS"
           echo "RERUN_ARGS=$RERUN_ARGS" >> $GITHUB_ENV
 
@@ -692,6 +698,12 @@ jobs:
           SPEC="$HIL_REPORT_DIR/$(basename "${{ env.HIL_JSON }}").failed"
           RERUN_ARGS=""
           [ -f "$SPEC" ] && RERUN_ARGS=$(cat "$SPEC")
+          # hil_test.py writes it from roster board and test names, which a PR can edit: a newline here
+          # writes extra NAME=VALUE lines into GITHUB_ENV. Refuse rather than guess.
+          case "$RERUN_ARGS" in
+            *[!-A-Za-z0-9_/\ .=+:,]*)
+              echo "::error::unexpected characters in the re-run spec $SPEC"; exit 1 ;;
+          esac
           echo "RERUN_ARGS=$RERUN_ARGS"
           echo "RERUN_ARGS=$RERUN_ARGS" >> $GITHUB_ENV
 
