@@ -271,24 +271,31 @@ static void hwfifo_flush(musb_regs_t* musb, unsigned epnum, unsigned is_rx, bool
   (void) epnum;
   const uint8_t csrl_dtog = clear_dtog ? MUSB_CSRL_CLEAR_DATA_TOGGLE(is_rx) : 0;
   musb_ep_maxp_csr_t* maxp_csr = &musb->indexed_csr.maxp_csr[is_rx];
+  bool flushed = false;
   if (!is_rx) {
     // FIFONE, not TXRDY: a double-packet FIFO clears TXRDY once a lone packet is loaded (TM4C123GH6PM
     // DS p1170). FIFONE is written back as 1 like Linux does, it is write-0-to-clear (MAX32665 UG p422).
     uint8_t csrl = maxp_csr->csrl;
     for (unsigned i = 0; i < 2 && (csrl & MUSB_TXCSRL1_FIFONE); i++) {
       maxp_csr->csrl = MUSB_CSRL_FLUSH_FIFO(0) | MUSB_TXCSRL1_FIFONE | csrl_dtog;
+      flushed = true;
       unsigned spin = 1000;
       do {
         csrl = maxp_csr->csrl;
       } while ((csrl & MUSB_CSRL_FLUSH_FIFO(0)) && --spin); // self-clears once its packet is gone
     }
-    return;
-  }
-  // may need to flush twice for double packet
-  for (unsigned i=0; i<2; i++) {
-    if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
-      maxp_csr->csrl = MUSB_CSRL_FLUSH_FIFO(is_rx) | csrl_dtog;
+  } else {
+    // may need to flush twice for double packet
+    for (unsigned i = 0; i < 2; i++) {
+      if (maxp_csr->csrl & MUSB_CSRL_PACKET_READY(is_rx)) {
+        maxp_csr->csrl = MUSB_CSRL_FLUSH_FIFO(is_rx) | csrl_dtog;
+        flushed = true;
+      }
     }
+  }
+  // no flush write carried the toggle reset: clear it on its own (as MAXUSB MXC_USB_Unstall does)
+  if (!flushed && csrl_dtog) {
+    maxp_csr->csrl = csrl_dtog;
   }
 }
 
