@@ -20,6 +20,8 @@
 import io
 import json
 import os
+import re
+import shlex
 import shutil
 import stat
 import signal
@@ -43,6 +45,7 @@ if sys.platform == 'win32':
 import usbtest_harness
 import hil_flash
 import hil_test
+import session_child
 
 
 def write_script(path: Path, body: str) -> None:
@@ -730,6 +733,90 @@ class DeviceMtp(_MtpFakeRig, unittest.TestCase):
         self.assertTrue(finished, 'test_device_mtp hung on a wedged MTP stack')
         self.assertIsInstance(exc, AssertionError)
 
+    def _timed_out_session(self, alive):
+        """test_device_mtp over a session run_cmd times out, `alive` standing in for the survival check."""
+        self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
+        hil_test.board_wedged = ''
+        os.environ['FAKE_PYMTP_MODE'] = 'hang'
+        hil_test.MTP_SESSION_MARGIN = 3
+        recorded = []
+
+        def check(pidfile):
+            recorded.append(Path(pidfile).read_text().split())
+            return alive(pidfile)
+        usbtest_harness.patch(self, hil_test, '_session_alive', check)
+        finished, exc = run_bounded(lambda: hil_test.test_device_mtp(self.board), 25)
+        self.assertTrue(finished)
+        self.assertIsInstance(exc, AssertionError)
+        self.assertEqual([len(r) for r in recorded], [2], 'the child records "<pid> <starttime>" first')
+        return exc
+
+    def test_a_reaped_timeout_latches_no_wedge(self):
+        exc = self._timed_out_session(hil_test._session_alive)
+        self.assertIn('the session was reaped', str(exc))
+        self.assertEqual(hil_test.board_wedged, '')
+
+    def test_a_session_that_outlives_its_kill_latches_the_wedge(self):
+        # rc 124 alone is not the wedge: only a session still holding the device stops retries and the park
+        exc = self._timed_out_session(lambda pidfile: 'pid 4242')
+        self.assertIn('MTP session pid 4242 outlived SIGKILL', str(exc))
+        self.assertEqual(hil_test.board_wedged, 'fakeboard: MTP session pid 4242 outlived SIGKILL and holds the device')
+        self.assertFalse(hil_test._should_park(self.board, False), 'no park through the held node')
+
+
+
+class SessionPidfile(unittest.TestCase):
+    """session_child.write_pidfile's record, read back by hil_test._session_alive."""
+
+    def test_the_record_round_trips_and_a_recycled_or_missing_pid_is_told_apart(self):
+        with TemporaryDirectory() as d:
+            pidfile = Path(d) / 'pid'
+            session_child.write_pidfile(str(pidfile))
+            self.assertEqual(hil_test._session_alive(str(pidfile)), f'pid {os.getpid()}')
+            pid, start = pidfile.read_text().split()
+            pidfile.write_text(f'{pid} {int(start) + 1}\n')
+            self.assertEqual(hil_test._session_alive(str(pidfile)), '', 'another starttime is a recycled pid')
+            pidfile.write_text('')
+            self.assertEqual(hil_test._session_alive(str(pidfile)), 'with an unrecorded pid')
+
+    def test_stat_fields_are_split_after_the_last_paren(self):
+        with TemporaryDirectory() as d:
+            stat = Path(d) / 'stat'
+            stat.write_text('42 (a) b) S ' + ' '.join(map(str, range(4, 22))) + ' 777 0\n')
+            self.assertEqual(session_child.proc_state_start(str(stat)), ('S', '777'))
+            stat.write_text('42 (a) S 1 2\n')
+            self.assertIsNone(session_child.proc_state_start(str(stat)), 'a short record')
+            self.assertIsNone(session_child.proc_state_start(str(Path(d) / 'gone')))
+
+    def test_an_unreadable_identity_writes_no_record(self):
+        usbtest_harness.patch(self, session_child, 'proc_state_start', lambda path: None)
+        with TemporaryDirectory() as d:
+            pidfile = Path(d) / 'pid'
+            with self.assertRaises(RuntimeError):
+                session_child.write_pidfile(str(pidfile))
+            self.assertFalse(pidfile.exists())
+
+    def test_a_live_thread_behind_an_exited_leader_keeps_the_session_alive(self):
+        # a stranded bounded_read thread can stay blocked past SIGKILL while the leader already reads Z
+        child = ('import ctypes, sys, threading, time\n'
+                 'import session_child\n'
+                 'session_child.write_pidfile(sys.argv[1])\n'
+                 'threading.Thread(target=time.sleep, args=(30,)).start()\n'
+                 'ctypes.CDLL(None).pthread_exit(None)\n')
+        with TemporaryDirectory() as d:
+            pidfile = Path(d) / 'pid'
+            p = subprocess.Popen([sys.executable, '-c', child, str(pidfile)], cwd=os.path.dirname(TEST_DIR))
+            self.addCleanup(p.wait)
+            self.addCleanup(p.kill)
+            deadline = time.monotonic() + 10
+            while (session_child.proc_state_start(f'/proc/{p.pid}/stat') or ('',))[0] != 'Z':
+                self.assertLess(time.monotonic(), deadline, 'the leader never exited')
+                time.sleep(0.05)
+            self.assertEqual(hil_test._session_alive(str(pidfile)), f'pid {p.pid}')
+            p.kill()
+            p.wait()
+            self.assertEqual(hil_test._session_alive(str(pidfile)), '', 'a reaped session is not alive')
+
 
 class ThroughputPayloadBound(unittest.TestCase):
     """An unknown link speed must pick the FS payload, and each dd must be bounded by the
@@ -746,6 +833,96 @@ class ThroughputPayloadBound(unittest.TestCase):
         self.assertGreaterEqual(hil_test.dd_timeout(1), 30)  # setup + flush floor
         # still an INNER bound: run_cmd's own timeout must stay the outer one
         self.assertLess(hil_test.dd_timeout(16), hil_test.hil_util.CMD_TIMEOUT)
+
+
+class ThroughputScratchFile(unittest.TestCase):
+    """The MSC read-back file is private to its attempt and removed however the attempt ends."""
+
+    def setUp(self):
+        from helper import hil_util, usb_observe
+        tmp = TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        node = str(Path(tmp.name) / 'node')
+        Path(node).touch()
+        usbtest_harness.patch(self, hil_test, 'get_disk_dev', lambda *a: node)
+        usbtest_harness.patch(self, hil_util, 'get_serial_dev', lambda *a: node)
+        usbtest_harness.patch(self, usb_observe, 'usb_scan', lambda **k: [])
+        usbtest_harness.patch(self, sys, 'stdout', usbtest_harness.Out())
+        # a space in the scratch dir makes the dd commands carry a shell-quoted path
+        spaced = Path(tmp.name) / 'tmp dir'
+        spaced.mkdir()
+        usbtest_harness.patch(self, hil_test.tempfile, 'tempdir', str(spaced))
+        self.cmds, self.fail = [], ''
+
+        def run_cmd(cmd, **k):
+            self.cmds.append(cmd)
+            rc = 1 if self.fail and self.dd_scratch(cmd, (f'{self.fail}=',)) else 0
+            return types.SimpleNamespace(returncode=rc, stdout=b'1048576 bytes copied, 1 s, 1.0 MB/s')
+        usbtest_harness.patch(self, hil_util, 'run_cmd', run_cmd)
+
+    @staticmethod
+    def dd_scratch(cmd, ops=('if=', 'of=')):
+        """The scratch path a dd command names in one of `ops`, decoded from its shell quoting."""
+        if not isinstance(cmd, str) or 'cdc_msc_tp_' not in cmd:
+            return None
+        return next((t.split('=', 1)[1] for t in shlex.split(cmd)
+                     if t.startswith(ops) and 'cdc_msc_tp_' in t), None)
+
+    def scratch(self):
+        return [p for p in map(self.dd_scratch, self.cmds) if p]
+
+    def test_each_attempt_gets_its_own_file_and_removes_it(self):
+        seen = set()
+        for fail in ('', 'of', 'if', ''):   # pass, failed read, failed write, pass
+            with self.subTest(fail=fail):
+                self.cmds, self.fail = [], fail
+                if fail:
+                    with self.assertRaisesRegex(AssertionError, 'MSC dd (read|write) failed'):
+                        hil_test.test_device_cdc_msc_throughput({'uid': 'U'})
+                else:
+                    hil_test.test_device_cdc_msc_throughput({'uid': 'U'})
+                path, = set(self.scratch())
+                self.assertFalse(os.path.exists(path))
+                seen.add(path)
+        self.assertEqual(len(seen), 4, "a later attempt reused an earlier one's file")
+
+
+class UsbtmcCell(unittest.TestCase):
+    """A session that exits 0 must have reported a case: an empty one is no pass."""
+
+    def cell(self, out):
+        usbtest_harness.patch(self, hil_test, '_run_session', lambda *a: (0, out))
+        return hil_test.test_device_usbtmc({'name': 'b', 'uid': 'U'})
+
+    def test_empty_output_fails_and_passes_and_skips_count(self):
+        for out in ('', 'found device U\n'):
+            with self.subTest(out=out), self.assertRaisesRegex(AssertionError, 'no case results'):
+                self.cell(out)
+        self.assertEqual(self.cell('PASS a\nPASS b\n'), '✅ 2/2')
+        self.assertEqual(self.cell('PASS a\nSKIP b (high speed)\n'), '✅ 1/2 (1 skipped)')
+        self.assertEqual(self.cell('SKIP b (high speed)\n'), '✅ 0/1 (1 skipped)')
+
+
+class MidiDevice(unittest.TestCase):
+    """The by-id lookup survives a link that vanishes or names no control node."""
+
+    def lookup(self, links):
+        def readlink(path):
+            target = links[path]
+            if isinstance(target, Exception):
+                raise target
+            return target
+        usbtest_harness.patch(self, hil_test.glob, 'glob', lambda pattern: list(links))
+        usbtest_harness.patch(self, hil_test.os, 'readlink', readlink)
+        usbtest_harness.patch(self, hil_test.os.path, 'exists', lambda p: p == '/dev/snd/midiC3D0')
+        return hil_test.get_midi_dev('U')
+
+    def test_a_vanished_or_malformed_link_is_skipped(self):
+        self.assertEqual(self.lookup({'a': FileNotFoundError('gone'), 'b': '../controlC3'}), '/dev/snd/midiC3D0')
+        self.assertEqual(self.lookup({'a': '../pcmC3D0p', 'b': '../controlCx', 'c': '../controlC3'}),
+                         '/dev/snd/midiC3D0')
+        self.assertIsNone(self.lookup({'a': FileNotFoundError('gone')}))
+        self.assertIsNone(self.lookup({'a': '../controlC4'}))   # its midi node is not there yet
 
 
 class FindDeviceCache(unittest.TestCase):
@@ -1298,6 +1475,23 @@ class UsbtestRetryPolicy(unittest.TestCase):
     def test_a_transient_failure_is_retried(self):
         self.assertEqual(self._attempts(hil_test.TestFail('usbtest did not run')), 3)
 
+    def test_only_a_per_case_verdict_reports_final(self):
+        # the report's FINAL_CELL comes from this status: hil_report.sequence never infers it from '0/N'
+        for exc, want in ((hil_test.TestFail('29/30', metric='❌ 29/30', parsed=True), 'final'),
+                          (hil_test.TestFail('usbtest did not run', metric='❌ 0/30'), 'fail')):
+            with self.subTest(want):
+                self._patch(hil_flash, 'find_firmware', lambda *a, **k: Path('/nonexistent/fw.elf'))
+                self._patch(hil_test, 'skip_flash', True)
+                self._patch(hil_test, 'max_retry', 2)
+                self._patch(hil_test, 'log_line', lambda *a, **k: None)
+
+                def fake_test(board, exc=exc):
+                    raise exc
+                self._patch(hil_test, 'test_fake_example', fake_test)
+                got = hil_test.test_example({'name': 'b', 'uid': 'u', 'flasher': {'name': 'openocd'}},
+                                            'v', 'fake/example')
+                self.assertEqual(got, (1, want, exc.metric))
+
 
 class UsbtestOuterKillStaysRetryable(unittest.TestCase):
     """rc 124 is run_cmd's timer expiring, NOT proof the DUT is wedged -- a healthy
@@ -1482,6 +1676,16 @@ class WedgeVerdictReachesTheLatch(unittest.TestCase):
         self.assertFalse(self._run('{"cases": [{"num": 10, "status": "HUNG"', rc=124))
         self.assertIsInstance(self.raised, hil_test.TestFail)
         self.assertIn('usbtest did not run', str(self.raised))
+        self.assertEqual((self.raised.metric, self.raised.parsed), (hil_test.USBTEST_NOT_RUN, False))
+
+    def test_a_battery_that_ran_counts_its_own_tier(self):
+        """The denominator is the battery's own case count: 22 at tier 1, 30 at tier 4."""
+        for tier, total in ((1, 22), (4, 30)):
+            with self.subTest(tier=tier):
+                js = (f'{{"serial":"U","speed":"480","tier":{tier},"passed":{total - 1},"failed":1,"notrun":0,'
+                      f'"wedged":false,"cases":[{{"num":5,"status":"FAIL"}}]}}')
+                self._run(js)
+                self.assertEqual((self.raised.metric, self.raised.parsed), (f'❌ {total - 1}/{total}', True))
 
 
 class WedgedBoardCannotReportAPass(unittest.TestCase):
@@ -1885,8 +2089,8 @@ class ControllerCacheMerge(unittest.TestCase):
 
 
 class UsbtestAbsentDeviceVerdict(unittest.TestCase):
-    """An absent device fails before the battery is launched, and the cell needs the 0/30
-    denominator or the row reads as a bare failure."""
+    """An absent device fails before the battery is launched: the cell says the battery did not run, with no
+    count, since the device's tier sizes the battery (22 cases at tier 1, 30 at tier 4) and is never learned."""
 
     def setUp(self):
         self.addCleanup(setattr, hil_test, 'board_wedged', hil_test.board_wedged)
@@ -1902,12 +2106,14 @@ class UsbtestAbsentDeviceVerdict(unittest.TestCase):
             raise AssertionError('launched a battery for an absent device')
         hil_util.run_cmd = boom
 
-    def test_a_readable_bus_without_the_device_says_absent_with_a_denominator(self):
+    def test_a_readable_bus_without_the_device_says_absent_without_a_count(self):
         with self.assertRaises(hil_test.TestFail) as cm:
             hil_test.test_device_usbtest({'name': 'b', 'uid': 'NOPE',
                                           'flasher': {'name': 'stlink', 'uid': 'X'}})
         self.assertIn('no 0525:a4a0 device', str(cm.exception))
-        self.assertIn('0/30', cm.exception.metric)
+        self.assertEqual(cm.exception.metric, hil_test.USBTEST_NOT_RUN)
+        self.assertNotRegex(cm.exception.metric, r'\d')
+        self.assertFalse(cm.exception.parsed)   # retryable, and never the report's final-fail
 
 class UsbtestNeverCleansUp(unittest.TestCase):
     """main's finally writes nothing: a driver-wide unbind cut peer batteries and has wedged a

@@ -119,6 +119,12 @@ qm set <vmid> --machine q35 --cpu host \
 
 Debian 13, 16 vCPU, 18 GB RAM.
 
+`ci` is provisioned and checked by agentrc's [`hil-farm-setup`][farm-setup]: its setup installs the
+pinned tools, udev rules and the Renesas firmware below, and its `verify.sh` checks them. The rest
+of this section is the same ground by hand, for a rig outside that procedure.
+
+[farm-setup]: https://github.com/hathach/agentrc/tree/main/skills/hil-farm-setup
+
 ### Renesas firmware
 
 The controllers' ROM firmware is not reliable under HIL churn: Address Device fails with
@@ -148,8 +154,8 @@ not the Proxmox host.
    sudo reboot
    ```
 
-4. Confirm the controller is running it, after every reboot. Nothing checks it for you,
-   the battery included:
+4. Confirm the controller is running it, after every reboot. The HIL battery does not check
+   it; on a farm host `verify.sh` does (`renesas_fw_check.sh`), by hand:
 
    ```bash
    sudo setpci -s <bdf> 0x6c.l   # version is bits 23:8, must be >= 2026 (2.0.2.6); ffffffff = unreadable
@@ -172,7 +178,7 @@ written is expected — it busy-waits over PCI config space for ~30 s.
 | Build                       | `cmake`, `ninja-build`, and a toolchain per family: `gcc-arm-none-eabi`, a RISC-V GCC, ESP-IDF                                            |
 | Flashing                    | One tool per `Flasher` value — see below                                                                                                  |
 | Test harness                | `pip install -r test/hil/requirements.txt` — hidapi, pyserial, esptool, pyusb (the raw MTP cases)                                         |
-| Host-side test tools        | `dfu-util`, `mtools`, `libmtp9`, `libmtp-runtime`, `alsa-utils` (apt) — the DFU, MSC, MTP and audio tests shell out to these              |
+| Host-side test tools        | `dfu-util` and the apt packages atop `test/hil/requirements.txt` — the DFU, MSC, MTP, audio and network tests use them                    |
 | USB inspection and recovery | `pciutils` (the Renesas firmware read), `uhubctl` (apt), `tshark` for usbmon capture, `testusb` from the kernel's `tools/usb/testusb.c` |
 
 The `Flasher` column in Attached boards names a tool from the table below; only the ones your own
@@ -201,6 +207,9 @@ for g in adm dialout plugdev users wireshark; do
 done
 ```
 
+A farm host gets its own copy from `hil-farm-setup` instead, with the `adm` group as `hil` and
+without the catch-all hidraw rule.
+
 Add the vendor rules for the probes you use (J-Link, picotool). `uhubctl` needs one too
 and no package ships it — without it every port toggle wants root:
 
@@ -216,9 +225,10 @@ Actions runner nor `hil_remote.py` sources a login profile. Keep them in `~/.loc
 `~/bin` (symlinks are fine) and add both to the runner's `.path`.
 
 Root is needed only by agentrc's `hil_root.py`, through `sudo -n`: loading `usbtest`, its
-pattern parameter, its kernel log lines, and Reset_TT. A rig grants its CI user sudo on its
-installed copy, `/usr/local/sbin/hil_root`, and nothing else; elsewhere passwordless sudo
-runs the checkout's copy. `testusb` never runs under sudo: the device node must be writable
+pattern parameter, its kernel log lines, Reset_TT, and moving a board's USB network
+interface into the network test's own namespace (`netns`). A rig grants its CI user sudo
+on its installed copy, `/usr/local/sbin/hil_root`, and nothing else; elsewhere passwordless
+sudo runs the checkout's copy. `testusb` never runs under sudo: the device node must be writable
 (`tools/88-tinyusb.rules`).
 
 The `usbtest` battery additionally needs `testusb` built from the kernel tools and
@@ -340,10 +350,10 @@ REMOTE=myrig.lan CONFIG=$PWD/test/hil/local.json python3 .claude/skills/hil-cont
 ## A minimal rig
 
 None of the above is a prerequisite. The VM, the uPD720201 cards and the leaf hubs are
-what let one machine hold 27 boards and recover them unattended — the harness itself runs
-fine against boards plugged straight into a development PC's own USB ports, on whatever
-xHCI that PC already has. All it takes is the boards, their debug probes, and a
-`test/hil/local.json` describing them in the same shape as `tinyusb.json`.
+what let one machine hold every board in Attached boards and recover them unattended — the
+harness itself runs fine against boards plugged straight into a development PC's own USB
+ports, on whatever xHCI that PC already has. All it takes is the boards, their debug probes,
+and a `test/hil/local.json` describing them in the same shape as `tinyusb.json`.
 
 Host-side prerequisites, beyond a cross toolchain:
 
@@ -351,17 +361,31 @@ Host-side prerequisites, beyond a cross toolchain:
 python3 tools/get_deps.py <family>            # MCU SDKs for your boards
 pip install -r test/hil/requirements.txt      # hidapi, pyserial, esptool, pyusb
 sudo apt install cmake ninja-build uhubctl \
-                 dfu-util mtools libmtp9 libmtp-runtime alsa-utils
+                 dfu-util mtools libmtp9 libmtp-runtime alsa-utils \
+                 iproute2 iperf udev util-linux
 ```
 
 `cmake` and `ninja-build` are needed by any run and `uhubctl` by recovery; the rest only
-by the tests that shell out to them, so dropping one just fails the DFU, MSC, MTP or audio
-cells on an otherwise healthy rig. `test/hil/requirements.txt` names those at the top,
-along with `iperf` for the `device/net_lwip_*` tests, which are off in the default matrix.
+by the tests that shell out to them, so dropping one just fails the DFU, MSC, MTP, audio
+or network cells on an otherwise healthy rig. `test/hil/requirements.txt` names each at
+the top with the test that needs it. `device/net_lwip_webserver` is in the default device
+list, so every board with `"device": true` runs it unless its roster entry skips it. It
+also needs unprivileged user namespaces and passwordless `sudo` for agentrc's
+`hil_root netns`; `iperf` matters only on builds with the lwiperf server.
 
 Only one of this page's host-controller concerns carries over: `test/hil/usbtest.py` refuses
 a DUT behind a MosChip MCS9990 (`9710:9990`) outright. The Renesas firmware matters only on a
 uPD720201/02, and `pciutils` only for its manual read; a stock Intel or AMD xHCI needs neither.
+
+The harness loads agentrc's shared HIL scripts (board locks, flashing, `hil_root`) and
+refuses to start without them. Outside CI it loads the installed agentrc,
+`${AGENTRC_DIR:-$HOME/.claude}`: run `python3 <agentrc checkout>/install.py install`, or
+point `AGENTRC_DIR` at an agentrc checkout; CI tests the commit `test/hil/agentrc.json`
+pins. Check what it selected before the first run:
+
+```bash
+python3 test/hil/helper/agentrc.py check      # the selected agentrc as JSON; exit 1 names the fix
+```
 
 ```bash
 cd examples && cmake --preset <board> && cmake --build --preset <board>

@@ -3,7 +3,7 @@
 # USBTMC/USB488 protocol session against examples/device/usbtmc (cafe:401c) for one board, in a
 # disposable process: pyusb calls block in usbfs ioctls on a wedged device, so
 # hil_test.test_device_usbtmc runs this under hil_util.run_cmd (killpg + bounded reap, rc 124 on
-# timeout). Imports stay stdlib + pyusb: nothing here may pull in the harness.
+# timeout). Imports stay stdlib + pyusb + session_child: nothing here may pull in the harness.
 #
 # Raw requests, not a VISA library: NI-VISA and the Linux usbtmc driver recover from a refused abort
 # or a missing short packet on their own, which hides exactly what these cases check. Each case
@@ -17,9 +17,13 @@ import os
 import struct
 import sys
 import time
+from pathlib import Path
 
 import usb.core
 import usb.util
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))  # PYTHONSAFEPATH drops it
+import session_child  # noqa: E402
 
 VID, PID = 0xCAFE, 0x401C
 
@@ -39,6 +43,9 @@ APP_DELAY_MS = 50  # the example answers a query after 2x this; the abort cases 
 PROBE_TAG = 77  # next_write's bTag, never issued by Dut.next_tag: a Bulk-OUT bTag report of it is a parsed probe
 
 
+_SYS_USB = Path('/sys/bus/usb/devices')
+
+
 class SkipCase(Exception):
     pass
 
@@ -50,11 +57,6 @@ class Dut:
 
     def find(self, timeout):
         deadline = time.monotonic() + timeout
-        def serial(dev):
-            try:
-                return usb.util.get_string(dev, dev.iSerialNumber)
-            except (usb.core.USBError, ValueError):
-                return None
 
         def configuration(dev):
             # The device node, and its strings, are there before the kernel's SET_CONFIGURATION: until then pyusb
@@ -65,14 +67,29 @@ class Dut:
                 usb.util.dispose_resources(dev)
                 return None
 
+        def serial(dev):
+            # the selected device only: the scan read sysfs before this open, and another board may own the address now
+            try:
+                return usb.util.get_string(dev, dev.iSerialNumber)
+            except (usb.core.USBError, ValueError):
+                return None
+
         while True:
-            self.dev = next((d for d in usb.core.find(find_all=True, idVendor=VID, idProduct=PID)
-                             if serial(d) == self.uid), None)
+            # From sysfs alone: every USBTMC DUT shares this vid:pid, and a pyusb string read opens the device,
+            # which on a wedged peer blocks in D state under its device lock
+            found = session_child.find_devices(_SYS_USB, f'{VID:04x}', f'{PID:04x}', self.uid)
+            # only the one match is opened; a stale same-serial node (dual-port part) is waited out
+            self.dev = usb.core.find(bus=found[0][0], address=found[0][1]) if len(found) == 1 else None
+            if self.dev is not None and ((self.dev.idVendor, self.dev.idProduct) != (VID, PID) or
+                                         serial(self.dev) != self.uid):
+                usb.util.dispose_resources(self.dev)
+                self.dev = None   # the address was reused after the scan
             cfg = None if self.dev is None else configuration(self.dev)
             if cfg is not None:
                 break
             if time.monotonic() > deadline:
-                state = 'not found' if self.dev is None else 'found, but its configuration is not set'
+                state = (f'ambiguous: {len(found)} devices at (bus, address) {found}' if len(found) > 1 else
+                         'not found' if self.dev is None else 'found, but its configuration is not set')
                 raise RuntimeError(f'USBTMC device {VID:04x}:{PID:04x} serial {self.uid} {state}')
             time.sleep(0.5)
         itf = cfg[(0, 0)]
@@ -588,11 +605,7 @@ def main():
     args = ap.parse_args()
 
     if args.pidfile:
-        # starttime is proc(5) stat field 22: a recycled pid has another
-        with open('/proc/self/stat') as f:
-            start = f.read().rpartition(')')[2].split()[19]
-        with open(args.pidfile, 'w') as f:
-            f.write(f'{os.getpid()} {start}\n')
+        session_child.write_pidfile(args.pidfile)
 
     d = Dut(args.uid, args.timeout)
     print(f'usbtmc {VID:04x}:{PID:04x} mps {d.mps}', flush=True)
