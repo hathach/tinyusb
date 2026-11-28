@@ -11,6 +11,7 @@
 TEST_SOURCE_FILE("tusb.c")
 TEST_SOURCE_FILE("tusb_fifo.c")
 TEST_SOURCE_FILE("usbh_config_complete_callbacks.c")
+TEST_SOURCE_FILE("usbh_test_hcd_stubs.c")
 
 enum {
   RHPORT     = 0,
@@ -25,83 +26,15 @@ uint8_t umount_cb_count;
 static uint8_t set_config_count;
 static uint8_t close_count;
 static void (*set_config_hook)(void);
+static void (*close_hook)(void);
 
 //--------------------------------------------------------------------+
-// HCD stubs
+// HCD stubs: the stateless ones are shared, setup submission and clear-stall observation are this suite's
 //--------------------------------------------------------------------+
-uint32_t tusb_time_millis_api(void) {
-  return 0;
-}
-
-bool hcd_init(uint8_t rhport, const tusb_rhport_init_t *rh_init) {
-  (void) rhport;
-  (void) rh_init;
-  return true;
-}
-
-void hcd_int_handler(uint8_t rhport, bool in_isr) {
-  (void) rhport;
-  (void) in_isr;
-}
-
-void hcd_int_enable(uint8_t rhport) {
-  (void) rhport;
-}
-
-void hcd_int_disable(uint8_t rhport) {
-  (void) rhport;
-}
-
-bool hcd_port_connect_status(uint8_t rhport) {
-  (void) rhport;
-  return true;
-}
-
-void hcd_port_reset(uint8_t rhport) {
-  (void) rhport;
-}
-
-void hcd_port_reset_end(uint8_t rhport) {
-  (void) rhport;
-}
-
-tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
-  (void) rhport;
-  return TUSB_SPEED_FULL;
-}
-
-void hcd_device_close(uint8_t rhport, uint8_t daddr) {
-  (void) rhport;
-  (void) daddr;
-}
-
 bool hcd_setup_send(uint8_t rhport, uint8_t daddr, const uint8_t setup_packet[8]) {
   (void) rhport;
   (void) daddr;
   (void) setup_packet;
-  return true;
-}
-
-bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, const tusb_desc_endpoint_t *ep_desc) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_desc;
-  return true;
-}
-
-bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t *buffer, uint16_t buflen) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_addr;
-  (void) buffer;
-  (void) buflen;
-  return true;
-}
-
-bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
-  (void) daddr;
-  (void) ep_addr;
   return true;
 }
 
@@ -132,9 +65,15 @@ static bool fake_set_config(uint8_t dev_addr, uint8_t itf_num) {
   return true;
 }
 
+// the hook stands in for the application's umount callback
 static void fake_close(uint8_t dev_addr) {
   (void) dev_addr;
   close_count++;
+  if (close_hook != NULL) {
+    void (*hook)(void) = close_hook;
+    close_hook = NULL;
+    hook();
+  }
 }
 
 // claims the whole rest of the configuration, recording the interfaces it is offered and the endpoint sizes it is
@@ -166,6 +105,21 @@ static const usbh_class_driver_t fake_driver = {
   .close      = fake_close,
 };
 
+// a later driver, whose interface a replacement device may open while the first driver's close callback runs
+static uint8_t second_close_count;
+static bool    second_itf_open;
+
+static void second_close(uint8_t dev_addr) {
+  (void) dev_addr;
+  second_close_count++;
+  second_itf_open = false;
+}
+
+static const usbh_class_driver_t two_drivers[] = {
+  {.name = "FAKE", .open = fake_open, .set_config = fake_set_config, .close = fake_close},
+  {.name = "FAKE2", .open = fake_open, .set_config = fake_set_config, .close = second_close},
+};
+
 //--------------------------------------------------------------------+
 // Hooks
 //--------------------------------------------------------------------+
@@ -176,9 +130,25 @@ static void remove_device(void) {
 // a second device attached meanwhile: it waits at address 0 for its debounce delay
 static void remove_device_and_attach_another(void) {
   remove_device();
+  _usbh_data.enum_gen++; // as enum_new_device() does
   _usbh_data.enumerating_daddr = 0;
   _usbh_data.root_retry_count  = 2;
   usbh_defer_func_ms_async(ENUM_DEBOUNCING_DELAY_MS, enum_delay_async, ENUM_AFTER_DEBOUNCING_DELAY);
+}
+
+// the second device has since been given the address the first one freed
+static void remove_device_and_readdress_another(void) {
+  remove_device_and_attach_another();
+  usbh_device_t *dev = get_device(DADDR);
+  dev->bus_info.rhport = RHPORT;
+  dev->connected       = 1;
+  dev->addressed       = 1;
+  _usbh_data.enumerating_daddr = DADDR;
+}
+
+static void remove_device_and_readdress_another_using_second_driver(void) {
+  remove_device_and_readdress_another();
+  second_itf_open = true;
 }
 
 //--------------------------------------------------------------------+
@@ -199,12 +169,15 @@ void setUp(void) {
   open_count       = 0;
   open_itf_num     = 0xff;
   set_config_hook  = NULL;
+  close_hook       = NULL;
   clear_stall_count  = 0;
   clear_stall_rhport = 0xff;
   clear_stall_ep     = 0;
   clear_stall_result = true;
   open_ep_count      = 0;
   tu_memclr(open_ep_size, sizeof(open_ep_size));
+  second_close_count = 0;
+  second_itf_open    = false;
 
   // DADDR is being enumerated and has reached the SET_CONFIGURATION stage
   usbh_device_t *dev    = get_device(DADDR);
@@ -402,4 +375,122 @@ void test_clear_stall_rejects_invalid_target(void) {
   TEST_ASSERT_FALSE(usbh_edpt_clear_stall(TOTAL_DEVICES + 1, EP_BULK_IN));
   TEST_ASSERT_FALSE(usbh_edpt_clear_stall(OTHER_ADDR, EP_BULK_IN));              // not connected
   TEST_ASSERT_EQUAL(0, clear_stall_count);
+}
+
+//--------------------------------------------------------------------+
+// Enumeration failures end the enumeration: the next attach is not held behind it
+//--------------------------------------------------------------------+
+static void assert_enumeration_ended(void) {
+  TEST_ASSERT_EQUAL(TUSB_INDEX_INVALID_8, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_NULL(_usbh_data.call_after.func);
+  TEST_ASSERT_EQUAL(CONTROL_STAGE_IDLE, _usbh_data.ctrl_xfer_info.stage);
+  TEST_ASSERT_EQUAL(0, mount_cb_count);
+}
+
+static void run_enumeration(uint8_t daddr, uintptr_t state, const void *ctrl_data, uint16_t len) {
+  static const tusb_control_request_t req_get_config = {
+    .bmRequestType = 0x80, .bRequest = TUSB_REQ_GET_DESCRIPTOR, .wValue = TUSB_DESC_CONFIGURATION << 8, .wLength = 9
+  };
+  _usbh_data.root_retry_count = USBH_ENUM_ROOT_RETRY_MAX; // no root port retry: it would post an attach event
+  memcpy(_usbh_epbuf.ctrl, ctrl_data, len);
+  tuh_xfer_t xfer = {
+    .daddr = daddr, .result = XFER_RESULT_SUCCESS, .setup = &req_get_config, .actual_len = len, .user_data = state
+  };
+  process_enumeration(&xfer);
+}
+
+// every address taken: the device at address 0 fails instead of holding the enumeration
+void test_enum_no_free_address_ends_enumeration(void) {
+  static const uint8_t desc_dev8[8] = {18, TUSB_DESC_DEVICE, U16_TO_U8S_LE(0x0200), 0, 0, 0, 64};
+  for (uint8_t daddr = 1; daddr <= CFG_TUH_DEVICE_MAX; daddr++) {
+    get_device(daddr)->connected = 1;
+  }
+  _usbh_data.enumerating_daddr = 0;
+
+  run_enumeration(0, ENUM_SET_ADDR, desc_dev8, sizeof(desc_dev8));
+
+  assert_enumeration_ended();
+}
+
+// a configuration larger than the enumeration buffer is not read, and fails the device
+void test_enum_config_larger_than_buffer_ends_enumeration(void) {
+  static const uint8_t desc_cfg9[9] = {
+    9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(CFG_TUH_ENUMERATION_BUFSIZE + 1), 1, 1, 0, 0x80, 50
+  };
+
+  run_enumeration(DADDR, ENUM_GET_FULL_CONFIG_DESC, desc_cfg9, sizeof(desc_cfg9));
+
+  assert_enumeration_ended();
+  TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+}
+
+// a vendor interface whose endpoint is beyond ep_status: the driver opens it but the binding is refused
+static const uint8_t desc_cfg_refused_binding[] = {
+  9, TUSB_DESC_CONFIGURATION, U16_TO_U8S_LE(9 + 9 + 7), 1, 1, 0, 0x80, 50,
+  9, TUSB_DESC_INTERFACE, 0, 0, 1, TUSB_CLASS_VENDOR_SPECIFIC, 0, 0, 0,
+  7, TUSB_DESC_ENDPOINT, 0x80 | CFG_TUH_ENDPOINT_MAX, TUSB_XFER_BULK, U16_TO_U8S_LE(64), 0,
+};
+
+// the driver opened, but its endpoint cannot be bound: the driver is closed and the device fails
+void test_enum_refused_binding_closes_driver_and_ends_enumeration(void) {
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
+
+  assert_enumeration_ended();
+  TEST_ASSERT_EQUAL(1, close_count);
+  TEST_ASSERT_EQUAL(0, set_config_count);
+  TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+}
+
+// a close callback that drives the usbh task (a sync transfer on OS_NONE) handles the unplug and the next attach: the
+// failed attempt must not then tear down the new one
+void test_enum_refused_binding_keeps_enumeration_started_by_close_callback(void) {
+  close_hook = remove_device_and_attach_another;
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
+
+  TEST_ASSERT_EQUAL(2, close_count); // the failed binding, then the unplug
+  TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+  TEST_ASSERT_EQUAL(0, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL_PTR(enum_delay_async, _usbh_data.call_after.func);
+  TEST_ASSERT_EQUAL(2, _usbh_data.root_retry_count);
+}
+
+// the close callback only handles the unplug: the attempt has ended already, with no root port retry
+void test_enum_refused_binding_ended_by_close_callback_unplug(void) {
+  const uint8_t enum_gen = _usbh_data.enum_gen;
+  close_hook = remove_device;
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
+
+  TEST_ASSERT_EQUAL(2, close_count);
+  TEST_ASSERT_FALSE(get_device(DADDR)->connected);
+  TEST_ASSERT_EQUAL(enum_gen, _usbh_data.enum_gen);
+  TEST_ASSERT_EQUAL(0, _usbh_data.root_retry_count);
+  assert_enumeration_ended();
+}
+
+// the new attempt already holds the failed device's address: only enum_gen tells it apart
+void test_enum_refused_binding_keeps_new_attempt_at_same_address(void) {
+  close_hook = remove_device_and_readdress_another;
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
+
+  TEST_ASSERT_EQUAL(2, close_count);
+  TEST_ASSERT_TRUE(get_device(DADDR)->connected);
+  TEST_ASSERT_EQUAL(DADDR, _usbh_data.enumerating_daddr);
+  TEST_ASSERT_EQUAL_PTR(enum_delay_async, _usbh_data.call_after.func);
+}
+
+// the new attempt at the same address has opened a later driver before the first close callback returned
+void test_enum_refused_binding_keeps_later_driver_of_new_attempt(void) {
+  _app_driver       = two_drivers;
+  _app_driver_count = TU_ARRAY_SIZE(two_drivers);
+  close_hook        = remove_device_and_readdress_another_using_second_driver;
+
+  run_enumeration(DADDR, ENUM_CONFIG_DRIVER, desc_cfg_refused_binding, sizeof(desc_cfg_refused_binding));
+
+  TEST_ASSERT_EQUAL(1, second_close_count); // the unplug's only
+  TEST_ASSERT_TRUE(second_itf_open);
+  TEST_ASSERT_TRUE(get_device(DADDR)->connected);
+  TEST_ASSERT_EQUAL(DADDR, _usbh_data.enumerating_daddr);
 }

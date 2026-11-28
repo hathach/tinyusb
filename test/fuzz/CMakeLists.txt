@@ -117,7 +117,7 @@ endif ()
 if (TINYUSB_FUZZ_TARGET STREQUAL "" OR TINYUSB_FUZZ_TARGET STREQUAL "net")
   # lwIP headers only (rndis_reports.c needs netif/ethernet.h); fetched by tools/get_deps.py
   if (NOT EXISTS ${TOP}/lib/lwip/src/include/lwip/init.h)
-    message(FATAL_ERROR "lib/lwip is missing: run python3 tools/get_deps.py")
+    message(FATAL_ERROR "lib/lwip is missing: run python3 tools/get_deps.py lib/lwip")
   endif ()
   fuzz_add_device_harness(net
     SOURCES
