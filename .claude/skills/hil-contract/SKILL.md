@@ -161,14 +161,18 @@ until its `timeout-minutes`. The run logs its guard in the startup line; never d
 stuck before THAT value has elapsed.
 The Bash tool caps a foreground timeout at 10 min, so **run it in the background** --
 never a foreground timeout, which would kill the run before its own guard can write a
-report.
+report. A background command is stopped at the same 10 min unless it names a longer `timeout`,
+and 7200000 ms (2 h) is the most it can name: enough for the default guard plus staging. A pinned
+`HIL_POOL_TIMEOUT` must leave room under that ceiling for staging, the guard's abort and park, and
+the copy-back (keep it well under 7200 s), or the launch is killed first and the run ends `dead`.
 
 A remote run is launched once, in the background, with a new `--run-id` (a used one is
 refused), then waited on in the foreground; write the id literally in both calls, since a shell
 variable does not survive from one tool call to the next:
 
 ```bash
-# Bash run_in_background: true; a delegated run adds its --receipt (Build)
+# Bash run_in_background: true, timeout 7200000 (the ceiling; see above for a pinned guard)
+# a delegated run adds its --receipt (Build)
 python3 .claude/skills/hil-contract/scripts/hil_remote.py --run-id hil-1790000000 --receipt .hil-remote/build-1790000000.json -b raspberry_pi_pico2 -b stm32f723disco
 # foreground, Bash timeout 600000
 python3 .claude/skills/hil-contract/scripts/hil_remote.py wait hil-1790000000
