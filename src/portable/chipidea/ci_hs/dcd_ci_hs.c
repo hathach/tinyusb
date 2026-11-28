@@ -157,7 +157,12 @@ typedef struct {
   // Therefore there are 16 bytes padding that we can use.
   //--------------------------------------------------------------------+
   tu_fifo_t *ff;
+  #if CFG_TUD_MEM_DCACHE_ENABLE
+  uint8_t   *attached_buffer; // Original buffer address for OUT cache invalidation after DMA
+  uint8_t    reserved[8];
+  #else
   uint8_t    reserved[12];
+  #endif
 } dcd_qhd_t;
 
 TU_VERIFY_STATIC(sizeof(dcd_qhd_t) == 64, "size is not correct");
@@ -623,6 +628,9 @@ bool dcd_edpt_xfer(uint8_t rhport, uint8_t ep_addr, uint8_t *buffer, uint16_t to
 
   // Start qhd transfer
   p_qhd->ff = NULL;
+  #if CFG_TUD_MEM_DCACHE_ENABLE
+  p_qhd->attached_buffer = buffer;
+  #endif
   return qhd_start_xfer(rhport, epnum, dir);
 }
 
@@ -683,6 +691,7 @@ bool dcd_edpt_xfer_fifo(uint8_t rhport, uint8_t ep_addr, tu_fifo_t *ff, uint16_t
 //--------------------------------------------------------------------+
 
 static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir) {
+  TU_ATTR_UNUSED dcd_qhd_t *p_qhd = &_dcd_data.qhd[epnum][dir];
   dcd_qtd_t *p_qtd = &_dcd_data.qtd[epnum][dir];
 
   uint8_t result = p_qtd->halted                            ? XFER_RESULT_STALLED
@@ -696,9 +705,14 @@ static void process_edpt_complete_isr(uint8_t rhport, uint8_t epnum, uint8_t dir
   }
 
   const uint16_t xferred_bytes = p_qtd->expected_bytes - p_qtd->total_bytes;
+  #if CFG_TUD_MEM_DCACHE_ENABLE
+  // Discard cache lines that may have been loaded while OUT DMA was active.
+  if (dir == TUSB_DIR_OUT && p_qhd->ff == NULL && p_qhd->attached_buffer != NULL && p_qtd->expected_bytes != 0) {
+    dcd_dcache_invalidate(p_qhd->attached_buffer, p_qtd->expected_bytes);
+  }
+  #endif
 
   #if CFG_TUD_EDPT_XFER_FIFO
-  dcd_qhd_t *p_qhd = &_dcd_data.qhd[epnum][dir];
   if (p_qhd->ff) {
     if (dir == TUSB_DIR_IN) {
       tu_fifo_advance_read_pointer(p_qhd->ff, xferred_bytes);
