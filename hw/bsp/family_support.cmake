@@ -663,6 +663,12 @@ function(family_configure_dual_usb_example TARGET RTOS)
   family_configure_example(${TARGET} ${RTOS})
 endfunction()
 
+# Device and host on the same port, switched at run time (examples/dual/dynamic_switch). A family whose
+# examples put the two roles on different controllers overrides this to give both roles one controller.
+function(family_configure_dual_role_example TARGET RTOS)
+  family_configure_dual_usb_example(${TARGET} ${RTOS})
+endfunction()
+
 function(family_example_missing_dependency TARGET DEPENDENCY)
   message(WARNING "${DEPENDENCY} submodule needed by ${TARGET} not found, please run 'python tools/get_deps.py ${DEPENDENCY}' to fetch it")
 endfunction()

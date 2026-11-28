@@ -42,6 +42,7 @@
 #include "debug_uart.h"
 #include "ch32v30x.h"
 #include "ch32v30x_it.h"
+#include "ch32v30x_usb.h"
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -59,39 +60,56 @@
 #if CFG_TUH_ENABLED && CFG_TUH_WCH_USBIP_USBHS && CFG_TUH_WCH_USBIP_USBFS
   #error "Select one WCH host controller"
 #endif
-#if CFG_TUD_ENABLED && CFG_TUH_ENABLED && \
-    ((CFG_TUD_WCH_USBIP_USBHS && CFG_TUH_WCH_USBIP_USBHS) || \
-     (CFG_TUD_WCH_USBIP_USBFS && CFG_TUH_WCH_USBIP_USBFS))
-  #error "WCH host and device roles must use different controllers"
+// USBHS runs device and host on one controller (switched at run time, examples/dual/dynamic_switch);
+// USBFS has no device deinit to switch with
+#if CFG_TUD_ENABLED && CFG_TUH_ENABLED && CFG_TUD_WCH_USBIP_USBFS && CFG_TUH_WCH_USBIP_USBFS
+  #error "WCH USBFS cannot run host and device on the same controller"
 #endif
+// The legacy tusb_init() (CFG_TUSB_RHPORTx_MODE) would start both roles on the one controller at once
+#if defined(TUD_OPT_RHPORT) && defined(TUH_OPT_RHPORT) && (TUD_OPT_RHPORT == TUH_OPT_RHPORT)
+  #error "Device and host on the same port need tusb_init(rhport, &init) per role, deinit to switch"
+#endif
+
+#define USBHS_HOST_ROLE   (CFG_TUH_ENABLED && CFG_TUH_WCH_USBIP_USBHS)
+#define USBHS_DEVICE_ROLE (CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS)
 
 // The startup enables QingKe hardware context stacking. Avoid duplicating its
 // register saves in software: closely spaced ISO transactions need a short IRQ entry.
-#if CFG_TUH_ENABLED && CFG_TUH_WCH_USBIP_USBHS
-  static void usbhs_hcd_int_handler(uint8_t rhport) {
-    (void)rhport;
-    tuh_int_handler(BOARD_TUH_RHPORT);
-  }
-  #define USBHS_ISR_TARGET usbhs_hcd_int_handler
-#elif CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
-  #if CFG_TUSB_SYSVIEW >= CFG_TUSB_SYSVIEW_LEVEL_ISR
-  // Naked asm cannot expand tud_int_handler()'s SystemView bracket, so it calls this C wrapper.
-  static void usbhs_dcd_int_handler(uint8_t rhport) {
-    tud_int_handler(rhport);
-  }
-    #define USBHS_ISR_TARGET usbhs_dcd_int_handler
-  #else
-    #define USBHS_ISR_TARGET dcd_int_handler
-  #endif
+// Keep the assembly call or jump targets visible to LTO, as in the CH32V20x USB interrupt wrappers.
+#if USBHS_HOST_ROLE
+static void usbhs_hcd_int_handler(void) {
+  tuh_int_handler(BOARD_TUH_RHPORT);
+}
+TU_ATTR_USED static void (*const usbhs_hcd_keep)(void) = usbhs_hcd_int_handler;
 #endif
-#ifdef USBHS_ISR_TARGET
-// Keep the assembly call visible to LTO, as in the CH32V20x USB interrupt wrappers.
-TU_ATTR_USED static void (*const usbhs_isr_keep)(uint8_t) = USBHS_ISR_TARGET;
+#if USBHS_DEVICE_ROLE
+// The USBHS DCD's interrupt vector (dcd_wch_usbhs_v1.c, "Application integration"): early
+// register snapshot, returns with mret. SystemView builds take it too: the DCD records the interrupt after
+// the snapshot.
+void dcd_int_handler_fast(void);
+TU_ATTR_USED static void (*const usbhs_dcd_keep)(void) = dcd_int_handler_fast;
 #endif
 
 __attribute__((naked)) __attribute__((used)) void USBHS_IRQHandler(void) {
-#ifdef USBHS_ISR_TARGET
-  __asm volatile("li a0, 0\n\t call " TU_XSTRING(USBHS_ISR_TARGET) "\n\t mret");
+#if USBHS_HOST_ROLE && USBHS_DEVICE_ROLE
+  // Both roles: the controller's host mode bit, which hcd_init() sets and dcd_init() clears, picks the
+  // driver. CONTROL's bit 7 is its sign: the device path costs a load and a branch.
+  TU_VERIFY_STATIC(USBHS_UC_HOST_MODE == 0x80, "host mode is CONTROL bit 7");
+  __asm volatile(
+    "li   t0, %[base]\n\t"
+    "lb   t1, %[o_ctrl](t0)\n\t"
+    "bgez t1, 1f\n\t"
+    "call %[host]\n\t"
+    "mret\n\t"
+    "1:\n\t"
+    "j    %[dev]\n\t"
+    :
+    : [base] "i"(USBHS_BASE), [o_ctrl] "i"(offsetof(USBHSD_TypeDef, CONTROL)), [host] "i"(usbhs_hcd_int_handler),
+      [dev] "i"(dcd_int_handler_fast));
+#elif USBHS_HOST_ROLE
+  __asm volatile("call %[host]\n\t mret" : : [host] "i"(usbhs_hcd_int_handler));
+#elif USBHS_DEVICE_ROLE
+  __asm volatile("j %[dev]" : : [dev] "i"(dcd_int_handler_fast));
 #else
   __asm volatile("mret");
 #endif
@@ -113,6 +131,11 @@ __attribute__((interrupt)) void USBFS_IRQHandler(void) {
 //--------------------------------------------------------------------+
 
 static uint32_t SysTick_Config(uint32_t ticks) {
+  // A lower preemption level than USBHS (left at 0), so the USB interrupt preempts the tick: a USBHS
+  // completion waiting out the tick handler can have its status overwritten by the next isochronous
+  // transaction, losing it (docs/reference/device_issues.rst, WCH item 1). The startup sets INTSYSCR
+  // PMTCFG to 2 preemption bits (IPRIOR bits 7:6).
+  NVIC_SetPriority(SysTicK_IRQn, 0x80);
   NVIC_EnableIRQ(SysTicK_IRQn);
   SysTick->CTLR = 0;
   SysTick->SR = 0;
@@ -171,6 +194,24 @@ void board_init(void) {
   GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
   GPIO_Init(BUTTON_PORT, &GPIO_InitStructure);
 #endif
+#if USBHS_HOST_ROLE || USBHS_DEVICE_ROLE
+  // The USBHS vector returns with mret and leaves register saving to QingKe HPE: check that the
+  // startup enabled it (INTSYSCR bit 0) rather than corrupt registers on the first USB interrupt
+  uint32_t intsyscr;
+  __asm volatile("csrr %0, 0x804" : "=r"(intsyscr));
+  TU_ASSERT(intsyscr & 1u, );
+#endif
+#if USBHS_DEVICE_ROLE && defined(CFG_BOARD_USBHS_VTF_SLOT) && CFG_BOARD_USBHS_VTF_SLOT >= 0
+  // PFIC fast vector (VTF): USBHS skips the vector table lookup, straight into the DCD's entry unless the
+  // host role shares the controller
+  TU_VERIFY_STATIC(CFG_BOARD_USBHS_VTF_SLOT < 4, "USBHS VTF slot must be 0..3, or -1 to disable");
+  #if USBHS_HOST_ROLE
+  SetVTFIRQ((uint32_t) USBHS_IRQHandler, USBHS_IRQn, CFG_BOARD_USBHS_VTF_SLOT, ENABLE);
+  #else
+  SetVTFIRQ((uint32_t) dcd_int_handler_fast, USBHS_IRQn, CFG_BOARD_USBHS_VTF_SLOT, ENABLE);
+  #endif
+#endif
+
   /* Enable interrupts globally */
   __enable_irq();
 
@@ -181,8 +222,15 @@ void board_init(void) {
 volatile uint32_t system_ticks = 0;
 
 __attribute__((interrupt)) void SysTick_Handler(void) {
+  // USBHS preempts this handler (SysTick_Config): mask it across the flag clear and the increment, or a
+  // SystemView timestamp taken in between reads the old tick with no wrap pending, 1 ms behind. gintenr
+  // (CSR 0x800) save/mask/restore, as SEGGER_RTT_LOCK() does in sysview_rtt_conf.h.
+  uint32_t gintenr;
+  __asm volatile("csrr %0, 0x800" : "=r"(gintenr));
+  __asm volatile("csrc 0x800, %0\n fence.i" ::"r"(0x88) : "memory");
   SysTick->SR = 0;
   system_ticks++;
+  __asm volatile("csrw 0x800, %0" ::"r"(gintenr) : "memory");
 }
 
 uint32_t tusb_time_millis_api(void) {

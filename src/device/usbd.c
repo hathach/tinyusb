@@ -1531,6 +1531,32 @@ static bool process_get_descriptor(uint8_t rhport, tusb_control_request_t const 
 //--------------------------------------------------------------------+
 // DCD Event Handler
 //--------------------------------------------------------------------+
+// Kept out of dcd_event_handler(): inlined, its driver loop makes every event (transfer completions included)
+// save and restore the callee-saved registers the loop uses, in the ISR
+TU_ATTR_FAST_FUNC TU_ATTR_NOINLINE static void sof_event_handler(dcd_event_t const* event, bool in_isr) {
+  // SOF driver handler in ISR context
+  for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
+    usbd_class_driver_t const* driver = get_driver(i);
+    if (driver && driver->sof) {
+      driver->sof(event->rhport, event->sof.frame_count);
+    }
+  }
+
+  // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
+  // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
+  if (_usbd_dev.suspended) {
+    _usbd_dev.suspended = 0;
+
+    dcd_event_t const event_resume = {.rhport = event->rhport, .event_id = DCD_EVENT_RESUME};
+    queue_event(&event_resume, in_isr);
+  }
+
+  if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
+    dcd_event_t const event_sof = {.rhport = event->rhport, .event_id = DCD_EVENT_SOF, .sof.frame_count = event->sof.frame_count};
+    queue_event(&event_sof, in_isr);
+  }
+}
+
 TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) {
   bool send = false;
   switch (event->event_id) {
@@ -1572,27 +1598,7 @@ TU_ATTR_FAST_FUNC void dcd_event_handler(dcd_event_t const* event, bool in_isr) 
       break;
 
     case DCD_EVENT_SOF:
-      // SOF driver handler in ISR context
-      for (uint8_t i = 0; i < TOTAL_DRIVER_COUNT; i++) {
-        usbd_class_driver_t const* driver = get_driver(i);
-        if (driver && driver->sof) {
-          driver->sof(event->rhport, event->sof.frame_count);
-        }
-      }
-
-      // Some MCUs after running dcd_remote_wakeup() does not have way to detect the end of remote wakeup
-      // which last 1-15 ms. DCD can use SOF as a clear indicator that bus is back to operational
-      if (_usbd_dev.suspended) {
-        _usbd_dev.suspended = 0;
-
-        dcd_event_t const event_resume = {.rhport = event->rhport, .event_id = DCD_EVENT_RESUME};
-        queue_event(&event_resume, in_isr);
-      }
-
-      if (tu_bit_test(_usbd_dev.sof_consumer, SOF_CONSUMER_USER)) {
-        dcd_event_t const event_sof = {.rhport = event->rhport, .event_id = DCD_EVENT_SOF, .sof.frame_count = event->sof.frame_count};
-        queue_event(&event_sof, in_isr);
-      }
+      sof_event_handler(event, in_isr);
       break;
 
     case DCD_EVENT_SETUP_RECEIVED: {

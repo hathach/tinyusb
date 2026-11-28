@@ -78,32 +78,6 @@ function(family_add_board BOARD_TARGET)
     ${SDK_SRC_DIR}/Peripheral/inc
     ${CMAKE_CURRENT_FUNCTION_LIST_DIR}
     )
-  if (WCH_HOST_USBIP STREQUAL usbhs)
-    target_compile_definitions(${BOARD_TARGET} PUBLIC CFG_TUH_WCH_USBIP_USBHS=1)
-    if (NOT DEFINED BOARD_TUH_MAX_SPEED)
-      set(BOARD_TUH_MAX_SPEED OPT_MODE_HIGH_SPEED)
-    endif ()
-  else ()
-    if (NOT DEFINED BOARD_TUH_MAX_SPEED)
-      set(BOARD_TUH_MAX_SPEED OPT_MODE_FULL_SPEED)
-    endif ()
-  endif ()
-  target_compile_definitions(${BOARD_TARGET} PUBLIC
-    BOARD_TUH_RHPORT=${RHPORT_HOST}
-    BOARD_TUH_MAX_SPEED=${BOARD_TUH_MAX_SPEED}
-    )
-  if (SPEED STREQUAL high)
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CFG_TUD_WCH_USBIP_USBHS=1
-      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
-      )
-  else ()
-    target_compile_definitions(${BOARD_TARGET} PUBLIC
-      CFG_TUD_WCH_USBIP_USBFS=1
-      BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
-      )
-  endif ()
-
   update_board(${BOARD_TARGET})
 
   if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
@@ -119,7 +93,48 @@ endfunction()
 #------------------------------------
 # Functions
 #------------------------------------
+# The controller of each role, per example (the board target is shared by every example of a configure):
+# HOST_USBIP usbfs|usbhs, DEVICE_SPEED high (USBHS) or full (USBFS), on host rhport TUH_RHPORT
+function(family_set_usb_roles TARGET HOST_USBIP DEVICE_SPEED TUH_RHPORT)
+  if (HOST_USBIP STREQUAL usbhs)
+    target_compile_definitions(${TARGET} PUBLIC CFG_TUH_WCH_USBIP_USBHS=1)
+    if (NOT DEFINED BOARD_TUH_MAX_SPEED)
+      set(BOARD_TUH_MAX_SPEED OPT_MODE_HIGH_SPEED)
+    endif ()
+  else ()
+    if (NOT DEFINED BOARD_TUH_MAX_SPEED)
+      set(BOARD_TUH_MAX_SPEED OPT_MODE_FULL_SPEED)
+    endif ()
+  endif ()
+  target_compile_definitions(${TARGET} PUBLIC
+    BOARD_TUH_RHPORT=${TUH_RHPORT}
+    BOARD_TUH_MAX_SPEED=${BOARD_TUH_MAX_SPEED}
+    )
+  if (DEVICE_SPEED STREQUAL high)
+    target_compile_definitions(${TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_USBHS=1
+      BOARD_TUD_MAX_SPEED=OPT_MODE_HIGH_SPEED
+      )
+  else ()
+    target_compile_definitions(${TARGET} PUBLIC
+      CFG_TUD_WCH_USBIP_USBFS=1
+      BOARD_TUD_MAX_SPEED=OPT_MODE_FULL_SPEED
+      )
+  endif ()
+endfunction()
+
 function(family_configure_example TARGET RTOS)
+  family_configure_wch_example(${TARGET} ${RTOS} ${WCH_HOST_USBIP} ${SPEED} ${RHPORT_HOST})
+endfunction()
+
+# Device and host both on USBHS, port 0, switched at run time: the USBHS vector dispatches on the controller's
+# mode (family.c), the DCD and HCD each deinit the controller for the other
+function(family_configure_dual_role_example TARGET RTOS)
+  family_configure_wch_example(${TARGET} ${RTOS} usbhs high 0)
+endfunction()
+
+function(family_configure_wch_example TARGET RTOS HOST_USBIP DEVICE_SPEED TUH_RHPORT)
+  family_set_usb_roles(${TARGET} ${HOST_USBIP} ${DEVICE_SPEED} ${TUH_RHPORT})
   family_configure_common(${TARGET} ${RTOS})
   family_add_tinyusb(${TARGET} OPT_MCU_CH32V307)
 

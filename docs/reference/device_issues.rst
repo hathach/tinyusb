@@ -87,6 +87,8 @@ Partial workaround:
 
 - Give the USB interrupt the highest priority allowed for an ISR that calls the RTOS (e.g.
   ``configLIBRARY_MAX_SYSCALL_INTERRUPT_PRIORITY`` with FreeRTOS), or the highest priority without an RTOS.
+  It must preempt every other interrupt, the system tick included; without an RTOS the CH32V30x BSP
+  sets SysTick to ``0x80``, below USBHS at ``0``.
 - Force full speed (``dev_init.speed = TUSB_SPEED_FULL`` in ``tusb_init()``, see
   :ref:`item 2 <wch-usbhs-interrupt-starvation>`) to give software more time to process a transfer
   before the next one completes.
@@ -95,6 +97,13 @@ Partial workaround:
 - Run ``tud_task()`` often enough to handle each isochronous transfer within one (micro)frame:
   125 us at high speed, 1 ms at full speed. On USBHS a later completion can find its OUT packet
   overwritten by the next one, since isochronous OUT cannot be NAKed.
+
+The CH32V30x USBHS driver reads ``INT_ST`` and ``RX_LEN`` first thing in its interrupt entry
+(:ref:`item 2 <wch-usbhs-interrupt-starvation>`). That narrows the window but cannot close it while
+interrupts are masked or a higher priority interrupt runs, and the window can be 2 us: the gap
+Windows 10 left between an interrupt endpoint's ACK and a UAC2 isochronous IN token. About one speaker
+packet in 12,000 was lost while SysTick could delay the USB interrupt, and none of 2.4 million once
+it could not.
 
 .. _wch-usbhs-interrupt-starvation:
 
@@ -106,12 +115,25 @@ on different endpoints can reduce throughput or starve an interrupt endpoint, ev
 is ready. Disabling ``INT_BUSY`` is not a safe workaround: an OUT endpoint can accept another packet
 before software processes the previous packet and updates its buffer and response.
 
-For example, on NanoCH32V305 with Windows, three 20-byte interrupt IN endpoints polled every
-125 us at HS had NAK rates of approximately 80%, 20%, and 0%; the longest gap between successful
-EP1 reports was 4 ms. At FS with 1 ms polling, all three delivered approximately 1,000 reports/s
-without sequence gaps in an 8-second test.
+An endpoint is NAKed until the previous completion's ISR has returned and the next ISR has cleared
+its flag. Windows 10 (xHCI) polls consecutive interrupt endpoints about 2 us apart at HS, so small
+changes in ISR time decide whether an endpoint gets every poll or none.
 
-Workaround: force full speed on the USBHS controller when the application's bandwidth permits it:
+The CH32V30x/CH32F20x USBHS driver shortens that path:
+
+- Its vector ``dcd_int_handler_fast()``, used by the BSPs, reads the status, NAKs a non-isochronous
+  endpoint and clears the transfer flag before any C code runs; EP0, reset and suspend take the C
+  path. ``tud_int_handler(0)`` in an ordinary handler still works; the driver's "Application
+  integration" comment explains how an application uses the fast vector.
+- Without an RTOS, the task reads its event queue without masking the USB interrupt.
+
+On NanoCH32V305 with Windows 10 at HS, three 20-byte interrupt IN endpoints polled every 125 us went
+from 16,000 reports/s (the first one nearly starved) to 24,000, every poll. A 48 kHz UAC2 duplex
+stream next to them, which stalled on master, ran 5 minutes without a lost packet. Heavier traffic can
+still starve an endpoint or lose isochronous data (:ref:`item 1 <wch-iso-status-overwrite>`). RTOS
+builds get only the fast vector; the other WCH controllers get only the no-RTOS queue.
+
+If starvation remains, force full speed on the USBHS controller when bandwidth permits:
 
 .. code-block:: c
 
@@ -132,8 +154,9 @@ limitation; validate the application's endpoint mix, especially when using isoch
 
 The USBFS and USBHS device drivers both enable the ``INT_BUSY`` NAK of
 :ref:`item 2 <wch-usbhs-interrupt-starvation>`, so ISR time before the transfer flag is cleared is
-time the bus NAKs. USBFS clears the flag at the end of its ISR; USBHS clears it first for endpoints
-other than EP0. SystemView records the ISR entry inside that window at every ``SYSVIEW`` level.
+time the bus NAKs. USBFS clears the flag at the end of its ISR; the USBHS vector clears it first for
+endpoints other than EP0. SystemView records the ISR entry inside that window at every ``SYSVIEW``
+level, except for those endpoints in the USBHS vector.
 Levels 2-4 add records before an endpoint is re-armed, in task context or from the ISR (audio).
 Records or logging executed before the transfer flag is cleared widen the window further. Traced
 builds can therefore see more NAKs and lower throughput: compare WCH timings only between builds at

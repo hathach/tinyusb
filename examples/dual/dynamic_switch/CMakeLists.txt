@@ -25,6 +25,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   )
 
-# Configure compilation flags and libraries for the example without RTOS.
-# See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
-family_configure_dual_usb_example(${PROJECT_NAME} noos)
+# Configure compilation flags and libraries for the example without RTOS, with device and host on the
+# same port. See the corresponding function in hw/bsp/FAMILY/family.cmake for details.
+family_configure_dual_role_example(${PROJECT_NAME} noos)

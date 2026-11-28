@@ -1,3 +1,7 @@
+# Device and host on the same port: a family whose roles default to different controllers (ch32v30x)
+# reads this before choosing them
+DUAL_ROLE_SINGLE_PORT = 1
+
 include ../../../hw/bsp/family_support.mk
 
 INC += \

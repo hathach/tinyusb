@@ -116,6 +116,8 @@ TU_VERIFY_STATIC(sizeof(wch_usbhs_v2_dev_t) == 0xC0, "wch_usbhs_v2 device block 
 
 // R16_USB_FRAME_NO
 #define WCH_USBHS_V2_UD_FRAME_NO 0x07FF
+#define WCH_USBHS_V2_UD_MFRAME_NO_SHIFT 13      // received microframe, bits 15:13 (CH32H417 RM 25.2.1.11)
+#define WCH_USBHS_V2_UD_MFRAME_NO       0xE000
 
 // UEPn_TX_CTRL: DONE is RW0 (write 0 clears)
 #define WCH_USBHS_V2_UEP_T_RES_MASK  0x03

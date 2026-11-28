@@ -149,6 +149,7 @@
   #ifndef TU_ATTR_ALWAYS_INLINE                                            // allow to override for debug
     #define TU_ATTR_ALWAYS_INLINE __attribute__((always_inline))
   #endif
+  #define TU_ATTR_NOINLINE              __attribute__ ((noinline))
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
@@ -223,6 +224,7 @@
   #ifndef TU_ATTR_ALWAYS_INLINE // allow to override for debug
     #define TU_ATTR_ALWAYS_INLINE         __attribute__ ((always_inline))
   #endif
+  #define TU_ATTR_NOINLINE              __attribute__ ((noinline))
   #define TU_ATTR_DEPRECATED(mess)      __attribute__ ((deprecated(mess))) // warn if function with this attribute is used
   #define TU_ATTR_UNUSED                __attribute__ ((unused))           // Function/Variable is meant to be possibly unused
   #define TU_ATTR_USED                  __attribute__ ((used))             // Function/Variable is meant to be used
@@ -252,6 +254,7 @@
   #define TU_ATTR_WEAK
   // #define TU_ATTR_WEAK_ALIAS(f)
   #define TU_ATTR_ALWAYS_INLINE
+  #define TU_ATTR_NOINLINE
   #define TU_ATTR_DEPRECATED(mess)
   #define TU_ATTR_UNUSED
   #define TU_ATTR_USED

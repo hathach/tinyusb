@@ -682,7 +682,15 @@ void dcd_int_handler(uint8_t rhport) {
     // ISR re-entered immediately. Always clear the flag; only report it when usbd asked for it.
     usbhs->INT_FG = WCH_USBHS_V2_UDIF_RX_SOF;
     if (sof_enabled) {
-      dcd_event_sof(rhport, usbhs->FRAME_NO & WCH_USBHS_V2_UD_FRAME_NO, true);
+      // frame_count is in (micro)frames, the unit of an endpoint's bInterval: at high speed report the
+      // microframe count, frame << 3 | microframe, as DWC2 does
+      const uint16_t frame_no = usbhs->FRAME_NO;
+      uint32_t frame_count = frame_no & WCH_USBHS_V2_UD_FRAME_NO;
+      if (usbhs->MIS_ST & WCH_USBHS_V2_UDMS_HS_MOD) {
+        frame_count = (frame_count << 3) |
+                      ((frame_no & WCH_USBHS_V2_UD_MFRAME_NO) >> WCH_USBHS_V2_UD_MFRAME_NO_SHIFT);
+      }
+      dcd_event_sof(rhport, frame_count, true);
     }
   } else if (intflag & WCH_USBHS_V2_UDIF_BUS_RST) {
     bus_suspended = false;

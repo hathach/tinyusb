@@ -41,10 +41,21 @@
 // Forward USB interrupt events to TinyUSB IRQ Handler
 //--------------------------------------------------------------------+
 
+#if CFG_TUD_ENABLED && CFG_TUD_WCH_USBIP_USBHS
+// The USBHS DCD's interrupt vector (dcd_wch_usbhs_v1.c, "Application integration"): it snapshots the
+// registers before any C code, and before tud_int_handler()'s SystemView record. On Cortex-M a C handler
+// can call it, optimized to a tail branch.
+void dcd_int_handler_fast(void);
+
+void USBHS_IRQHandler(void) {
+  dcd_int_handler_fast();
+}
+#else
 void USBHS_IRQHandler(void)
 {
   tud_int_handler(0);
 }
+#endif
 
 void board_init(void) {
 

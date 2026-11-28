@@ -1282,7 +1282,14 @@ void dcd_int_handler(uint8_t rhport)
   // SOF received
   if ( (is0 & RUSB2_INTSTS0_SOFR_Msk) && rusb->INTENB0_b.SOFE ) {
     // USBD will exit suspended mode when SOF event is received
-    const uint32_t frame = rusb->FRMNUM_b.FRNM;
+    // frame_count is in (micro)frames, the unit of an endpoint's bInterval. SOFR is the frame number refresh
+    // interrupt, once per 1 ms frame also at high speed, so report the microframe count of the frame boundary,
+    // frame << 3 (UFRNM would give the microframe the ISR happened to run in). Per-SOF work such as the audio
+    // feedback callback can't run more often, so a high-speed feedback endpoint needs bInterval >= 4 here.
+    uint32_t frame = rusb->FRMNUM_b.FRNM;
+    if ((rusb->DVSTCTR0 & RUSB2_DVSTCTR0_RHST_Msk) == RUSB2_DVSTCTR0_RHST_HS) {
+      frame <<= 3;
+    }
     dcd_event_sof(rhport, frame, true);
     if (!_dcd.sof_enabled) {
       rusb->INTENB0_b.SOFE = 0;
