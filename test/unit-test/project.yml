@@ -140,9 +140,11 @@
       - CFG_TUSB_FIFO_HWFIFO_ADDR_STRIDE=0
     :test_cdc_host_ftdi:
       - CFG_TUH_ENABLED=1
-      - CFG_TUH_CDC=1
+      - CFG_TUH_CDC=2
       - CFG_TUH_CDC_FTDI=1
+      - CFG_TUH_ENDPOINT_MAX=8 # below 16, so a descriptor can list an endpoint number usbh has no state for
       - CFG_TUSB_DEBUG=0
+      - CFG_TUSB_DEBUG_BREAKPOINT=cdc_breakpoint_hook
     :test_audio_host:
       - CFG_TUH_ENABLED=1
       - CFG_TUH_AUDIO=2
@@ -258,6 +260,22 @@
     # keys match by substring: test_audio_device above configures this one too, this adds the WCH CH32 path
     :test_audio_device_deferred:
       - TUP_USBD_XFER_ISR=0
+    # keys match by substring: this also configures test_vendor_device_alt
+    :test_vendor_device:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_VENDOR=1
+      - CFG_TUD_VENDOR_RX_EPSIZE=64
+      - CFG_TUD_VENDOR_RX_BUFSIZE=0
+      - CFG_TUD_VENDOR_TX_BUFSIZE=0
+    :test_vendor_device_alt:
+      - CFG_TUD_VENDOR_ALT_SETTINGS=1
+    # buffered, on the suite's default dedicated HW FIFO: no RX endpoint buffer
+    :test_vendor_buffered_hwfifo:
+      - CFG_TUD_MSC=0
+      - CFG_TUD_VENDOR=1
+      - CFG_TUD_VENDOR_RX_EPSIZE=64
+      - CFG_TUD_VENDOR_RX_BUFSIZE=1024
+      - CFG_TUD_VENDOR_TX_BUFSIZE=1024
     :test_dfu_device:
       - CFG_TUD_MSC=0
       - CFG_TUD_DFU=1

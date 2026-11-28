@@ -1569,6 +1569,14 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   return (dev->ep_status[epnum][dir] & TU_EDPT_STATE_BUSY) != 0;
 }
 
+bool usbh_edpt_is_bound(uint8_t dev_addr, uint8_t ep_addr) {
+  const usbh_device_t* dev = get_device(dev_addr);
+  const uint8_t epnum = tu_edpt_number(ep_addr);
+  // binding asserts epnum < CFG_TUH_ENDPOINT_MAX, so no driver owns a higher one
+  TU_VERIFY(dev != NULL && epnum < CFG_TUH_ENDPOINT_MAX);
+  return dev->ep2drv[epnum][tu_edpt_dir(ep_addr)] != TUSB_INDEX_INVALID_8;
+}
+
 bool usbh_edpt_clear_stall(uint8_t dev_addr, uint8_t ep_addr) {
   const usbh_device_t* dev = get_device(dev_addr);
   TU_VERIFY(dev && dev->connected);

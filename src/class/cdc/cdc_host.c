@@ -15,6 +15,7 @@
 
 #if (CFG_TUH_ENABLED && CFG_TUH_CDC)
 
+#include "host/hcd.h"
 #include "host/usbh.h"
 #include "host/usbh_pvt.h"
 
@@ -287,7 +288,7 @@ TU_VERIFY_STATIC(TU_ARRAY_SIZE(serial_drivers) == SERIAL_DRIVER_COUNT, "Serial d
 //--------------------------------------------------------------------+
 // INTERNAL OBJECT & FUNCTION DECLARATION
 //--------------------------------------------------------------------+
-static bool open_ep_stream_pair(cdch_interface_t *p_cdc, const tusb_desc_endpoint_t *desc_ep);
+static const uint8_t *open_ep_stream_pair(cdch_interface_t *p_cdc, const uint8_t *p_desc, const uint8_t *desc_end);
 
 TU_ATTR_ALWAYS_INLINE static inline cdch_interface_t * get_itf(uint8_t idx) {
   TU_ASSERT(idx < CFG_TUH_CDC, NULL);
@@ -309,6 +310,16 @@ static inline uint8_t get_idx_by_ep_addr(uint8_t daddr, uint8_t ep_addr) {
   }
 
   return TUSB_INDEX_INVALID_8;
+}
+
+// Another CDC slot or a driver bound by an earlier interface may own an endpoint this interface lists. It is not
+// opened again: the HCD may accept the reopen (EHCI, MAX3421), and cdch_open()'s failure path, which closes by
+// address, would then close it under its owner. An endpoint usbh has no state for (EP0, or past CFG_TUH_ENDPOINT_MAX)
+// is refused too: usbh_edpt_is_bound() reports it unbound, and closing it would index past usbh's endpoint table.
+static bool edpt_is_unowned(uint8_t daddr, uint8_t ep_addr) {
+  const uint8_t epnum = tu_edpt_number(ep_addr);
+  return epnum > 0 && epnum < CFG_TUH_ENDPOINT_MAX && TUSB_INDEX_INVALID_8 == get_idx_by_ep_addr(daddr, ep_addr) &&
+         !usbh_edpt_is_bound(daddr, ep_addr);
 }
 
 // determine the interface from the completed transfer
@@ -369,13 +380,16 @@ static cdch_interface_t * make_new_itf(uint8_t daddr, tusb_desc_interface_t cons
   for(uint8_t i=0; i<CFG_TUH_CDC; i++) {
     if (cdch_data[i].daddr == 0) {
       cdch_interface_t * p_cdc = &cdch_data[i];
+      // a freed slot keeps its previous device's state: clear all but the stream storage cdch_init() set up, and
+      // close its streams so a failed open closes only the endpoints it opened
+      tu_memclr(p_cdc, offsetof(cdch_interface_t, stream));
+      tu_edpt_stream_close(&p_cdc->stream.tx);
+      tu_edpt_stream_close(&p_cdc->stream.rx);
       open_new_itf              = p_cdc;
       p_cdc->daddr              = daddr;
       p_cdc->bInterfaceNumber   = itf_desc->bInterfaceNumber;
       p_cdc->bInterfaceSubClass = itf_desc->bInterfaceSubClass;
       p_cdc->bInterfaceProtocol = itf_desc->bInterfaceProtocol;
-      p_cdc->line.coding        = (cdc_line_coding_t) { 0, 0, 0, 0 };
-      p_cdc->line.control_state.value = 0;
       return p_cdc;
     }
   }
@@ -664,7 +678,9 @@ void cdch_close(uint8_t daddr) {
     cdch_interface_t *p_cdc = &cdch_data[idx];
     if (p_cdc->daddr == daddr) {
       TU_LOG_CDC(p_cdc, "close");
-      tuh_cdc_umount_cb(idx); // invoke callback
+      if (p_cdc->mounted) {
+        tuh_cdc_umount_cb(idx); // only an interface the application got tuh_cdc_mount_cb() for
+      }
 
       p_cdc->daddr            = 0;
       p_cdc->bInterfaceNumber = 0;
@@ -723,23 +739,55 @@ bool cdch_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t event, uint32_t 
 // Enumeration
 //--------------------------------------------------------------------+
 
-static bool open_ep_stream_pair(cdch_interface_t *p_cdc, tusb_desc_endpoint_t const *desc_ep) {
+// The descriptor after p_desc when it has at least min_len bytes and its bLength fits before desc_end, else NULL.
+// A descriptor longer than defined is valid, its extra bytes skipped (USB 2.0 9.5).
+static const uint8_t *desc_next_bounded(const uint8_t *p_desc, const uint8_t *desc_end, uint8_t min_len) {
+  TU_VERIFY(tu_desc_in_bounds(p_desc, desc_end) && tu_desc_len(p_desc) >= min_len, NULL);
+  return tu_desc_next(p_desc);
+}
+
+// Open the two bulk endpoints at p_desc; returns the descriptor after them, or NULL.
+// Both descriptors are checked before either opens; a controller refusal of the second leaves the first to cdch_open().
+// NULL is silent only for an endpoint edpt_is_unowned() refuses (an owned one: USB 2.0 9.6.3 lets alternate settings
+// share one); every other failure asserts here, so callers use TU_VERIFY. Same for open_ep_notif().
+static const uint8_t *open_ep_stream_pair(cdch_interface_t *p_cdc, const uint8_t *p_desc, const uint8_t *desc_end) {
+  const tusb_desc_endpoint_t *desc_eps[2];
   for (size_t i = 0; i < 2; i++) {
-    // pin bLength so tu_desc_next() below cannot walk the second endpoint past a caller-checked bound
-    TU_ASSERT(TUH_VALIDATE_BASIC(sizeof(tusb_desc_endpoint_t) == desc_ep->bLength) &&
-                TUSB_DESC_ENDPOINT == desc_ep->bDescriptorType && TUSB_XFER_BULK == desc_ep->bmAttributes.xfer,
-              0);
-    TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep));
+    const uint8_t *next = desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_endpoint_t));
+    TU_ASSERT(next, NULL);
+    desc_eps[i] = (const tusb_desc_endpoint_t *)p_desc;
+    TU_ASSERT(TUSB_DESC_ENDPOINT == desc_eps[i]->bDescriptorType && TUSB_XFER_BULK == desc_eps[i]->bmAttributes.xfer,
+              NULL);
+    TU_VERIFY(edpt_is_unowned(p_cdc->daddr, desc_eps[i]->bEndpointAddress), NULL);
+    p_desc = next;
+  }
+  // one per stream: cdch_open() closes an opened endpoint through the stream that records it
+  TU_ASSERT(tu_edpt_dir(desc_eps[0]->bEndpointAddress) != tu_edpt_dir(desc_eps[1]->bEndpointAddress), NULL);
+
+  for (size_t i = 0; i < 2; i++) {
+    const tusb_desc_endpoint_t *desc_ep = desc_eps[i];
+    TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep), NULL);
     const uint8_t     ep_dir = tu_edpt_dir(desc_ep->bEndpointAddress);
     tu_edpt_stream_t *stream = (ep_dir == TUSB_DIR_IN) ? &p_cdc->stream.rx : &p_cdc->stream.tx;
     // fits the endpoint buffer: tuh_edpt_open() bounds a bulk size to TUH_EPSIZE_BULK_MAX, see TU_VERIFY_STATIC above
     tu_edpt_stream_open(stream, p_cdc->daddr, desc_ep, tu_edpt_packet_size(desc_ep));
     tu_edpt_stream_clear(stream);
-
-    desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(desc_ep);
   }
 
-  return true;
+  return p_desc;
+}
+
+// Open the notification endpoint at p_desc; returns the descriptor after it, or NULL.
+// CDC 1.2 3.4.1: a notification element is an interrupt or a bulk endpoint.
+static const uint8_t *open_ep_notif(cdch_interface_t *p_cdc, const uint8_t *p_desc, const uint8_t *desc_end) {
+  const uint8_t *next = desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_endpoint_t));
+  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
+  TU_ASSERT(next && TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep), NULL);
+  TU_ASSERT(TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer || TUSB_XFER_BULK == desc_ep->bmAttributes.xfer, NULL);
+  TU_VERIFY(edpt_is_unowned(p_cdc->daddr, desc_ep->bEndpointAddress), NULL);
+  TU_ASSERT(tuh_edpt_open(p_cdc->daddr, desc_ep), NULL);
+  p_cdc->ep_notif = desc_ep->bEndpointAddress;
+  return next;
 }
 
 static uint16_t open_itf(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
@@ -776,8 +824,17 @@ uint16_t cdch_open(uint8_t rhport, uint8_t daddr, const tusb_desc_interface_t *i
   open_new_itf = NULL;
   const uint16_t drv_len = open_itf(daddr, itf_desc, max_len);
   if (drv_len == 0 && open_new_itf != NULL) {
-    // usbh calls no close for an interface it did not bind: release the slot this open reserved, not one an earlier
-    // open of the same interface number (another alternate setting) holds
+    // usbh calls no close for an interface it did not bind: close the endpoints this open opened and release the slot
+    // it reserved, not one an earlier open of the same interface number (another alternate setting) holds
+    if (open_new_itf->ep_notif != 0) {
+      (void)tuh_edpt_close(daddr, open_new_itf->ep_notif);
+    }
+    if (tu_edpt_stream_is_opened(&open_new_itf->stream.tx)) {
+      (void)tuh_edpt_close(daddr, open_new_itf->stream.tx.ep_addr);
+    }
+    if (tu_edpt_stream_is_opened(&open_new_itf->stream.rx)) {
+      (void)tuh_edpt_close(daddr, open_new_itf->stream.rx.ep_addr);
+    }
     tu_edpt_stream_close(&open_new_itf->stream.tx);
     tu_edpt_stream_close(&open_new_itf->stream.rx);
     open_new_itf->daddr            = 0;
@@ -1077,29 +1134,19 @@ static uint16_t acm_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, u
 
   // Open notification endpoint of control interface if any
   if (itf_desc->bNumEndpoints == 1) {
-    // whole endpoint descriptor must fit: tuh_edpt_open reads the full struct regardless of bLength
-    TU_ASSERT(TUH_VALIDATE_BASIC((size_t)(desc_end - p_desc) >= sizeof(tusb_desc_endpoint_t)), 0);
-    TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(p_desc), 0);
-    const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)p_desc;
-    TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
-    p_cdc->ep_notif = desc_ep->bEndpointAddress;
-
-    // advance by the fixed struct size, not device-supplied bLength, so p_desc stays inside the checked window
-    p_desc += sizeof(tusb_desc_endpoint_t);
+    p_desc = open_ep_notif(p_cdc, p_desc, desc_end);
+    TU_VERIFY(p_desc, 0);
   }
 
   //------------- Data Interface (if any) -------------//
-  if (TUH_VALIDATE_BASIC((size_t)(desc_end - p_desc) >= sizeof(tusb_desc_interface_t)) &&
-      TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) {
+  const uint8_t *data_itf_end = desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_interface_t));
+  if (data_itf_end != NULL && TUSB_DESC_INTERFACE == tu_desc_type(p_desc)) {
     const tusb_desc_interface_t *data_itf = (const tusb_desc_interface_t *)p_desc;
     if (data_itf->bInterfaceClass == TUSB_CLASS_CDC_DATA) {
-      p_desc += sizeof(tusb_desc_interface_t); // fixed struct size to endpoint descriptor, not device bLength
-
-      // open_ep_stream_pair consumes exactly two endpoints; require that count and that both fit before reading them
+      // open_ep_stream_pair consumes exactly two endpoints
       TU_ASSERT(TUH_VALIDATE_BASIC(data_itf->bNumEndpoints == 2), 0);
-      TU_ASSERT(TUH_VALIDATE_BASIC((size_t)(desc_end - p_desc) >= 2 * sizeof(tusb_desc_endpoint_t)), 0);
-      TU_ASSERT(open_ep_stream_pair(p_cdc, (const tusb_desc_endpoint_t *)p_desc), 0);
-      p_desc += 2 * sizeof(tusb_desc_endpoint_t);
+      p_desc = open_ep_stream_pair(p_cdc, data_itf_end, desc_end);
+      TU_VERIFY(p_desc, 0);
     }
   }
 
@@ -1241,10 +1288,14 @@ static uint16_t ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, 
   TU_VERIFY(itf_desc->bInterfaceSubClass == 0xff && itf_desc->bInterfaceProtocol == 0xff &&
               itf_desc->bNumEndpoints == 2,
             0);
-  TU_VERIFY(TUH_VALIDATE_BASIC(itf_desc->bLength == sizeof(tusb_desc_interface_t)), 0);
-  const uint16_t drv_len =
-    (uint16_t)(sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
-  TU_VERIFY(drv_len <= max_len, 0);
+  const uint8_t *desc_end = (const uint8_t *)itf_desc + max_len;
+  const uint8_t *p_desc   = desc_next_bounded((const uint8_t *)itf_desc, desc_end, sizeof(tusb_desc_interface_t));
+  TU_VERIFY(p_desc, 0);
+
+  /* NOTE: Some users have programmed FT232R/FT245R devices
+   * with an endpoint size of 0 !!! */
+  TU_VERIFY(desc_next_bounded(p_desc, desc_end, sizeof(tusb_desc_endpoint_t)), 0);
+  TU_ASSERT(((const tusb_desc_endpoint_t *)p_desc)->wMaxPacketSize != 0, 0);
 
   cdch_interface_t *p_cdc = make_new_itf(daddr, itf_desc);
   TU_VERIFY(p_cdc, 0);
@@ -1252,15 +1303,10 @@ static uint16_t ftdi_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, 
   p_cdc->serial_drid = SERIAL_DRIVER_FTDI;
 
   // endpoint pair
-  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(itf_desc);
+  p_desc = open_ep_stream_pair(p_cdc, p_desc, desc_end);
+  TU_VERIFY(p_desc, 0);
 
-  /* NOTE: Some users have programmed FT232R/FT245R devices
-   * with an endpoint size of 0 !!! */
-  TU_ASSERT(desc_ep->wMaxPacketSize != 0, 0);
-
-  TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep), 0);
-
-  return drv_len;
+  return (uint16_t)(p_desc - (const uint8_t *)itf_desc);
 }
 
 static bool ftdi_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
@@ -1629,10 +1675,9 @@ enum {
 static uint16_t cp210x_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // CP210x Interface includes 1 vendor interface + 2 bulk endpoints
   TU_VERIFY(itf_desc->bInterfaceSubClass == 0 && itf_desc->bInterfaceProtocol == 0 && itf_desc->bNumEndpoints == 2, 0);
-  TU_VERIFY(TUH_VALIDATE_BASIC(itf_desc->bLength == sizeof(tusb_desc_interface_t)), 0);
-  const uint16_t drv_len =
-    (uint16_t)(sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
-  TU_VERIFY(drv_len <= max_len, 0);
+  const uint8_t *desc_end = (const uint8_t *)itf_desc + max_len;
+  const uint8_t *p_desc   = desc_next_bounded((const uint8_t *)itf_desc, desc_end, sizeof(tusb_desc_interface_t));
+  TU_VERIFY(p_desc, 0);
 
   cdch_interface_t *p_cdc = make_new_itf(daddr, itf_desc);
   TU_VERIFY(p_cdc, 0);
@@ -1640,10 +1685,10 @@ static uint16_t cp210x_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc
   p_cdc->serial_drid = SERIAL_DRIVER_CP210X;
 
   // data endpoints expected to be in pairs
-  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(itf_desc);
-  TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep));
+  p_desc = open_ep_stream_pair(p_cdc, p_desc, desc_end);
+  TU_VERIFY(p_desc, 0);
 
-  return drv_len;
+  return (uint16_t)(p_desc - (const uint8_t *)itf_desc);
 }
 
 static bool cp210x_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
@@ -1801,28 +1846,24 @@ enum {
 static uint16_t ch34x_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // CH34x Interface includes 1 vendor interface + 2 bulk + 1 interrupt endpoints
   TU_VERIFY(itf_desc->bNumEndpoints == 3, 0);
-  TU_VERIFY(TUH_VALIDATE_BASIC(itf_desc->bLength == sizeof(tusb_desc_interface_t)), 0);
-  const uint16_t drv_len =
-    (uint16_t)(sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
-  TU_VERIFY(drv_len <= max_len, 0);
+  const uint8_t *desc_end = (const uint8_t *)itf_desc + max_len;
+  const uint8_t *p_desc   = desc_next_bounded((const uint8_t *)itf_desc, desc_end, sizeof(tusb_desc_interface_t));
+  TU_VERIFY(p_desc, 0);
 
   cdch_interface_t * p_cdc = make_new_itf(daddr, itf_desc);
   TU_VERIFY(p_cdc, 0);
 
   p_cdc->serial_drid = SERIAL_DRIVER_CH34X;
 
-  const tusb_desc_endpoint_t *desc_ep = (const tusb_desc_endpoint_t *)tu_desc_next(itf_desc);
-
   // data endpoints expected to be in pairs
-  TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep), 0);
-  desc_ep = (const tusb_desc_endpoint_t *)((uintptr_t)desc_ep + 2 * sizeof(tusb_desc_endpoint_t));
+  p_desc = open_ep_stream_pair(p_cdc, p_desc, desc_end);
+  TU_VERIFY(p_desc, 0);
 
   // Interrupt endpoint: not used for now
-  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep) && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
-  TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
-  p_cdc->ep_notif = desc_ep->bEndpointAddress;
+  p_desc = open_ep_notif(p_cdc, p_desc, desc_end);
+  TU_VERIFY(p_desc, 0);
 
-  return drv_len;
+  return (uint16_t)(p_desc - (const uint8_t *)itf_desc);
 }
 
 static bool ch34x_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
@@ -2140,30 +2181,24 @@ enum {
 static uint16_t pl2303_open(uint8_t daddr, const tusb_desc_interface_t *itf_desc, uint16_t max_len) {
   // PL2303 Interface includes 1 vendor interface + 1 interrupt endpoints + 2 bulk
   TU_VERIFY(itf_desc->bNumEndpoints == 3, 0);
-  TU_VERIFY(TUH_VALIDATE_BASIC(itf_desc->bLength == sizeof(tusb_desc_interface_t)), 0);
-  const uint16_t drv_len =
-    (uint16_t)(sizeof(tusb_desc_interface_t) + itf_desc->bNumEndpoints * sizeof(tusb_desc_endpoint_t));
-  TU_VERIFY(drv_len <= max_len, 0);
+  const uint8_t *desc_end = (const uint8_t *)itf_desc + max_len;
+  const uint8_t *p_desc   = desc_next_bounded((const uint8_t *)itf_desc, desc_end, sizeof(tusb_desc_interface_t));
+  TU_VERIFY(p_desc, 0);
 
   cdch_interface_t *p_cdc = make_new_itf(daddr, itf_desc);
   TU_VERIFY(p_cdc, 0);
 
   p_cdc->serial_drid = SERIAL_DRIVER_PL2303;
-  p_cdc->pl2303.quirks = 0;
-  p_cdc->pl2303.supports_hx_status = false;
-
-  tusb_desc_endpoint_t const *desc_ep = (tusb_desc_endpoint_t const *) tu_desc_next(itf_desc);
 
   // Interrupt endpoint: not used for now
-  TU_ASSERT(TUSB_DESC_ENDPOINT == tu_desc_type(desc_ep) && TUSB_XFER_INTERRUPT == desc_ep->bmAttributes.xfer, 0);
-  TU_ASSERT(tuh_edpt_open(daddr, desc_ep), 0);
-  p_cdc->ep_notif = desc_ep->bEndpointAddress;
-  desc_ep += 1;
+  p_desc = open_ep_notif(p_cdc, p_desc, desc_end);
+  TU_VERIFY(p_desc, 0);
 
   // data endpoints expected to be in pairs
-  TU_ASSERT(open_ep_stream_pair(p_cdc, desc_ep), 0);
+  p_desc = open_ep_stream_pair(p_cdc, p_desc, desc_end);
+  TU_VERIFY(p_desc, 0);
 
-  return drv_len;
+  return (uint16_t)(p_desc - (const uint8_t *)itf_desc);
 }
 
 static bool pl2303_process_set_config(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {

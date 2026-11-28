@@ -71,7 +71,8 @@ void tud_network_recv_renew(void);
 // receive buffer, always so with CFG_TUD_NCM_OUT_NTB_N == 1).
 void *tud_network_recv_hold(void);
 
-// release a buffer kept by tud_network_recv_hold(), task context only
+// release a buffer kept by tud_network_recv_hold(). Call it only where tud_task() runs: it may start the next USB
+// reception, so another thread or an ISR must hand it to that context
 void tud_network_recv_release(void *handle);
 #endif
 
