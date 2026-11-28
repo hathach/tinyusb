@@ -137,11 +137,12 @@
     #define CFG_TUSB_MEM_DCACHE_LINE_SIZE_DEFAULT 32
   #endif
 
-  // Errata ERR050101, listed for RT1015/RT1020/RT1024/RT1050 (no fix scheduled) and for
+  // Errata ERR050101, listed for RT1050 (no fix), RT1015/RT1020/RT1024 (fixed in rev A1) and
   // RT1060/RT1064 rev A (fixed in rev B); not listed for RT1010 or the RT11xx family.
-  #if defined(MIMXRT1015_SERIES) || defined(MIMXRT1021_SERIES) || defined(MIMXRT1024_SERIES) || \
-      defined(MIMXRT1051_SERIES) || defined(MIMXRT1052_SERIES) || defined(MIMXRT1061_SERIES) || \
-      defined(MIMXRT1062_SERIES) || defined(MIMXRT1064_SERIES)
+  #if !defined(CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101) && \
+      (defined(MIMXRT1015_SERIES) || defined(MIMXRT1021_SERIES) || defined(MIMXRT1024_SERIES) || \
+       defined(MIMXRT1051_SERIES) || defined(MIMXRT1052_SERIES) || defined(MIMXRT1061_SERIES) || \
+       defined(MIMXRT1062_SERIES) || defined(MIMXRT1064_SERIES))
     #define CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101 1
   #endif
 
@@ -886,9 +887,8 @@
   #define TU_ATTR_FAST_FUNC
 #endif
 
-// TUP_DCD_EDPT_CLOSE_API is deprecated: these USBIPs implement dcd_edpt_close() and lack the
-// ISO alloc & activate API. IP3511, RUSB2 and NRF5X have been migrated to ISO_ALLOC; the remaining
-// CLOSE_API MCUs (mm32, pic, da1469x, f1c100s, ch32-usbhs) are pending per-board verification.
+// TUP_DCD_EDPT_CLOSE_API is deprecated: the USBIPs that set it implement dcd_edpt_close() and lack the
+// ISO alloc & activate API; each moves to ISO_ALLOC once verified on its boards.
 #ifndef TUP_DCD_EDPT_CLOSE_API
   #define TUP_DCD_EDPT_ISO_ALLOC
 #endif
@@ -898,8 +898,8 @@
 // down with it - undetectable in software. Descriptors must then give an isochronous IN endpoint
 // a number no other device on the bus uses; a number is only safe while it stays unique, so two
 // affected boards on one hub must not pick the same one. Default 0 (no such conflict). Set it to
-// 0 by hand on RT1060/RT1064 rev B, which carry the fix - the revision cannot be told apart at
-// compile time, so the affected parts are assumed to be rev A.
+// 0 by hand on RT1015/RT1020/RT1024 rev A1 and RT1060/RT1064 rev B, which carry the fix - the
+// revision cannot be told apart at compile time, so the affected parts are assumed unfixed.
 #ifndef CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101
   #define CFG_TUSB_MIMXRT1XXX_ERRATA_ERR050101 0
 #endif

@@ -238,11 +238,10 @@ uint32_t SEGGER_SYSVIEW_X_GetTimestampFreq(void);
 
 // _level is one of the CFG_TUSB_SYSVIEW_LEVEL_* constants, so a site above the configured level
 // compiles to nothing
-#define _TU_SV_RECORD(_id) SEGGER_SYSVIEW_RecordVoid(TU_SV_EVENT_BASE + (_id))
-#define _TU_SV_END(_id)    SEGGER_SYSVIEW_RecordEndCall(TU_SV_EVENT_BASE + (_id))
-
-#define TU_SYSVIEW_CALL(_level, _id) do { if (CFG_TUSB_SYSVIEW >= (_level)) { _TU_SV_RECORD(_id); } } while (0)
-#define TU_SYSVIEW_RET(_level, _id)  do { if (CFG_TUSB_SYSVIEW >= (_level)) { _TU_SV_END(_id); } } while (0)
+#define TU_SYSVIEW_CALL(_level, _id) \
+  do { if (CFG_TUSB_SYSVIEW >= (_level)) { SEGGER_SYSVIEW_RecordVoid(TU_SV_EVENT_BASE + (_id)); } } while (0)
+#define TU_SYSVIEW_RET(_level, _id) \
+  do { if (CFG_TUSB_SYSVIEW >= (_level)) { SEGGER_SYSVIEW_RecordEndCall(TU_SV_EVENT_BASE + (_id)); } } while (0)
 
 // ISR wrap for the shared tusb_int_handler entry, through tusb.c's depth counter
 // (tu_sysview_isr_enter() has why): a dual-role BSP's nested tud_/tuh_int_handler() wraps

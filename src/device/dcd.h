@@ -190,6 +190,8 @@ void dcd_edpt_close(uint8_t rhport, uint8_t ep_addr);
 bool dcd_edpt_iso_alloc(uint8_t rhport, uint8_t ep_addr, uint16_t largest_packet_size);
 
 // Configure and enable an ISO endpoint according to descriptor
+// Also called on an already active endpoint (alternate setting change, no close in between): retire any
+// transfer still armed and leave the endpoint idle until the next dcd_edpt_xfer()
 bool dcd_edpt_iso_activate(uint8_t rhport, tusb_desc_endpoint_t const * desc_ep);
 
 #endif
