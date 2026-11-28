@@ -67,6 +67,9 @@ static void max3421_init(void);
 #endif
 
 // UART
+#if defined(UART_DEV) && !(defined(LIB_PICO_STDIO_UART) && LIB_PICO_STDIO_UART)
+  #error "UART_DEV requires LIB_PICO_STDIO_UART"
+#endif
 #if !defined(UART_DEV) && defined(PICO_DEFAULT_UART) && defined(LIB_PICO_STDIO_UART) && LIB_PICO_STDIO_UART && \
   defined(PICO_DEFAULT_UART_TX_PIN) && defined(PICO_DEFAULT_UART_RX_PIN)
 #define UART_DEV              PICO_DEFAULT_UART

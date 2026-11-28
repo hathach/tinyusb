@@ -44,10 +44,10 @@ int sys_read(int fhdl, char *buf, size_t count) TU_ATTR_USED;
 
 #if defined(LOGGER_RTT)
 // Logging with RTT
+#include "SEGGER_RTT.h"
 
 // If using SES IDE, use the Syscalls/SEGGER_RTT_Syscalls_SES.c instead
 #if !(defined __SES_ARM) && !(defined __SES_RISCV) && !(defined __CROSSWORKS_ARM)
-#include "SEGGER_RTT.h"
 
 int sys_write(int fhdl, const char *buf, size_t count) {
   (void) fhdl;
@@ -188,11 +188,13 @@ int board_getchar(void) {
 }
 
 int board_putchar(int c) {
-  if (board_uart_write((const char *)&c, 1) > 0) {
-    return c;
-  } else {
-    return -1;
-  }
+  char ch = (char) c;
+#if defined(LOGGER_RTT) && (defined(__SES_ARM) || defined(__SES_RISCV) || defined(__CROSSWORKS_ARM))
+  // sys_write is not defined in this file for SES/CrossWorks RTT
+  return (SEGGER_RTT_Write(0, &ch, 1) > 0) ? c : -1;
+#else
+  return (sys_write(0, &ch, 1) > 0) ? c : -1;
+#endif
 }
 //--------------------------------------------------------------------
 // FreeRTOS hooks
