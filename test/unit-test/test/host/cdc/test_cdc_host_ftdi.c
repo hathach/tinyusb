@@ -63,6 +63,13 @@ bool tuh_control_xfer(tuh_xfer_t *xfer) {
   return true;
 }
 
+static bool device_connected; // false once usbh starts removing the device, ahead of its class close
+
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  return device_connected;
+}
+
 void usbh_driver_set_config_complete(uint8_t daddr, uint8_t itf_num) {
   TEST_ASSERT_EQUAL(DEV_ADDR, daddr);
   (void) itf_num;
@@ -174,6 +181,7 @@ static void check_baudrate(uint8_t idx, uint32_t baud, uint16_t value, uint16_t 
 }
 
 void setUp(void) {
+  device_connected = true;
   memset(&device_desc, 0, sizeof(device_desc));
   pending = false;
   request_count = callback_count = configured_count = 0;
@@ -295,4 +303,30 @@ void test_sio_unsupported_rate_sends_no_request(void) {
   TEST_ASSERT_EQUAL(0, request_count);
   TEST_ASSERT_FALSE(pending);
   TEST_ASSERT_EQUAL(0, callback_count);
+}
+
+// usbh fails the in-flight configuration request on unplug before closing the driver: configuration stops there and
+// the interface stays for cdch_close() to release
+void test_set_config_unplug_stops_configuration(void) {
+  device_desc.idVendor = 0x0403;
+  device_desc.idProduct = 0x6001;
+  device_desc.bcdDevice = 0x0600;
+  const uint8_t desc[] = {
+    9, TUSB_DESC_INTERFACE, 0, 0, 2, TUSB_CLASS_VENDOR_SPECIFIC, 0xff, 0xff, 0,
+    7, TUSB_DESC_ENDPOINT, EP_OUT, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+    7, TUSB_DESC_ENDPOINT, EP_IN, TUSB_XFER_BULK, U16_TO_U8S_LE(EP_SIZE), 0,
+  };
+  TEST_ASSERT_EQUAL(sizeof(desc), cdch_open(0, DEV_ADDR, (const tusb_desc_interface_t *) desc, sizeof(desc)));
+  TEST_ASSERT_TRUE(cdch_set_config(DEV_ADDR, 0));
+
+  device_connected = false;
+  tuh_xfer_t xfer = pending_xfer;
+  xfer.result = XFER_RESULT_FAILED;
+  pending = false;
+  xfer.complete_cb(&xfer);
+
+  TEST_ASSERT_FALSE(pending);
+  TEST_ASSERT_EQUAL(0, configured_count);
+  TEST_ASSERT_EQUAL(0, tuh_cdc_itf_get_index(DEV_ADDR, 0));
+  TEST_ASSERT_FALSE(tuh_cdc_mounted(0));
 }

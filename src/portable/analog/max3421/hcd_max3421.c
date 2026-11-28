@@ -220,6 +220,9 @@ typedef struct {
   }sndfifo_owner;
 
   bool busy_lock; // busy transferring
+  bool running;   // between hcd_init() and hcd_deinit()
+  volatile uint8_t handler_waiters; // tasks waiting in handler_lock_wait()
+  max3421_ep_t* deferred_ep; // its NAK retry was deferred for a waiter: the next frame resumes round-robin after it
 
 #if OSAL_MUTEX_REQUIRED
   OSAL_MUTEX_DEF(spi_mutexdef);
@@ -230,6 +233,13 @@ typedef struct {
 } max3421_data_t;
 
 static max3421_data_t _hcd_data;
+
+#if OSAL_MUTEX_REQUIRED
+// Outside _hcd_data, which hcd_init() clears, and never deleted: hcd_deinit() cannot keep a task-context handler from
+// taking it afterwards, only make it return
+static OSAL_MUTEX_DEF(_handler_mutexdef);
+static osal_mutex_t _handler_mutex;
+#endif
 
 // max NAK before giving up in a frame. 0 means infinite NAKs
 static tuh_configure_max3421_t _tuh_cfg = {
@@ -265,6 +275,47 @@ static void max3421_spi_unlock(uint8_t rhport, bool in_isr) {
     tuh_max3421_int_api(rhport, true);
     (void) osal_mutex_unlock(_hcd_data.spi_mutex);
   }
+}
+
+// A BSP may run the interrupt handler in a task (in_isr = false), which masking INT does not stop once it runs
+static void handler_lock(bool in_isr) {
+  if (!in_isr) {
+    (void) osal_mutex_lock(_handler_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  }
+}
+
+static void handler_unlock(bool in_isr) {
+  if (!in_isr) {
+    (void) osal_mutex_unlock(_handler_mutex);
+  }
+}
+
+// For a task outside the handler. A task-context handler retries a NAKed transaction without returning: while the
+// count is non-zero it defers that retry to the next frame, so the waiter gets in.
+static void handler_lock_wait(void) {
+  usbh_spin_lock(false);
+  _hcd_data.handler_waiters++;
+  usbh_spin_unlock(false);
+
+  handler_lock(false);
+
+  usbh_spin_lock(false);
+  _hcd_data.handler_waiters--;
+  usbh_spin_unlock(false);
+}
+
+// Keep the interrupt handler, task or ISR, off the endpoint table. INT is masked under spi_mutex like an SPI frame,
+// so unmasking it cannot land inside another task's frame.
+static void edpt_lock(uint8_t rhport) {
+  handler_lock_wait();
+  (void) osal_mutex_lock(_hcd_data.spi_mutex, OSAL_TIMEOUT_WAIT_FOREVER);
+  tuh_max3421_int_api(rhport, false);
+}
+
+static void edpt_unlock(uint8_t rhport) {
+  tuh_max3421_int_api(rhport, true);
+  (void) osal_mutex_unlock(_hcd_data.spi_mutex);
+  handler_unlock(false);
 }
 
 uint8_t tuh_max3421_reg_read(uint8_t rhport, uint8_t reg, bool in_isr) {
@@ -402,8 +453,23 @@ TU_ATTR_ALWAYS_INLINE static inline max3421_ep_t * find_opened_ep(uint8_t daddr,
   }
 }
 
+TU_ATTR_ALWAYS_INLINE static inline void sndfifo_owner_clear(void) {
+  _hcd_data.sndfifo_owner.daddr = 0xff;
+  _hcd_data.sndfifo_owner.hxfr = 0xff;
+}
+
+// HXFR alone resends a non-ACKed SNDFIFO packet: once ep's transfer is gone, its packet must not pass as a NAK retry
+TU_ATTR_ALWAYS_INLINE static inline void sndfifo_owner_release(max3421_ep_t const * ep) {
+  if (ep->daddr == _hcd_data.sndfifo_owner.daddr && ep->hxfr == _hcd_data.sndfifo_owner.hxfr) {
+    sndfifo_owner_clear();
+  }
+}
+
 // free all endpoints belong to device address
 static void free_ep(uint8_t daddr) {
+  if (_hcd_data.sndfifo_owner.daddr == daddr) {
+    sndfifo_owner_clear(); // by address: a control endpoint's hxfr changes with its stage
+  }
   for (size_t i=1; i<CFG_TUH_MAX3421_ENDPOINT_TOTAL; i++) {
     max3421_ep_t* ep = &_hcd_data.ep[i];
     if (ep->daddr == daddr) {
@@ -474,7 +540,11 @@ bool hcd_init(uint8_t rhport, const tusb_rhport_init_t* rh_init) {
 
 #if OSAL_MUTEX_REQUIRED
   _hcd_data.spi_mutex = osal_mutex_create(&_hcd_data.spi_mutexdef);
+  if (_handler_mutex == NULL) {
+    _handler_mutex = osal_mutex_create(&_handler_mutexdef);
+  }
 #endif
+  _hcd_data.running = true;
 
   // full duplex, interrupt negative edge
   reg_write(rhport, PINCTL_ADDR, _tuh_cfg.pinctl | PINCTL_FDUPSPI, false);
@@ -526,6 +596,13 @@ bool hcd_deinit(uint8_t rhport) {
 
   // disable interrupt
   tuh_max3421_int_api(rhport, false);
+
+  // Masking INT does not stop a task-context handler: wait for it to leave. One entering later, or resuming after an
+  // unlocked event post, sees running false and returns without touching the chip.
+  // tuh_deinit() closes its devices after this: they must not take the deleted spi_mutex or unmask INT again.
+  handler_lock_wait();
+  _hcd_data.running = false;
+  handler_unlock(false);
 
   // reset max3421 and power down
   reg_write(rhport, USBCTL_ADDR, USBCTL_CHIPRES, false);
@@ -585,9 +662,19 @@ tusb_speed_t hcd_port_speed_get(uint8_t rhport) {
 }
 
 // HCD closes all opened endpoints belong to this device
+// usbh then releases their buffers without hcd_edpt_abort_xfer()/hcd_edpt_close(), so no transfer may survive this
 void hcd_device_close(uint8_t rhport, uint8_t dev_addr) {
-  (void) rhport;
-  (void) dev_addr;
+  if (!_hcd_data.running) {
+    return;
+  }
+  edpt_lock(rhport);
+  max3421_ep_t* ep0 = &_hcd_data.ep[0];
+  if (dev_addr == 0 && EP_STATE_ATTEMPT_1 <= ep0->state && ep0->state <= EP_STATE_ATTEMPT_MAX) {
+    // ep[0] stays allocated, and the lookup of an in-flight addr0 transfer always finds it: abort, so its HXFRDN ends it
+    ep0->state = EP_STATE_ABORTING;
+  }
+  free_ep(dev_addr);
+  edpt_unlock(rhport);
 }
 
 //--------------------------------------------------------------------+
@@ -622,18 +709,19 @@ bool hcd_edpt_open(uint8_t rhport, uint8_t daddr, tusb_desc_endpoint_t const * e
 }
 
 bool hcd_edpt_close(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
-  (void) rhport;
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   tusb_dir_t const ep_dir = tu_edpt_dir(ep_addr);
+  TU_VERIFY(_hcd_data.running);
+
+  edpt_lock(rhport);
   max3421_ep_t * ep = find_ep_not_addr0(daddr, ep_num, ep_dir);
-
-  if (!ep) {
-    return false; // not opened
+  if (ep != NULL) {
+    sndfifo_owner_release(ep);
+    tu_memclr(ep, sizeof(max3421_ep_t));
   }
+  edpt_unlock(rhport);
 
-  tu_memclr(ep, sizeof(max3421_ep_t));
-
-  return true;
+  return ep != NULL; // false if not opened
 }
 
 /* The microcontroller repeatedly writes the SNDFIFO register R2 to load the FIFO with up to 64 data bytes.
@@ -759,16 +847,21 @@ bool hcd_edpt_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr, uint8_t * buf
 bool hcd_edpt_abort_xfer(uint8_t rhport, uint8_t daddr, uint8_t ep_addr) {
   uint8_t const ep_num = tu_edpt_number(ep_addr);
   uint8_t const ep_dir = (uint8_t) tu_edpt_dir(ep_addr);
-  max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
-  TU_VERIFY(ep);
-
-  if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
-    hcd_int_disable(rhport);
-    ep->state = EP_STATE_ABORTING;
-    hcd_int_enable(rhport);
+  if (!_hcd_data.running) {
+    return true; // nothing survives hcd_deinit()
   }
 
-  return true;
+  // looked up under the lock: the handler may complete the transfer while this waits for it
+  edpt_lock(rhport);
+  max3421_ep_t* ep = find_opened_ep(daddr, ep_num, ep_dir);
+  const bool pending = (ep != NULL) && EP_STATE_ATTEMPT_1 <= ep->state && ep->state <= EP_STATE_ATTEMPT_MAX;
+  if (pending) {
+    ep->state = EP_STATE_ABORTING;
+    sndfifo_owner_release(ep); // a NAKed OUT waiting for the next frame gets no HXFRDN to release it
+  }
+  edpt_unlock(rhport);
+
+  return pending; // false once completed: its queued event releases the endpoint
 }
 
 // Submit a special transfer to send 8-byte Setup Packet, when complete hcd_event_xfer_complete() must be invoked
@@ -829,8 +922,12 @@ static void handle_connect_irq(uint8_t rhport, bool in_isr) {
 
       // port reset anyway, this will help to stable bus signal for next connection
       reg_write(rhport, HCTL_ADDR, HCTL_BUSRST, in_isr);
+      handler_unlock(in_isr); // see xfer_complete_isr()
       hcd_event_device_remove(rhport, in_isr);
-      reg_write(rhport, HCTL_ADDR, 0, in_isr);
+      handler_lock(in_isr);
+      if (_hcd_data.running) {
+        reg_write(rhport, HCTL_ADDR, 0, in_isr);
+      }
       break;
 
     default: {
@@ -854,28 +951,17 @@ static void handle_connect_irq(uint8_t rhport, bool in_isr) {
       uint8_t const daddr = 1;
       free_ep(daddr);
 
+      handler_unlock(in_isr); // see xfer_complete_isr()
       hcd_event_device_attach(rhport, in_isr);
+      handler_lock(in_isr);
       break;
     }
   }
 }
 
-static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t hrsl, bool in_isr) {
-  const uint8_t ep_dir = 1 - ep->hxfr_bm.is_out;
-  const uint8_t ep_addr = tu_edpt_addr(ep->hxfr_bm.ep_num, ep_dir);
-
-  // save data toggle
-  if (ep_dir) {
-    ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1u : 0u;
-  }else {
-    ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1u : 0u;
-  }
-
-  ep->state = EP_STATE_IDLE;
-  hcd_event_xfer_complete(ep->daddr, ep_addr, ep->xferred_len, result, in_isr);
-
-  // Find next pending endpoint
-  max3421_ep_t * next_ep = find_next_pending_ep(ep);
+// Start the next pending endpoint after cur_ep, or release the bus if there is none
+static void xact_next_pending(uint8_t rhport, max3421_ep_t *cur_ep, bool in_isr) {
+  max3421_ep_t * next_ep = find_next_pending_ep(cur_ep);
   if (next_ep) {
     xact_generic(rhport, next_ep, true, in_isr);
   }else {
@@ -883,6 +969,34 @@ static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t re
     usbh_spin_lock(in_isr);
     _hcd_data.busy_lock = false;
     usbh_spin_unlock(in_isr);
+  }
+}
+
+static void save_data_toggle(max3421_ep_t *ep, uint8_t hrsl) {
+  if (ep->hxfr_bm.is_out) {
+    ep->data_toggle = (hrsl & HRSL_SNDTOGRD) ? 1u : 0u;
+  }else {
+    ep->data_toggle = (hrsl & HRSL_RCVTOGRD) ? 1u : 0u;
+  }
+}
+
+static void xfer_complete_isr(uint8_t rhport, max3421_ep_t *ep, xfer_result_t result, uint8_t hrsl, bool in_isr) {
+  const uint8_t ep_dir = 1 - ep->hxfr_bm.is_out;
+  const uint8_t ep_addr = tu_edpt_addr(ep->hxfr_bm.ep_num, ep_dir);
+
+  save_data_toggle(ep, hrsl);
+
+  ep->state = EP_STATE_IDLE;
+  const uint8_t daddr = ep->daddr;
+  const uint16_t xferred_len = ep->xferred_len;
+
+  // posted unlocked: the usbh task that drains a full event queue may be waiting in hcd_device_close() for the lock
+  handler_unlock(in_isr);
+  hcd_event_xfer_complete(daddr, ep_addr, xferred_len, result, in_isr);
+  handler_lock(in_isr);
+
+  if (_hcd_data.running) {
+    xact_next_pending(rhport, ep, in_isr); // ep may be freed by now, only its slot is used
   }
 }
 
@@ -894,38 +1008,56 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
   const uint8_t ep_dir = ((hxfr_type & HXFR_SETUP) || (hxfr_type & HXFR_OUT_NIN)) ? 0 : 1;
 
   max3421_ep_t *ep = find_opened_ep(_hcd_data.peraddr, ep_num, ep_dir);
-  TU_VERIFY(ep, );
+  if (ep == NULL) {
+    // closed while its transaction was in flight, whose HXFRDN still arrives: drop the result, keep scheduling
+    xact_next_pending(rhport, &_hcd_data.ep[0], in_isr);
+    return;
+  }
+
+  if (ep->state == EP_STATE_ABORTING) {
+    // aborted while its transaction was in flight: its buffer may be released, drop the result, keep the toggle in sync
+    save_data_toggle(ep, hrsl);
+    ep->state = EP_STATE_IDLE;
+    sndfifo_owner_release(ep);
+    xact_next_pending(rhport, ep, in_isr);
+    return;
+  }
 
   xfer_result_t xfer_result;
   switch(hresult) {
-    case HRSL_NAK:
-      if (ep->state == EP_STATE_ABORTING) {
-        ep->state = EP_STATE_IDLE;
-      } else {
-        if (ep_num == 0) {
-          // control endpoint -> retry immediately and return
-          hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-          return;
-        }
-        if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
-          ep->state++;
-        }
+    case HRSL_NAK: {
+      // a task-context handler would loop here on immediate retries, holding the lock a waiting task needs
+      const bool defer_retry = !in_isr && _hcd_data.handler_waiters > 0;
+      if (defer_retry) {
+        save_data_toggle(ep, hrsl); // a restart restores it, and may come after other packets of this transfer
+      } else if (ep_num == 0) {
+        // control endpoint -> retry immediately and return
+        hxfr_write(rhport, _hcd_data.hxfr, in_isr);
+        return;
+      }
+      if (EP_STATE_ATTEMPT_1 <= ep->state && ep->state < EP_STATE_ATTEMPT_MAX) {
+        ep->state++; // > EP_STATE_ATTEMPT_1: the next frame restarts it
       }
 
-      max3421_ep_t * next_ep = find_next_pending_ep(ep);
+      // deferred: switching endpoints would keep it looping too, while two endpoints NAK without limit (max_nak = 0)
+      max3421_ep_t * next_ep = defer_retry ? NULL : find_next_pending_ep(ep);
       if (ep == next_ep) {
         // this endpoint is only one pending -> retry immediately
         hxfr_write(rhport, _hcd_data.hxfr, in_isr);
-      } else if (next_ep) {
+      } else if (next_ep != NULL) {
         // switch to next pending endpoint
         xact_generic(rhport, next_ep, true, in_isr);
       } else {
-        // no more pending in this frame -> clear busy
+        // no more pending in this frame, or deferred -> clear busy
+        if (defer_retry) {
+          _hcd_data.deferred_ep = ep;
+        }
         usbh_spin_lock(in_isr);
         _hcd_data.busy_lock = false;
         usbh_spin_unlock(in_isr);
       }
       return;
+    }
 
     case HRSL_BAD_REQ:
       // occurred when initialized without any pending transfer. Skip for now
@@ -946,6 +1078,9 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
   }
 
   if (xfer_result != XFER_RESULT_SUCCESS) {
+    if (!ep_dir && !(hxfr_type & (HXFR_SETUP | HXFR_HS))) {
+      sndfifo_owner_clear(); // the failed packet stays committed in SNDFIFO: it must not pass as a NAK retry
+    }
     xfer_complete_isr(rhport, ep, xfer_result, hrsl, in_isr);
     return;
   }
@@ -966,10 +1101,7 @@ static void handle_xfer_done(uint8_t rhport, bool in_isr) {
     }
   } else {
     // SETUP or OUT transfer
-
-    // clear sndfifo owner since data is sent
-    _hcd_data.sndfifo_owner.daddr = 0xff;
-    _hcd_data.sndfifo_owner.hxfr = 0xff;
+    sndfifo_owner_clear(); // data is sent
 
     uint8_t xact_len;
 
@@ -1011,8 +1143,7 @@ void print_hirq(uint8_t hirq) {
   #define print_hirq(hirq)
 #endif
 
-// Interrupt handler
-void hcd_int_handler(uint8_t rhport, bool in_isr) {
+static void handle_int(uint8_t rhport, bool in_isr) {
   uint8_t hirq = reg_read(rhport, HIRQ_ADDR, in_isr) & _hcd_data.hien;
   if (!hirq) { return; }
   //  print_hirq(hirq);
@@ -1031,6 +1162,12 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
           ep_retry = ep;
         }
       }
+    }
+
+    if (_hcd_data.deferred_ep != NULL) {
+      // round-robin, so a waiter held over frames starves no endpoint; also finds ones left at EP_STATE_ATTEMPT_1
+      ep_retry = find_next_pending_ep(_hcd_data.deferred_ep);
+      _hcd_data.deferred_ep = NULL;
     }
 
     // start usb transfer if not busy
@@ -1052,6 +1189,9 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
 
   if (hirq & HIRQ_CONDET_IRQ) {
     handle_connect_irq(rhport, in_isr);
+    if (!_hcd_data.running) {
+      return; // hcd_deinit() ran while it posted an event unlocked
+    }
   }
 
   // queue more transfer in handle_xfer_done() can cause hirq to be set again while external IRQ may not catch and/or
@@ -1060,12 +1200,16 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     if (hirq & HIRQ_RCVDAV_IRQ) {
       const uint8_t ep_num = _hcd_data.hxfr_bm.ep_num;
       max3421_ep_t* ep = find_opened_ep(_hcd_data.peraddr, ep_num, 1);
+      if (ep != NULL && ep->state == EP_STATE_ABORTING) {
+        ep = NULL; // its buffer may be released: handle_xfer_done() drops the result
+      }
       uint8_t xact_len = 0;
 
       // RCVDAV_IRQ can trigger 2 times (dual buffered)
       while (hirq & HIRQ_RCVDAV_IRQ) {
         const uint8_t rcvbc = reg_read(rhport, RCVBC_ADDR, in_isr);
-        xact_len = (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len);
+        // ep is NULL if closed or aborted while its IN was in flight: release the FIFO unread
+        xact_len = (ep != NULL) ? (uint8_t) tu_min16(rcvbc, ep->total_len - ep->xferred_len) : 0;
         if (xact_len) {
           hwfifo_receive(rhport, ep->buf, xact_len, in_isr);
           ep->buf += xact_len;
@@ -1077,7 +1221,7 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
         hirq = reg_read(rhport, HIRQ_ADDR, in_isr);
       }
 
-      if (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len) {
+      if (ep != NULL && (xact_len < ep->packet_size || ep->xferred_len >= ep->total_len)) {
         ep->state = EP_STATE_COMPLETE;
       }
     }
@@ -1085,6 +1229,9 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
     if (hirq & HIRQ_HXFRDN_IRQ) {
       hirq_write(rhport, HIRQ_HXFRDN_IRQ, in_isr);
       handle_xfer_done(rhport, in_isr);
+      if (!_hcd_data.running) {
+        return; // hcd_deinit() ran while it posted an event unlocked
+      }
     }
 
     hirq = reg_read(rhport, HIRQ_ADDR, in_isr);
@@ -1095,6 +1242,15 @@ void hcd_int_handler(uint8_t rhport, bool in_isr) {
   if (hirq) {
     hirq_write(rhport, hirq, in_isr);
   }
+}
+
+// Interrupt handler
+void hcd_int_handler(uint8_t rhport, bool in_isr) {
+  handler_lock(in_isr);
+  if (_hcd_data.running) { // a task-context handler may have waited out hcd_deinit()
+    handle_int(rhport, in_isr);
+  }
+  handler_unlock(in_isr);
 }
 
 #endif

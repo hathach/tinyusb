@@ -284,9 +284,19 @@ bool usbh_edpt_busy(uint8_t dev_addr, uint8_t ep_addr) {
   return (edpt_busy_mask & edpt_mask(ep_addr)) != 0;
 }
 
+static bool device_connected; // false once usbh starts removing the device, ahead of its class close
+
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  return device_connected;
+}
+
+static uint8_t set_config_complete_count;
+
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   (void)dev_addr;
   (void)itf_num;
+  set_config_complete_count++;
 }
 
 bool tu_edpt_stream_init(tu_edpt_stream_t *s, bool is_host, bool is_tx, bool overwritable, void *ff_buf,
@@ -987,6 +997,8 @@ static void complete_feedback_xfer(uint32_t feedback_q16, uint8_t length) {
 }
 
 void setUp(void) {
+  device_connected = true;
+  set_config_complete_count = 0;
   test_speed = TUSB_SPEED_FULL;
 
   interface_set_result = true;
@@ -2540,4 +2552,19 @@ void test_audio_host_sends_silence_when_playback_fifo_has_too_few_frames(void) {
   TEST_ASSERT_EQUAL_UINT8(3, edpt_xfer_count);
   TEST_ASSERT_EQUAL_UINT16(176, edpt_xfer_bytes[2]);
   TEST_ASSERT_EQUAL_UINT8_ARRAY(sample, edpt_xfer_data[2], sizeof(sample));
+}
+
+// usbh fails the in-flight discovery request on unplug before closing the driver: discovery stops without a mount
+void test_audio_host_unplug_during_feature_unit_discovery_does_not_mount(void) {
+  open_descriptors(playback_fu_before_terminal, sizeof(playback_fu_before_terminal));
+  TEST_ASSERT_TRUE(audioh_set_config(AUDIO_DEV_ADDR, AUDIO_AC_ITF));
+  complete_control_xfer_with_u16((uint16_t)(-40 * 256));
+
+  device_connected = false;
+  complete_control_xfer(XFER_RESULT_FAILED);
+
+  TEST_ASSERT_EQUAL_UINT8(2, control_xfer_count);
+  TEST_ASSERT_FALSE(tuh_audio_mounted(0));
+  TEST_ASSERT_EQUAL_UINT8(0, set_config_complete_count);
+  audioh_close(AUDIO_DEV_ADDR);
 }

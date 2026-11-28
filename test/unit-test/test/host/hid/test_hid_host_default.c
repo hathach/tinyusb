@@ -74,6 +74,11 @@ uint8_t *usbh_get_enum_buf(void) {
   return NULL;
 }
 
+bool tuh_connected(uint8_t daddr) {
+  (void) daddr;
+  return true;
+}
+
 void usbh_driver_set_config_complete(uint8_t dev_addr, uint8_t itf_num) {
   (void)dev_addr;
   (void)itf_num;

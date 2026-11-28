@@ -237,6 +237,8 @@ bool tuh_mounted(uint8_t daddr);
 
 // Check if device is connected which mean device has at least 1 successful transfer
 // Note: It may not be addressed/configured/mounted yet
+// False once the device is being removed: its control transfers then complete as failed, before tuh_umount_cb() and
+// its class drivers close, so a completion callback checks this before carrying on (e.g. with its enumeration).
 bool tuh_connected(uint8_t daddr);
 
 // Check if device is suspended

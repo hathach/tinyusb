@@ -837,6 +837,7 @@ bool cdch_set_config(uint8_t daddr, uint8_t itf_num) {
 }
 
 static void cdch_process_set_config(tuh_xfer_t *xfer) {
+  TU_VERIFY(tuh_connected(xfer->daddr),);
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
   TU_LOG_DRV("  state = %u\r\n", xfer->user_data);
@@ -897,6 +898,7 @@ static bool set_line_state_on_enum(cdch_interface_t *p_cdc, tuh_xfer_t *xfer) {
 }
 
 static void cdch_process_line_state_on_enum(tuh_xfer_t *xfer) {
+  TU_VERIFY(tuh_connected(xfer->daddr),);
   cdch_interface_t *p_cdc = get_itf_by_xfer(xfer);
   TU_ASSERT(p_cdc && p_cdc->serial_drid < SERIAL_DRIVER_COUNT,);
   if (xfer->result != XFER_RESULT_SUCCESS || !set_line_state_on_enum(p_cdc, xfer)) {

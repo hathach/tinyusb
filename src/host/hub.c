@@ -314,6 +314,7 @@ bool hub_set_config(uint8_t daddr, uint8_t itf_num) {
 
 static void config_get_hub_descriptor(tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
+  TU_VERIFY(tuh_connected(daddr),);
   if (xfer->result != XFER_RESULT_SUCCESS) {
     // A STALL keeps alternate setting 0, single-TT (USB 2.0 9.4.10, 11.23.1); after a transport error the setting is
     // unknown. Either way schedule it as single-TT: one TT budget for every port is safe for both organizations.
@@ -353,6 +354,7 @@ static void config_power_next_port(uint8_t daddr, uint8_t prev_port) {
 
 static void config_set_port_power (tuh_xfer_t* xfer) {
   uint8_t const daddr = xfer->daddr;
+  TU_VERIFY(tuh_connected(daddr),);
   if (XFER_RESULT_SUCCESS != xfer->result) {
     TU_LOG_DRV("HUB Get Hub Descriptor failed, addr = %u: no port is served\r\n", daddr);
     config_complete(daddr, false);
@@ -374,6 +376,7 @@ static void config_set_port_power (tuh_xfer_t* xfer) {
 }
 
 static void config_port_power_complete (tuh_xfer_t* xfer) {
+  TU_VERIFY(tuh_connected(xfer->daddr),);
   // A port whose power request failed may still be powered (ganged or no power switching); if not, it just never
   // reports a connection. Carry on with the other ports.
   const uint8_t hub_port = (uint8_t) tu_le16toh(xfer->setup->wIndex);
@@ -456,8 +459,8 @@ bool hub_xfer_cb(uint8_t daddr, uint8_t ep_addr, xfer_result_t result, uint32_t 
 static void process_new_status(tuh_xfer_t* xfer) {
   const uint8_t daddr = xfer->daddr;
 
-  // usbh fails a removed hub's requests after hub_close(): nothing to re-arm
-  TU_VERIFY(get_hub_itf(daddr)->ep_in != 0,);
+  // usbh fails a removed hub's requests before hub_close(): nothing to re-arm
+  TU_VERIFY(tuh_connected(daddr),);
 
   // a reply shorter than requested (GET_STATUS: 4 bytes, CLEAR_FEATURE: none) fails, so a short status is
   // never decoded from the previous buffer contents

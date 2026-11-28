@@ -208,13 +208,8 @@ static bool retry_complete(uint8_t daddr, const tuh_msc_complete_data_t *cb_data
   return true;
 }
 
-static void (*umount_hook)(void);
-
 void tuh_msc_umount_cb(uint8_t dev_addr) {
   (void) dev_addr;
-  if (umount_hook != NULL) {
-    umount_hook();
-  }
 }
 
 static void open_bot_interface(void) {
@@ -292,7 +287,6 @@ void setUp(void) {
   busy_ep         = 0;
   claimed_ep      = 0;
   claim_preempt   = NULL;
-  umount_hook     = NULL;
   device_connected = true;
   now_ms          = 0;
   bulk_mps        = BULK_MPS;
@@ -1027,35 +1021,17 @@ void test_msc_host_enum_get_max_lun_submit_fail(void) {
   assert_enum_ended_unmounted(0);
 }
 
-// usbh closes the driver before failing the in-flight Get Max LUN, and has already ended the enumeration
+// usbh fails the in-flight Get Max LUN before closing the driver, and has already ended the enumeration
 void test_msc_host_enum_unplug_during_get_max_lun(void) {
-  msch_close(DADDR);
+  device_connected = false;
   tuh_xfer_t ctrl = ctrl_xfer;
   ctrl.result = XFER_RESULT_FAILED;
   ctrl.complete_cb(&ctrl);
+  msch_close(DADDR);
 
   TEST_ASSERT_EQUAL(0, xfer_count);
   TEST_ASSERT_EQUAL(0, set_config_count);
   TEST_ASSERT_FALSE(tuh_msc_mounted(DADDR));
-}
-
-// usbh fails a Get Max LUN still queued when its device left, even once the address is re-enumerated:
-// it belongs to the earlier open and must not touch the reopened interface or end its configuration
-void test_msc_host_enum_stale_get_max_lun_after_reopen(void) {
-  tuh_xfer_t stale = ctrl_xfer;
-  msch_close(DADDR);
-  set_config_count = 0;
-  mount_bot_interface();
-
-  stale.result = XFER_RESULT_FAILED;
-  stale.complete_cb(&stale);
-
-  TEST_ASSERT_EQUAL(0, xfer_count);
-  TEST_ASSERT_EQUAL(0, set_config_count);
-  TEST_ASSERT_EQUAL(0, tuh_msc_get_maxlun(DADDR));
-
-  // the reopened interface's own Get Max LUN still enumerates it
-  enumerate();
 }
 
 //--------------------------------------------------------------------+
@@ -1371,69 +1347,24 @@ void test_msc_host_reset_after_cbw_submit_fail(void) {
   TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
 }
 
-// unplugged mid-recovery: usbh fails the request after closing the driver; no callback, the umount callback reports it
+// unplugged mid-recovery: usbh fails the request before closing the driver; no callback, the umount callback reports it
 void test_msc_host_reset_unplug_discards(void) {
   enumerate_and_fence();
   TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
   complete_ctrl(XFER_RESULT_SUCCESS);
 
-  unplug();
+  device_connected = false;
   complete_ctrl(XFER_RESULT_FAILED);
+  unplug();
 
   TEST_ASSERT_EQUAL(0, reset_cb_count);
   TEST_ASSERT_EQUAL(2, ctrl_count);
   TEST_ASSERT_EQUAL(0, clear_stall_count);
 }
 
-// a request of the earlier open completing after the address was re-enumerated must not advance the new
-// interface's own recovery
-void test_msc_host_reset_stale_completion_after_reopen(void) {
-  enumerate_and_fence();
-  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
-  tuh_xfer_t stale = ctrl_xfer;
-
-  unplug();
-  set_config_count = 0;
-  mount_bot_interface();
-  enumerate();
-  reset_counters();
-  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, record_reset, RESET_ARG));
-
-  stale.result = XFER_RESULT_SUCCESS;
-  stale.complete_cb(&stale);
-  TEST_ASSERT_EQUAL(0, reset_cb_count);
-  TEST_ASSERT_EQUAL(1, ctrl_count);
-
-  complete_recovery();
-  TEST_ASSERT_EQUAL(1, reset_cb_count);
-  TEST_ASSERT_TRUE(reset_success);
-  assert_unfenced();
-}
-
-static void deliver_ctrl_success(void) {
-  complete_ctrl(XFER_RESULT_SUCCESS);
-}
-
-// an application driving tuh_task() from its umount callback delivers the recovery's queued last request: it must
-// neither call back nor let the callback start a command on the closing interface
-void test_msc_host_reset_completion_from_umount_callback_discarded(void) {
-  enumerate_and_fence();
-  TEST_ASSERT_TRUE(tuh_msc_reset(DADDR, reset_then_command, RESET_ARG));
-  complete_ctrl(XFER_RESULT_SUCCESS); // Bulk-Only Mass Storage Reset
-  complete_ctrl(XFER_RESULT_SUCCESS); // Clear HALT Bulk-In
-
-  umount_hook = deliver_ctrl_success;
-  unplug();
-
-  TEST_ASSERT_EQUAL(0, reset_cb_count);
-  TEST_ASSERT_FALSE(retry_submitted);
-  TEST_ASSERT_EQUAL(0, xfer_count);
-  TEST_ASSERT_EQUAL(1, clear_stall_count);
-}
-
-// usbh runs tuh_umount_cb() before msch_close(), with the device already removing: an application driving tuh_task()
-// from it delivers the recovery's last request, which must neither call back nor let the callback start a command
-void test_msc_host_reset_completion_from_device_umount_callback_discarded(void) {
+// a completion of the recovery's last request while the device is already removing (usbh fails it before
+// tuh_umount_cb() and msch_close()) must neither call back nor let the callback start a command
+void test_msc_host_reset_completion_while_removing_discarded(void) {
   const xfer_result_t results[] = {XFER_RESULT_SUCCESS, XFER_RESULT_TIMEOUT};
   for (size_t i = 0; i < TU_ARRAY_SIZE(results); i++) {
     device_connected = true;
@@ -1443,7 +1374,7 @@ void test_msc_host_reset_completion_from_device_umount_callback_discarded(void) 
     complete_ctrl(XFER_RESULT_SUCCESS); // Clear HALT Bulk-In
 
     device_connected = false;
-    complete_ctrl(results[i]); // Clear HALT Bulk-Out, from inside tuh_umount_cb()
+    complete_ctrl(results[i]); // Clear HALT Bulk-Out, while removing
 
     TEST_ASSERT_EQUAL(0, reset_cb_count);
     TEST_ASSERT_FALSE(retry_submitted);

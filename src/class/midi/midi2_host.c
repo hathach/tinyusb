@@ -732,6 +732,7 @@ static uint8_t midih2_find_idx_by_itf(uint8_t daddr, uint8_t itf_num) {
 }
 
 static void midih2_set_interface_cb(tuh_xfer_t *xfer) {
+  TU_VERIFY(tuh_connected(xfer->daddr),);
   uint8_t const idx = midih2_find_idx_by_itf(xfer->daddr, (uint8_t) tu_le16toh(xfer->setup->wIndex));
   TU_VERIFY(idx < CFG_TUH_MIDI2, );
   midih2_interface_t *p_midi = &_midi2_host[idx];
